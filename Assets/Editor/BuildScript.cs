@@ -19,9 +19,20 @@ namespace CargoSort.EditorTools
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64 | AndroidArchitecture.ARMv7;
             EditorUserBuildSettings.buildAppBundle = false;
 
-            string path = Arg("-customBuildPath") ?? "Builds/Android/CargoSort.apk";
+            // -store googleplay|bazaar|myket picks the store from the command line (CI); otherwise the menu choice is used.
+            switch (Arg("-store"))
+            {
+                case "bazaar": StoreTarget.Set(StoreTarget.Bazaar); break;
+                case "myket": StoreTarget.Set(StoreTarget.Myket); break;
+                case "googleplay": StoreTarget.Set(null); break;
+            }
+
+            string file = $"CargoSort-{StoreTarget.Current}.apk";
+            string path = Arg("-customBuildPath") ?? "Builds/Android/" + file;
             if (Directory.Exists(path) || !path.EndsWith(".apk", StringComparison.OrdinalIgnoreCase))
-                path = Path.Combine(path, "CargoSort.apk");
+                path = Path.Combine(path, file);
+            else
+                path = Path.Combine(Path.GetDirectoryName(path) ?? ".", file);
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path)));
 
             var options = new BuildPlayerOptions

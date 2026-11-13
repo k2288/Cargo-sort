@@ -6,8 +6,9 @@ using UnityEditor.Build;
 namespace CargoSort.EditorTools
 {
     /// <summary>
-    /// Turns on CARGO_LEVELPLAY / CARGO_IAP when the LevelPlay (9+) and Unity IAP (5+) packages are installed,
-    /// and off when they are removed, so the project always compiles.
+    /// Turns SDK defines on when the SDK is in the project and off when it is removed, so the project
+    /// always compiles: CARGO_LEVELPLAY (LevelPlay 9+), CARGO_IAP (Unity IAP 5+), CARGO_TAPSELL (Tapsell Plus 2+),
+    /// CARGO_POOLAKEY (Cafe Bazaar Poolakey). Tapsell and Poolakey are imported as .unitypackage into Assets.
     /// </summary>
     [InitializeOnLoad]
     public static class MonetizationDefines
@@ -16,6 +17,8 @@ namespace CargoSort.EditorTools
         {
             ("CARGO_LEVELPLAY", "Unity.Services.LevelPlay.LevelPlayRewardedAd"),
             ("CARGO_IAP", "UnityEngine.Purchasing.UnityIAPServices"),
+            ("CARGO_TAPSELL", "TapsellPlusSDK.TapsellPlus"),
+            ("CARGO_POOLAKEY", "Bazaar.Poolakey.Payment"),
         };
 
         private static readonly NamedBuildTarget[] Targets =
@@ -23,10 +26,13 @@ namespace CargoSort.EditorTools
             NamedBuildTarget.Android, NamedBuildTarget.iOS, NamedBuildTarget.Standalone,
         };
 
+        private static bool IsCandidate(string assembly) =>
+            assembly.Contains("LevelPlay") || assembly.Contains("Purchasing") || assembly == "Assembly-CSharp";
+
         static MonetizationDefines()
         {
             var types = AppDomain.CurrentDomain.GetAssemblies()
-                .Where(a => !a.IsDynamic && (a.GetName().Name.Contains("LevelPlay") || a.GetName().Name.Contains("Purchasing")))
+                .Where(a => !a.IsDynamic && IsCandidate(a.GetName().Name))
                 .SelectMany(a => { try { return a.GetTypes(); } catch { return Array.Empty<Type>(); } })
                 .Select(t => t.FullName)
                 .ToHashSet();

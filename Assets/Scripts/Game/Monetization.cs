@@ -64,6 +64,9 @@ namespace CargoSort.Game
         /// <summary>Adds a real ads component to the game object, or null to use <see cref="DebugAds"/>.</summary>
         public static Func<GameObject, IAdsService> CreateAds;
         public static IStoreBackend StoreBackend;
+
+        /// <summary>False hides the No Ads button (a store build with no payment SDK yet).</summary>
+        public static bool PurchasesEnabled = true;
     }
 
     /// <summary>Remove-ads purchase. Uses Unity IAP when installed, otherwise a local test unlock.</summary>

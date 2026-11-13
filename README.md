@@ -38,23 +38,45 @@ Tune it in `LevelGenerator.ForLevel`.
 - **Interstitial ads:** between levels, from level 4, every 3 levels.
 - **Remove ads purchase:** stops interstitials. Rewarded ads stay because players choose them.
 
-In the editor, ads are 1 second test ads. The real SDK code is in `Assets/Scripts/Monetization` and
-switches on by itself once the packages are installed (`Assets/Editor/MonetizationDefines.cs` sets
-`CARGO_LEVELPLAY` / `CARGO_IAP`). Until then the game compiles and uses the test versions.
+In the editor, ads are always 1 second test ads. The real SDK code is in `Assets/Scripts/Monetization`
+and switches on by itself once an SDK is in the project (`Assets/Editor/MonetizationDefines.cs`).
+Until then the game compiles and uses the test versions. All keys go in
+`Assets/Scripts/Monetization/AdsConfig.cs` (none of them are secret).
 
-### Turn on real ads (Unity LevelPlay 9+)
+### Pick the store
 
-1. Create a free account at [LevelPlay](https://platform.ironsrc.com), add an Android app, and create
-   one **Rewarded** and one **Interstitial** ad unit.
-2. In Unity: **Window > Package Manager > Unity Registry**, install **Ads Mediation (LevelPlay)** (version 9 or newer).
-   Then run its Network Manager and add the networks you want (Unity Ads is enough to start).
-3. Put the app key and the two ad unit IDs in `Assets/Scripts/Monetization/AdsConfig.cs`.
-4. Host an `app-ads.txt` file on your developer website as LevelPlay explains, or ad fill will be low.
+Menu **Cargo Sort > Store > Cafe Bazaar / Myket / Google Play**, then **Cargo Sort > Build Android APK**.
+The APK is named after the store, for example `Builds/Android/CargoSort-bazaar.apk`.
 
-### Turn on the No Ads purchase (Unity IAP 5+)
+| Store | Ads | No Ads purchase |
+| --- | --- | --- |
+| Cafe Bazaar | Tapsell Plus | Bazaar payments (Poolakey) |
+| Myket | Tapsell Plus | Not wired yet, so the button is hidden |
+| Google Play | Unity LevelPlay | Unity IAP |
 
-1. In Package Manager install **In-App Purchasing** (version 5 or newer).
-2. In Google Play Console create an in-app product with id `remove_ads` (one-time purchase).
-3. That's it: the purchase and restore-on-start are already coded in `UnityIapStore.cs`.
+### Cafe Bazaar and Myket
+
+1. Sign up at [Tapsell](https://dashboard.tapsell.ir), add the app, and create one **Rewarded video** and one
+   **Interstitial** zone. Put the app key and zone IDs in `AdsConfig.cs`.
+2. Import the Tapsell Plus `.unitypackage` from
+   [TapsellPlusSDK-UnityPlugin](https://github.com/tapsellorg/TapsellPlusSDK-UnityPlugin) (the `release` folder).
+3. Sign up at the [Cafe Bazaar developer panel](https://pishkhan.cafebazaar.ir), add the app, create an in-app
+   product with id `remove_ads`, and copy the app's RSA public key into `AdsConfig.cs`.
+4. Import the Poolakey `.unitypackage` from [PoolakeyUnitySdk](https://github.com/cafebazaar/PoolakeyUnitySdk).
+5. Bazaar and Myket don't accept apps that contain Google Play billing. If you installed Unity's
+   **In-App Purchasing** package for the Google Play build, remove it before building for Bazaar or Myket.
+
+### Google Play (only if you live or bank outside Iran)
+
+1. Create a free account at [LevelPlay](https://platform.ironsrc.com), add an Android app, and create one
+   **Rewarded** and one **Interstitial** ad unit. Put the app key and IDs in `AdsConfig.cs`.
+2. In Package Manager install **Ads Mediation (LevelPlay)** 9+ and **In-App Purchasing** 5+.
+3. In Google Play Console create a one-time in-app product with id `remove_ads`.
+
+### Building on GitHub
+
+The **Build Android APK** workflow builds all three store APKs. Run it from the Actions tab or push a tag
+like `v1.0`. It needs the repo secrets `UNITY_EMAIL`, `UNITY_PASSWORD` and `UNITY_LICENSE` (the text of your
+`Unity_lic.ulf`). SDKs you imported as `.unitypackage` must be committed for CI to include them.
 
 Then add analytics (level start, win, lose, ad watched) so we can tune difficulty from real data.

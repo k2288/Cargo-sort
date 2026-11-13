@@ -55,7 +55,7 @@ namespace CargoSort.Game
             hud.Revive += OnRevive;
             hud.Next += OnNext;
             hud.RemoveAds += OnRemoveAds;
-            hud.SetRemoveAdsVisible(!Progress.AdsRemoved);
+            hud.SetRemoveAdsVisible(!Progress.AdsRemoved && MonetizationServices.PurchasesEnabled);
 
             StartLevel(Progress.Level);
         }
