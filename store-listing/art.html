@@ -1,0 +1,39 @@
+<!doctype html><html><head><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@800&display=swap">
+<style>body{margin:0;background:#000}canvas{display:block}</style></head><body>
+<canvas id="c"></canvas>
+<script>
+const COLORS=["#f04e4e","#3e8ef7","#4cc95b","#ffcc33","#a85cf0","#ff8a2b","#2fd6d6","#ff6fb5"];
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+function shade(hex,k){const n=parseInt(hex.slice(1),16);const f=v=>Math.round(v*(1-k));return `rgb(${f(n>>16)},${f((n>>8)&255)},${f(n&255)})`}
+function rr(x,y,w,h,r,fill){ctx.beginPath();ctx.roundRect(x-w/2,y-h/2,w,h,Math.min(r,w/2,h/2));ctx.fillStyle=fill;ctx.fill()}
+function crate(x,y,s,color){const col=COLORS[color];rr(x,y,s,s,s*.18,shade(col,.45));rr(x,y,s*.86,s*.86,s*.14,col);rr(x,y,s*.86,s*.16,2,shade(col,.2))}
+function dot(x,y,d,f){ctx.beginPath();ctx.arc(x,y,d/2,0,7);ctx.fillStyle=f;ctx.fill()}
+// truck centered at x,y; u = unit px (crate slot spacing)
+function truck(x,y,u,color,loaded){const cap=3,col=COLORS[color];const bedW=cap*u+.2*u,bedL=x-bedW/2-.45*u,cabX=bedL+bedW+.5*u;
+ rr(bedL+bedW/2,y,bedW,1.15*u,.18*u,"#4a5566");rr(bedL+bedW/2,y+.53*u,bedW,.2*u,.05*u,col);
+ for(let i=0;i<cap;i++)rr(bedL+.1*u+u/2+i*u,y-.07*u,.86*u,.86*u,.14*u,"#38404d");
+ rr(cabX,y+.1*u,.9*u,1*u,.2*u,col);rr(cabX+.12*u,y-.1*u,.5*u,.5*u,.1*u,"#cfeaff");
+ for(const wx of[bedL+.55*u,bedL+bedW-.4*u,cabX+.05*u])dot(wx,y+.67*u,.5*u,"#15181e");
+ loaded.forEach((cl,i)=>crate(bedL+.1*u+u/2+i*u,y-.07*u,.82*u,cl));}
+function bg(w,h){const g=ctx.createLinearGradient(0,0,0,h);g.addColorStop(0,"#2c4670");g.addColorStop(1,"#182638");ctx.fillStyle=g;ctx.fillRect(0,0,w,h)}
+const mode=location.hash.slice(1);
+Promise.all([document.fonts.load("80px 'Lilita One'"),document.fonts.load("800 40px Nunito")]).then(()=>{
+if(mode==="icon"){c.width=c.height=512;bg(512,512);
+ // stack on left
+ rr(256,420,512,90,0,"#223654");
+ const u=100;truck(250,345,u,0,[0,0]);
+ // flying crate with arc trail
+ ctx.strokeStyle="rgba(255,255,255,.35)";ctx.lineWidth=10;ctx.setLineDash([2,22]);ctx.lineCap="round";ctx.beginPath();ctx.moveTo(165,90);ctx.quadraticCurveTo(300,20,360,165);ctx.stroke();ctx.setLineDash([]);
+ crate(370,190,90,0);
+ crate(120,165,88,1);crate(120,77,88,3);
+}else if(mode==="feature"){c.width=1024;c.height=500;bg(1024,500);
+ rr(512,470,1024,60,0,"#223654");
+ ctx.fillStyle="#fff";ctx.font="104px 'Lilita One'";ctx.fillText("Cargo Sort",56,130);
+ ctx.fillStyle="#ffcc33";ctx.font="800 38px Nunito";ctx.fillText("Tap. Sort. Ship it!",62,186);
+ const u=92;truck(800,380,u,1,[1,1]);truck(820,200,u*.8,3,[3]);
+ const stacks=[[0,3,1],[2,0],[3,2,0]];stacks.forEach((s,i)=>s.forEach((cl,r)=>crate(100+i*86,430-r*76,70,cl)));
+ crate(470,300,74,1);
+ ctx.strokeStyle="rgba(255,255,255,.35)";ctx.lineWidth=8;ctx.setLineDash([2,18]);ctx.lineCap="round";ctx.beginPath();ctx.moveTo(110,250);ctx.quadraticCurveTo(330,190,440,280);ctx.stroke();
+}
+document.title="ready";});
+</script></body></html>
