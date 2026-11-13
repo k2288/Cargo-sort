@@ -42,7 +42,8 @@ namespace CargoSort.Game
             board = new GameObject("BoardView").AddComponent<BoardView>();
             board.transform.SetParent(transform, false);
 
-            ads = gameObject.AddComponent<DebugAds>();
+            ads = MonetizationServices.CreateAds?.Invoke(gameObject) ?? gameObject.AddComponent<DebugAds>();
+            Store.AdsRemoved += OnAdsRemoved;
 
             hud = gameObject.AddComponent<Hud>();
             hud.Build();
@@ -251,12 +252,16 @@ namespace CargoSort.Game
 
         private void OnRemoveAds()
         {
+            if (waitingForAd) return;
             Store.BuyRemoveAds(ok =>
             {
-                if (!ok) return;
-                hud.SetRemoveAdsVisible(false);
-                hud.Toast("Ads removed. Thank you!");
+                if (ok) hud.Toast("Ads removed. Thank you!");
+                else hud.Toast("Purchase didn't go through");
             });
         }
+
+        private void OnAdsRemoved() => hud.SetRemoveAdsVisible(false);
+
+        private void OnDestroy() => Store.AdsRemoved -= OnAdsRemoved;
     }
 }

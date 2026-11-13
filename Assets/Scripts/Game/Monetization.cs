@@ -5,8 +5,8 @@ using UnityEngine;
 namespace CargoSort.Game
 {
     /// <summary>
-    /// What the game needs from an ad network. Swap <see cref="DebugAds"/> for a real one
-    /// (Unity LevelPlay or Google AdMob) before release; nothing else has to change.
+    /// What the game needs from an ad network. <see cref="DebugAds"/> is used in the editor and until
+    /// LevelPlay is installed; Assets/Scripts/Monetization/LevelPlayAds.cs is the real one.
     /// </summary>
     public interface IAdsService
     {
@@ -48,19 +48,55 @@ namespace CargoSort.Game
         }
     }
 
+    /// <summary>A real store (Unity IAP). Registered from Assets/Scripts/Monetization when the package is installed.</summary>
+    public interface IStoreBackend
+    {
+        void Begin();
+        void BuyRemoveAds(Action<bool> onDone);
+    }
+
     /// <summary>
-    /// Remove-ads purchase. This stub just unlocks locally; wire it to Unity IAP
-    /// (product id "remove_ads", non-consumable) before release.
+    /// Hooks for real ad and store SDKs. They live outside this assembly (Assets/Scripts/Monetization)
+    /// so the game still compiles before LevelPlay or Unity IAP are installed.
     /// </summary>
+    public static class MonetizationServices
+    {
+        /// <summary>Adds a real ads component to the game object, or null to use <see cref="DebugAds"/>.</summary>
+        public static Func<GameObject, IAdsService> CreateAds;
+        public static IStoreBackend StoreBackend;
+    }
+
+    /// <summary>Remove-ads purchase. Uses Unity IAP when installed, otherwise a local test unlock.</summary>
     public static class Store
     {
         public const string RemoveAdsProductId = "remove_ads";
 
+        /// <summary>Raised when remove-ads is bought or restored.</summary>
+        public static event Action AdsRemoved;
+
         public static void BuyRemoveAds(Action<bool> onDone)
         {
-            Debug.Log("[IAP] Purchasing " + RemoveAdsProductId + " (stub)");
+            var backend = MonetizationServices.StoreBackend;
+            if (backend == null)
+            {
+                Debug.Log("[IAP] Purchasing " + RemoveAdsProductId + " (test unlock, no store installed)");
+                Grant();
+                onDone?.Invoke(true);
+                return;
+            }
+            backend.BuyRemoveAds(ok =>
+            {
+                if (ok) Grant();
+                onDone?.Invoke(ok);
+            });
+        }
+
+        /// <summary>Called by the store on purchase or restore.</summary>
+        public static void Grant()
+        {
+            if (Progress.AdsRemoved) return;
             Progress.AdsRemoved = true;
-            onDone?.Invoke(true);
+            AdsRemoved?.Invoke();
         }
     }
 

@@ -38,9 +38,23 @@ Tune it in `LevelGenerator.ForLevel`.
 - **Interstitial ads:** between levels, from level 4, every 3 levels.
 - **Remove ads purchase:** stops interstitials. Rewarded ads stay because players choose them.
 
-Ads and purchases are **test stubs** right now (`DebugAds` shows a 1 second fake ad). Before release:
+In the editor, ads are 1 second test ads. The real SDK code is in `Assets/Scripts/Monetization` and
+switches on by itself once the packages are installed (`Assets/Editor/MonetizationDefines.cs` sets
+`CARGO_LEVELPLAY` / `CARGO_IAP`). Until then the game compiles and uses the test versions.
 
-1. Install **Unity LevelPlay** (or Google AdMob), make a class that implements `IAdsService`, and
-   use it in `GameController.Awake` instead of `DebugAds`.
-2. Install **Unity IAP**, create the non-consumable product `remove_ads`, and call it from `Store.BuyRemoveAds`.
-3. Add analytics (level start, win, lose, ad watched) so we can tune difficulty from real data.
+### Turn on real ads (Unity LevelPlay 9+)
+
+1. Create a free account at [LevelPlay](https://platform.ironsrc.com), add an Android app, and create
+   one **Rewarded** and one **Interstitial** ad unit.
+2. In Unity: **Window > Package Manager > Unity Registry**, install **Ads Mediation (LevelPlay)** (version 9 or newer).
+   Then run its Network Manager and add the networks you want (Unity Ads is enough to start).
+3. Put the app key and the two ad unit IDs in `Assets/Scripts/Monetization/AdsConfig.cs`.
+4. Host an `app-ads.txt` file on your developer website as LevelPlay explains, or ad fill will be low.
+
+### Turn on the No Ads purchase (Unity IAP 5+)
+
+1. In Package Manager install **In-App Purchasing** (version 5 or newer).
+2. In Google Play Console create an in-app product with id `remove_ads` (one-time purchase).
+3. That's it: the purchase and restore-on-start are already coded in `UnityIapStore.cs`.
+
+Then add analytics (level start, win, lose, ad watched) so we can tune difficulty from real data.
