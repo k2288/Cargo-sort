@@ -1,0 +1,8 @@
+{
+    "name": "CargoSort.Editor",
+    "rootNamespace": "CargoSort.EditorTools",
+    "references": [],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "autoReferenced": false
+}
