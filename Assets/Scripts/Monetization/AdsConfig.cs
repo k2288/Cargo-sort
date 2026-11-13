@@ -7,9 +7,9 @@ public static class AdsConfig
     public const string RewardedAdUnitId = "YOUR_IOS_REWARDED_AD_UNIT_ID";
     public const string InterstitialAdUnitId = "YOUR_IOS_INTERSTITIAL_AD_UNIT_ID";
 #else
-    public const string AppKey = "YOUR_ANDROID_APP_KEY";
-    public const string RewardedAdUnitId = "YOUR_ANDROID_REWARDED_AD_UNIT_ID";
-    public const string InterstitialAdUnitId = "YOUR_ANDROID_INTERSTITIAL_AD_UNIT_ID";
+    public const string AppKey = "2988ea5f5";
+    public const string RewardedAdUnitId = "qn0rqs148gv18bfd";
+    public const string InterstitialAdUnitId = "vxtuuf5soc2onvik";
 #endif
 
     // ----- Cafe Bazaar / Myket builds: Tapsell Plus (https://dashboard.tapsell.ir) -----
