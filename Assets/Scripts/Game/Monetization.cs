@@ -109,6 +109,47 @@ namespace CargoSort.Game
         private const string LevelKey = "level";
         private const string AdsRemovedKey = "ads_removed";
 
+        public static int Coins
+        {
+            get => PlayerPrefs.GetInt("coins", 0);
+            set { PlayerPrefs.SetInt("coins", Mathf.Max(0, value)); PlayerPrefs.Save(); }
+        }
+
+        public static int Theme
+        {
+            get => PlayerPrefs.GetInt("theme", 0);
+            set { PlayerPrefs.SetInt("theme", value); PlayerPrefs.Save(); }
+        }
+
+        public static bool OwnsTheme(int index) => index == 0 || PlayerPrefs.GetInt("theme_owned_" + index, 0) == 1;
+
+        public static void UnlockTheme(int index)
+        {
+            PlayerPrefs.SetInt("theme_owned_" + index, 1);
+            PlayerPrefs.Save();
+        }
+
+        public static string Language
+        {
+            get => PlayerPrefs.GetString("language", Loc.DefaultLanguage);
+            set { PlayerPrefs.SetString("language", value); PlayerPrefs.Save(); }
+        }
+
+        /// <summary>Day number (days since 2000-01-01, local time) of the last claimed daily gift.</summary>
+        public static int LastDailyDay
+        {
+            get => PlayerPrefs.GetInt("daily_day", 0);
+            set { PlayerPrefs.SetInt("daily_day", value); PlayerPrefs.Save(); }
+        }
+
+        public static int DailyStreak
+        {
+            get => PlayerPrefs.GetInt("daily_streak", 0);
+            set { PlayerPrefs.SetInt("daily_streak", value); PlayerPrefs.Save(); }
+        }
+
+        public static int Today => (int)(System.DateTime.Now.Date - new System.DateTime(2000, 1, 1)).TotalDays;
+
         public static int Level
         {
             get => Mathf.Max(1, PlayerPrefs.GetInt(LevelKey, 1));

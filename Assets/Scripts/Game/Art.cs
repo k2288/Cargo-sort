@@ -5,10 +5,11 @@ namespace CargoSort.Game
     /// <summary>Procedural sprites and colors, so the game needs no imported art to run.</summary>
     public static class Art
     {
-        public static readonly Color Background = new Color32(0x27, 0x3A, 0x55, 0xFF);
-        public static readonly Color Ground = new Color32(0x32, 0x48, 0x68, 0xFF);
-        public static readonly Color Slot = new Color32(0x1C, 0x2B, 0x40, 0xFF);
-        public static readonly Color TruckBed = new Color32(0x4A, 0x55, 0x66, 0xFF);
+        // Colors of the current theme (bought in the shop).
+        public static Color Background => Themes.Current.Background;
+        public static Color Ground => Themes.Current.Ground;
+        public static Color Slot => Themes.Current.Slot;
+        public static Color TruckBed => Themes.Current.TruckBed;
         public static readonly Color Wheel = new Color32(0x15, 0x18, 0x1E, 0xFF);
         public static readonly Color Window = new Color32(0xCF, 0xEA, 0xFF, 0xFF);
 

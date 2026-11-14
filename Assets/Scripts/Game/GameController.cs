@@ -13,6 +13,10 @@ namespace CargoSort.Game
         private const int FirstInterstitialLevel = 4;
         private const int InterstitialEveryLevels = 3;
 
+        // Economy tuning.
+        private const int DailyBase = 20;      // day 1 gift; +20 per streak day, up to day 7
+        private const int MaxStreak = 7;
+
         private Camera cam;
         private BoardView board;
         private Hud hud;
@@ -22,6 +26,8 @@ namespace CargoSort.Game
         private int freeUndos;
         private int bonusSlots;
         private bool waitingForAd;
+        private int pendingWinReward;
+        private int pendingDaily;
 
         /// <summary>Creates the game when Play starts, so no scene setup is needed.</summary>
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -46,18 +52,36 @@ namespace CargoSort.Game
             Store.AdsRemoved += OnAdsRemoved;
 
             hud = gameObject.AddComponent<Hud>();
-            hud.Build();
             hud.Undo += OnUndo;
             hud.AddSlot += OnAddSlot;
             hud.Hint += OnHint;
             hud.Restart += () => { if (!board.Busy && !waitingForAd) StartLevel(level); };
             hud.Retry += () => StartLevel(level);
             hud.Revive += OnRevive;
-            hud.Next += OnNext;
+            hud.ClaimWin += OnClaimWin;
+            hud.ClaimDaily += OnClaimDaily;
+            hud.OpenShop += OnOpenShop;
+            hud.ThemeTapped += OnThemeTapped;
+            hud.FreeCoins += OnFreeCoins;
             hud.RemoveAds += OnRemoveAds;
-            hud.SetRemoveAdsVisible(!Progress.AdsRemoved && MonetizationServices.PurchasesEnabled);
+            hud.ToggleLanguage += OnToggleLanguage;
+            BuildHud();
 
             StartLevel(Progress.Level);
+            CheckDailyGift();
+        }
+
+        /// <summary>(Re)creates all UI texts, e.g. after switching language.</summary>
+        private void BuildHud()
+        {
+            hud.Build();
+            hud.SetRemoveAdsVisible(!Progress.AdsRemoved && MonetizationServices.PurchasesEnabled);
+            hud.SetCoins(Progress.Coins);
+            if (session != null)
+            {
+                hud.SetLevel(level);
+                RefreshHud();
+            }
         }
 
         private void SetupCamera()
@@ -87,7 +111,7 @@ namespace CargoSort.Game
             session = new GameSession(LevelGenerator.Generate(n));
             freeUndos = FreeUndosPerLevel;
             bonusSlots = 0;
-            hud.ShowWin(false, n);
+            hud.ShowWin(false);
             hud.ShowLose(false);
             hud.SetLevel(n);
             board.Rebuild(session.State);
@@ -97,7 +121,8 @@ namespace CargoSort.Game
         private void RefreshHud()
         {
             hud.SetTrucks(session.State.TrucksShipped, session.State.TrucksTotal);
-            hud.SetUndoLabel(freeUndos > 0 ? $"Undo ({freeUndos})" : "Undo (AD)");
+            hud.SetUndoLabel(freeUndos);
+            hud.SetCoins(Progress.Coins);
         }
 
         private void Update()
@@ -150,7 +175,8 @@ namespace CargoSort.Game
             if (session.State.Status == GameStatus.Won)
             {
                 Progress.Level = level + 1;
-                hud.ShowWin(true, level);
+                pendingWinReward = 10 + level / 2;
+                hud.ShowWin(true, level, pendingWinReward);
             }
             else if (session.State.Status == GameStatus.Lost)
             {
@@ -185,7 +211,7 @@ namespace CargoSort.Game
             if (board.Busy || waitingForAd) return;
             if (bonusSlots >= MaxBonusSlots)
             {
-                hud.Toast("Dock is at max size");
+                hud.Toast(Loc.T("dock_max"));
                 return;
             }
             WatchRewarded("extra_slot", AddSlotNow);
@@ -219,7 +245,7 @@ namespace CargoSort.Game
         {
             if (!ads.RewardedReady)
             {
-                hud.Toast("No ad available, try again soon");
+                hud.Toast(Loc.T("no_ad"));
                 return;
             }
             waitingForAd = true;
@@ -232,16 +258,31 @@ namespace CargoSort.Game
 
         // ---------- Level flow and interstitials ----------
 
-        private void OnNext()
+        private void OnClaimWin(bool triple)
         {
+            if (waitingForAd || pendingWinReward <= 0) return;
+            if (triple)
+            {
+                // A rewarded ad replaces the interstitial for this level.
+                WatchRewarded("level_reward_x3", () => FinishWin(pendingWinReward * 3, false));
+                return;
+            }
+            FinishWin(pendingWinReward, true);
+        }
+
+        private void FinishWin(int coins, bool allowInterstitial)
+        {
+            AddCoins(coins);
+            pendingWinReward = 0;
+            hud.ShowWin(false);
             int next = level + 1;
-            bool showAd = !Progress.AdsRemoved && next >= FirstInterstitialLevel && (next - FirstInterstitialLevel) % InterstitialEveryLevels == 0;
+            bool showAd = allowInterstitial && !Progress.AdsRemoved &&
+                          next >= FirstInterstitialLevel && (next - FirstInterstitialLevel) % InterstitialEveryLevels == 0;
             if (!showAd)
             {
                 StartLevel(next);
                 return;
             }
-            hud.ShowWin(false, level);
             waitingForAd = true;
             ads.ShowInterstitial("level_end", () =>
             {
@@ -250,13 +291,101 @@ namespace CargoSort.Game
             });
         }
 
+        private void AddCoins(int amount)
+        {
+            Progress.Coins += amount;
+            hud.SetCoins(Progress.Coins);
+            hud.RefreshShop();
+        }
+
+        // ---------- Daily gift ----------
+
+        private void CheckDailyGift()
+        {
+            int today = Progress.Today;
+            if (Progress.LastDailyDay == today) return;
+            int streak = Progress.LastDailyDay == today - 1 ? Mathf.Min(Progress.DailyStreak + 1, MaxStreak) : 1;
+            pendingDaily = DailyBase * streak;
+            Progress.DailyStreak = streak;
+            hud.ShowDaily(true, streak, pendingDaily);
+        }
+
+        private void OnClaimDaily(bool doubled)
+        {
+            if (waitingForAd || pendingDaily <= 0) return;
+            if (doubled)
+            {
+                WatchRewarded("daily_x2", () => FinishDaily(pendingDaily * 2));
+                return;
+            }
+            FinishDaily(pendingDaily);
+        }
+
+        private void FinishDaily(int coins)
+        {
+            Progress.LastDailyDay = Progress.Today;
+            pendingDaily = 0;
+            hud.ShowDaily(false);
+            AddCoins(coins);
+        }
+
+        // ---------- Shop ----------
+
+        private void OnOpenShop()
+        {
+            if (board.Busy || waitingForAd) return;
+            hud.RefreshShop();
+            hud.ShowShop(true);
+        }
+
+        private void OnThemeTapped(int index)
+        {
+            if (index == Progress.Theme) return;
+            if (!Progress.OwnsTheme(index))
+            {
+                int price = Themes.All[index].Price;
+                if (Progress.Coins < price)
+                {
+                    hud.Toast(Loc.T("not_enough"));
+                    return;
+                }
+                Progress.Coins -= price;
+                Progress.UnlockTheme(index);
+            }
+            Progress.Theme = index;
+            cam.backgroundColor = Art.Background;
+            board.Rebuild(session.State);
+            hud.SetCoins(Progress.Coins);
+            hud.RefreshShop();
+        }
+
+        private void OnFreeCoins()
+        {
+            if (waitingForAd) return;
+            WatchRewarded("shop_coins", () => AddCoins(Hud.FreeCoinsAmount));
+        }
+
+        private void OnToggleLanguage()
+        {
+            Progress.Language = Loc.Persian ? "en" : "fa";
+            bool dailyOpen = pendingDaily > 0;
+            bool winOpen = pendingWinReward > 0;
+            bool lost = session.State.Status == GameStatus.Lost;
+            BuildHud();
+            hud.RefreshShop();
+            hud.ShowShop(true);
+            if (dailyOpen) hud.ShowDaily(true, Progress.DailyStreak, pendingDaily);
+            if (winOpen) hud.ShowWin(true, level, pendingWinReward);
+            if (lost) hud.ShowLose(true);
+        }
+
         private void OnRemoveAds()
         {
             if (waitingForAd) return;
             Store.BuyRemoveAds(ok =>
             {
-                if (ok) hud.Toast("Ads removed. Thank you!");
-                else hud.Toast("Purchase didn't go through");
+                if (ok) hud.Toast(Loc.T("ads_removed"));
+                else hud.Toast(Loc.T("purchase_failed"));
             });
         }
 
