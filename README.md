@@ -6,7 +6,7 @@ the dock runs out of space.
 
 ## Open and play
 
-1. Open the folder in **Unity 6 (6000.0 LTS)** with Unity Hub. Add the Android and/or iOS build module.
+1. Open the folder in **Unity 6.3 LTS (6000.3)** with Unity Hub. Add the Android and/or iOS build module.
 2. If Unity asks to enable the new Input System backend, say **Yes** (both input systems are supported).
 3. On first open the project creates `Assets/Scenes/Main.unity`, adds it to Build Settings and sets
    portrait mode. You can rerun this from the menu **Cargo Sort > Setup Project**.
