@@ -10,6 +10,9 @@ namespace CargoSort.Game
         // Monetization tuning. Change these from feedback and analytics.
         private const int FreeUndosPerLevel = 1;
         private const int MaxBonusSlots = 2;
+        private const int UndoPrice = 30;        // coin prices; with too few coins the booster costs an ad
+        private const int SlotPrice = 60;
+        private const int HintPrice = 20;
         private const int FirstInterstitialLevel = 4;
         private const int InterstitialEveryLevels = 3;
 
@@ -104,7 +107,7 @@ namespace CargoSort.Game
             hud.SetCoins(Progress.Coins);
             if (session != null)
             {
-                hud.SetLevel(level);
+                hud.SetLevel(level, IsHard);
                 RefreshHud();
             }
         }
@@ -139,16 +142,22 @@ namespace CargoSort.Game
             bonusSlots = 0;
             hud.ShowWin(false);
             hud.ShowLose(false);
-            hud.SetLevel(n);
+            hud.SetLevel(n, IsHard);
             hud.SetChallengeButton(n == 0);
             board.Rebuild(session.State);
             RefreshHud();
+
+            if (n == LevelGenerator.FrozenFromLevel) hud.Toast(Loc.T("twist_frozen"), 3f);
+            else if (n == LevelGenerator.HiddenFromLevel) hud.Toast(Loc.T("twist_hidden"), 3f);
+            else if (IsHard) hud.Toast(Loc.T("hard_start"), 2f);
         }
+
+        private bool IsHard => level > 0 && LevelGenerator.IsHard(level);
 
         private void RefreshHud()
         {
             hud.SetTrucks(session.State.TrucksShipped, session.State.TrucksTotal);
-            hud.SetUndoLabel(freeUndos);
+            hud.SetBoosters(freeUndos, Progress.Coins, UndoPrice, SlotPrice, HintPrice);
             hud.SetCoins(Progress.Coins);
         }
 
@@ -165,6 +174,7 @@ namespace CargoSort.Game
             if (!session.State.CanTap(column))
             {
                 Feedback.Invalid();
+                if (session.State.IsFrozen(column)) hud.Toast(Loc.T("frozen"));
                 board.Shake(column);
                 return;
             }
@@ -212,7 +222,7 @@ namespace CargoSort.Game
                 else
                 {
                     Progress.Level = level + 1;
-                    pendingWinReward = 10 + level / 2;
+                    pendingWinReward = (10 + level / 2) * (IsHard ? 2 : 1);
                 }
                 hud.ShowWin(true, level, pendingWinReward);
             }
@@ -234,6 +244,7 @@ namespace CargoSort.Game
                 DoUndo();
                 return;
             }
+            if (TrySpend(UndoPrice)) { DoUndo(); return; }
             WatchRewarded("undo", DoUndo);
         }
 
@@ -253,6 +264,7 @@ namespace CargoSort.Game
                 hud.Toast(Loc.T("dock_max"));
                 return;
             }
+            if (TrySpend(SlotPrice)) { AddSlotNow(); return; }
             WatchRewarded("extra_slot", AddSlotNow);
         }
 
@@ -277,7 +289,18 @@ namespace CargoSort.Game
         private void OnHint()
         {
             if (board.Busy || waitingForAd) return;
+            if (TrySpend(HintPrice)) { board.ShowHint(session.HintColumn()); return; }
             WatchRewarded("hint", () => board.ShowHint(session.HintColumn()));
+        }
+
+        /// <summary>Pays for a booster with coins if the player has enough.</summary>
+        private bool TrySpend(int price)
+        {
+            if (Progress.Coins < price) return false;
+            Progress.Coins -= price;
+            Feedback.Coins();
+            RefreshHud();
+            return true;
         }
 
         private void WatchRewarded(string placement, System.Action reward)
@@ -362,6 +385,7 @@ namespace CargoSort.Game
             Progress.Coins += amount;
             hud.SetCoins(Progress.Coins);
             hud.RefreshShop();
+            if (session != null) RefreshHud();
         }
 
         // ---------- Daily gift ----------
@@ -421,7 +445,7 @@ namespace CargoSort.Game
             Progress.Theme = index;
             cam.backgroundColor = Art.Background;
             board.Rebuild(session.State);
-            hud.SetCoins(Progress.Coins);
+            RefreshHud();
             hud.RefreshShop();
         }
 

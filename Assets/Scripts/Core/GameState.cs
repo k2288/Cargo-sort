@@ -42,12 +42,16 @@ namespace CargoSort.Core
     /// to a matching truck in a bay, or to the dock buffer if no truck matches. Full trucks leave and
     /// the next truck in the queue arrives, pulling any matching crates from the buffer.
     /// Win: every truck shipped. Lose: buffer full and no top crate matches a waiting truck.
+    /// Twists: hidden crates (shown as "?" until they reach the top of their column, view only) and
+    /// frozen columns (can't be tapped; each tap on another column melts the ice by one).
     /// </summary>
     public sealed class GameState
     {
         public const int Empty = -1;
 
         public List<List<int>> Columns;
+        public List<List<bool>> Hidden;   // same shape as Columns
+        public int[] Frozen;              // taps left until each column thaws (0 = free)
         public int[] Buffer;
         public Truck[] Bays;
         public List<int> TruckQueue;
@@ -62,6 +66,17 @@ namespace CargoSort.Core
         {
             Columns = new List<List<int>>();
             foreach (var c in data.Columns) Columns.Add(new List<int>(c));
+            Hidden = new List<List<bool>>();
+            for (int c = 0; c < Columns.Count; c++)
+            {
+                var h = new List<bool>();
+                for (int r = 0; r < Columns[c].Count; r++)
+                    h.Add(data.Hidden != null && c < data.Hidden.Count && r < data.Hidden[c].Count && data.Hidden[c][r]);
+                Hidden.Add(h);
+            }
+            Frozen = new int[Columns.Count];
+            if (data.Frozen != null)
+                for (int c = 0; c < Frozen.Length && c < data.Frozen.Count; c++) Frozen[c] = data.Frozen[c];
             Buffer = new int[data.BufferSize];
             for (int i = 0; i < Buffer.Length; i++) Buffer[i] = Empty;
             Bays = new Truck[data.BayCount];
@@ -91,6 +106,19 @@ namespace CargoSort.Core
             return c.Count == 0 ? Empty : c[c.Count - 1];
         }
 
+        public bool IsFrozen(int column) => Frozen[column] > 0;
+
+        /// <summary>True if the crate should be drawn as "?" (hidden and not yet on top).</summary>
+        public bool IsHidden(int column, int row) => Hidden[column][row] && row < Columns[column].Count - 1;
+
+        /// <summary>Upcoming trucks after the ones in the bays (up to count).</summary>
+        public List<int> UpcomingTrucks(int count)
+        {
+            var list = new List<int>();
+            for (int i = NextTruck; i < TruckQueue.Count && list.Count < count; i++) list.Add(TruckQueue[i]);
+            return list;
+        }
+
         public int FindBayFor(int color)
         {
             for (int b = 0; b < Bays.Length; b++)
@@ -104,6 +132,7 @@ namespace CargoSort.Core
         {
             if (Status != GameStatus.Playing) return false;
             if (column < 0 || column >= Columns.Count) return false;
+            if (Frozen[column] > 0) return false;
             int top = Top(column);
             if (top == Empty) return false;
             return IsWanted(top) || FreeBufferSlots > 0;
@@ -117,6 +146,9 @@ namespace CargoSort.Core
             var col = Columns[column];
             int color = col[col.Count - 1];
             col.RemoveAt(col.Count - 1);
+            Hidden[column].RemoveAt(Hidden[column].Count - 1);
+            for (int c = 0; c < Frozen.Length; c++)
+                if (c != column && Frozen[c] > 0) Frozen[c]--;
 
             int bay = FindBayFor(color);
             if (bay >= 0)
@@ -211,6 +243,8 @@ namespace CargoSort.Core
             var s = new GameState
             {
                 Columns = new List<List<int>>(),
+                Hidden = new List<List<bool>>(),
+                Frozen = (int[])Frozen.Clone(),
                 Buffer = (int[])Buffer.Clone(),
                 Bays = new Truck[Bays.Length],
                 TruckQueue = TruckQueue,
@@ -220,6 +254,7 @@ namespace CargoSort.Core
                 Status = Status,
             };
             foreach (var c in Columns) s.Columns.Add(new List<int>(c));
+            foreach (var h in Hidden) s.Hidden.Add(new List<bool>(h));
             for (int b = 0; b < Bays.Length; b++) s.Bays[b] = Bays[b]?.Clone();
             return s;
         }

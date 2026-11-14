@@ -128,6 +128,44 @@ namespace CargoSort.Game
             return root;
         }
 
+        private static Font labelFont;
+
+        /// <summary>World-space text (used for "?" crates, ice counters and the "Next" label).</summary>
+        public static TextMesh Label(Transform parent, string text, Vector2 localPos, float height, Color color, int order)
+        {
+            if (labelFont == null)
+            {
+                labelFont = Resources.Load<Font>("Fonts/Vazirmatn-Bold");
+                if (labelFont == null) labelFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            }
+            var go = new GameObject("Label");
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = localPos;
+            var tm = go.AddComponent<TextMesh>();
+            tm.font = labelFont;
+            tm.fontSize = 64;
+            tm.characterSize = height / 6.4f;
+            tm.anchor = TextAnchor.MiddleCenter;
+            tm.alignment = TextAlignment.Center;
+            tm.color = color;
+            tm.text = text;
+            var mr = go.GetComponent<MeshRenderer>();
+            mr.sharedMaterial = labelFont.material;
+            mr.sortingOrder = order;
+            return tm;
+        }
+
+        /// <summary>A crate whose color is still a secret.</summary>
+        public static Transform HiddenCrate(Transform parent, float size)
+        {
+            var root = new GameObject("HiddenCrate").transform;
+            root.SetParent(parent, false);
+            Box(root, "Outline", Vector2.zero, new Vector2(size, size), new Color32(0x3A, 0x40, 0x4A, 0xFF), 10);
+            Box(root, "Body", Vector2.zero, new Vector2(size * 0.86f, size * 0.86f), new Color32(0x6B, 0x73, 0x80, 0xFF), 11);
+            Label(root, "?", new Vector2(0, 0.02f), size * 0.7f, Color.white, 12);
+            return root;
+        }
+
         /// <summary>Raises a crate's sorting orders while it flies so it draws above everything.</summary>
         public static void SetLift(Transform crate, bool lifted)
         {

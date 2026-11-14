@@ -19,7 +19,7 @@ namespace CargoSort.Game
 
         private Font font;
         private GameObject canvasRoot;
-        private Text levelText, trucksText, coinsText, undoLabel, toastText, challengeLabel, soundLabel, vibrationLabel;
+        private Text levelText, trucksText, coinsText, undoLabel, slotLabel, hintLabel, toastText, challengeLabel, soundLabel, vibrationLabel;
         private Text winTitle, winReward, dailyTitle, dailyReward, shopCoins;
         private GameObject winPanel, losePanel, dailyPanel, shopPanel, removeAdsButton, toast;
         private readonly List<Text> themeButtons = new List<Text>();
@@ -70,11 +70,15 @@ namespace CargoSort.Game
             Anchor(coinsText.rectTransform, new Vector2(1, 1), new Vector2(-130, -165), new Vector2(260, 50));
 
             // Boosters
-            var undo = MakeButton(safe, "", ButtonColor, () => Undo?.Invoke(), 38);
+            var undo = MakeButton(safe, "", ButtonColor, () => Undo?.Invoke(), 34);
             undoLabel = undo.GetComponentInChildren<Text>();
             Anchor(undo, new Vector2(0.5f, 0), new Vector2(-330, 110), new Vector2(300, 130));
-            Anchor(MakeButton(safe, Loc.T("slot"), ButtonAdColor, () => AddSlot?.Invoke(), 38), new Vector2(0.5f, 0), new Vector2(0, 110), new Vector2(300, 130));
-            Anchor(MakeButton(safe, Loc.T("hint"), ButtonAdColor, () => Hint?.Invoke(), 38), new Vector2(0.5f, 0), new Vector2(330, 110), new Vector2(300, 130));
+            var slot = MakeButton(safe, "", ButtonAdColor, () => AddSlot?.Invoke(), 34);
+            slotLabel = slot.GetComponentInChildren<Text>();
+            Anchor(slot, new Vector2(0.5f, 0), new Vector2(0, 110), new Vector2(300, 130));
+            var hint = MakeButton(safe, "", ButtonAdColor, () => Hint?.Invoke(), 34);
+            hintLabel = hint.GetComponentInChildren<Text>();
+            Anchor(hint, new Vector2(0.5f, 0), new Vector2(330, 110), new Vector2(300, 130));
 
             // Win panel: coins reward, x3 with a rewarded ad
             winPanel = MakePanel(safe, new Vector2(900, 700), out var winBox);
@@ -174,11 +178,27 @@ namespace CargoSort.Game
             if (toast != null && toast.activeSelf && Time.unscaledTime > toastUntil) toast.SetActive(false);
         }
 
-        public void SetLevel(int level) => levelText.text = level > 0 ? Loc.T("level", level) : Loc.T("challenge_level");
+        public void SetLevel(int level, bool hard = false)
+        {
+            levelText.text = level <= 0 ? Loc.T("challenge_level") : hard ? Loc.T("hard_level", level) : Loc.T("level", level);
+            levelText.color = hard ? new Color32(0xFF, 0x6B, 0x5E, 0xFF) : Color.white;
+        }
 
         public void SetChallengeButton(bool inChallenge) => challengeLabel.text = Loc.T(inChallenge ? "levels" : "challenge");
         public void SetTrucks(int shipped, int total) => trucksText.text = Loc.T("trucks", shipped, total);
-        public void SetUndoLabel(int freeUndos) => undoLabel.text = freeUndos > 0 ? Loc.T("undo", freeUndos) : Loc.T("undo_ad");
+        /// <summary>Booster labels: free first, then coins if the player has enough, otherwise a rewarded ad.</summary>
+        public void SetBoosters(int freeUndos, int coins, int undoPrice, int slotPrice, int hintPrice)
+        {
+            SetBooster(undoLabel, freeUndos > 0 ? Loc.T("undo", freeUndos) : coins >= undoPrice ? Loc.T("undo_coins", undoPrice) : Loc.T("undo_ad"), freeUndos > 0 || coins >= undoPrice);
+            SetBooster(slotLabel, coins >= slotPrice ? Loc.T("slot_coins", slotPrice) : Loc.T("slot"), coins >= slotPrice);
+            SetBooster(hintLabel, coins >= hintPrice ? Loc.T("hint_coins", hintPrice) : Loc.T("hint"), coins >= hintPrice);
+        }
+
+        private static void SetBooster(Text label, string text, bool paidWithCoins)
+        {
+            label.text = text;
+            label.transform.parent.GetComponent<Image>().color = paidWithCoins ? ButtonColor : ButtonAdColor;
+        }
         public void SetRemoveAdsVisible(bool visible) => removeAdsButton.SetActive(visible);
         public void ShowLose(bool show) => losePanel.SetActive(show);
 

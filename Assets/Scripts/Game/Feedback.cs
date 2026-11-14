@@ -85,6 +85,8 @@ namespace CargoSort.Game
         public static void Won() { Play(win); Vibrate(60); }
         public static void Lost() { Play(lose); Vibrate(120); }
         public static void Click() => Play(click, 0.8f);
+        public static void Revealed() => Play(pops?[5], 0.5f);
+        public static void IceMelted() { Play(thud); Play(pops?[3], 0.6f); Vibrate(20); }
         public static void Coins() => Play(coin);
 
         private static void Play(AudioClip clip, float volume = 1f)

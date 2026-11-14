@@ -86,8 +86,8 @@ button.quiet { background: var(--muted); }
   <div class="board" id="board"><canvas id="cv"></canvas></div>
   <div class="bar">
     <button id="undo"><span data-t="undo">Undo</span><small id="undoSub">1 FREE</small></button>
-    <button class="ad" id="slot"><span data-t="slot">+1 Slot</span><small data-t="watch_ad">WATCH AD</small></button>
-    <button class="ad" id="hint"><span data-t="hint">Hint</span><small data-t="watch_ad">WATCH AD</small></button>
+    <button class="ad" id="slot"><span data-t="slot">+1 Slot</span><small id="slotSub">WATCH AD</small></button>
+    <button class="ad" id="hint"><span data-t="hint">Hint</span><small id="hintSub">WATCH AD</small></button>
   </div>
 </div>
 
@@ -117,6 +117,8 @@ const COLORS = ["#f04e4e","#3e8ef7","#4cc95b","#ffcc33","#a85cf0","#ff8a2b","#2f
 function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function shuffle(arr, r) { for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } }
 
+const HIDDEN_FROM = 11, FROZEN_FROM = 21;
+const isHard = level => level >= 5 && level % 5 === 0;
 function difficulty(level) {
   const d = { bays: 2, capacity: 3, maxHeight: 8 };
   if (level <= 1) return { ...d, colors: 2, trucks: 4, columns: 3, buffer: 5 };
@@ -126,6 +128,9 @@ function difficulty(level) {
   d.columns = Math.max(4, Math.min(d.colors, 7));
   d.buffer = level < 15 ? 5 : 4;
   if (level % 5 === 0) d.buffer -= 1;
+  d.hard = isHard(level);
+  if (level >= HIDDEN_FROM) d.hiddenPct = Math.min(20 + Math.floor((level - HIDDEN_FROM) / 2), 30);
+  if (level >= FROZEN_FROM) { d.frozenCols = level >= 41 ? 2 : 1; d.frozenTaps = 3 + (level % 3); }
   return d;
 }
 
@@ -145,6 +150,10 @@ function build(level, d, r) {
     if (data.columns[c].length > min + 1 || data.columns[c].length >= d.maxHeight) continue;
     data.columns[c].push(crates[i++]);
   }
+  // Twists: hidden "?" crates and frozen columns (random numbers drawn after the layout).
+  data.hidden = data.columns.map(col => col.map((_, row) => !!d.hiddenPct && row < col.length - 1 && Math.floor(r() * 100) < d.hiddenPct));
+  data.frozen = data.columns.map(() => 0);
+  for (let k = 0; k < (d.frozenCols || 0); k++) { const c = Math.floor(r() * cols); if (!data.frozen[c]) data.frozen[c] = d.frozenTaps + k * 2; }
   return data;
 }
 
@@ -168,20 +177,26 @@ class Game {
   constructor(data) {
     if (!data) return;
     this.columns = data.columns.map(c => c.slice());
+    this.hidden = (data.hidden || data.columns.map(c => c.map(() => false))).map(h => h.slice());
+    this.frozen = (data.frozen || data.columns.map(() => 0)).slice();
     this.buffer = new Array(data.buffer).fill(EMPTY);
     this.bays = new Array(data.bays).fill(null);
     this.queue = data.trucks.slice(); this.next = 0; this.capacity = data.capacity; this.shipped = 0; this.status = "playing";
     const ev = []; for (let b = 0; b < this.bays.length; b++) this.arrive(b, ev);
     this.update();
   }
-  clone() { const g = new Game(); Object.assign(g, this, { columns: this.columns.map(c => c.slice()), buffer: this.buffer.slice(), bays: this.bays.map(t => t && { ...t }) }); return g; }
+  clone() { const g = new Game(); Object.assign(g, this, { columns: this.columns.map(c => c.slice()), hidden: this.hidden.map(h => h.slice()), frozen: this.frozen.slice(), buffer: this.buffer.slice(), bays: this.bays.map(t => t && { ...t }) }); return g; }
   top(c) { const col = this.columns[c]; return col.length ? col[col.length - 1] : EMPTY; }
   free() { return this.buffer.filter(x => x === EMPTY).length; }
   bayFor(color) { return this.bays.findIndex(t => t && t.loaded < t.capacity && t.color === color); }
-  canTap(c) { if (this.status !== "playing") return false; const t = this.top(c); if (t === EMPTY) return false; return this.bayFor(t) >= 0 || this.free() > 0; }
+  isHidden(c, r) { return this.hidden[c][r] && r < this.columns[c].length - 1; }
+  upcoming(n) { return this.queue.slice(this.next, this.next + n); }
+  canTap(c) { if (this.status !== "playing" || this.frozen[c] > 0) return false; const t = this.top(c); if (t === EMPTY) return false; return this.bayFor(t) >= 0 || this.free() > 0; }
   tap(c) {
     const ev = []; if (!this.canTap(c)) return ev;
-    const color = this.columns[c].pop(); const b = this.bayFor(color);
+    const color = this.columns[c].pop(); this.hidden[c].pop();
+    this.frozen = this.frozen.map((f, i) => i !== c && f > 0 ? f - 1 : f);
+    const b = this.bayFor(color);
     if (b >= 0) { this.bays[b].loaded++; ev.push({ k: "move", from: "col", fi: c, to: "bay", ti: b, color }); }
     else { const s = this.buffer.indexOf(EMPTY); this.buffer[s] = color; ev.push({ k: "move", from: "col", fi: c, to: "buf", ti: s, color }); }
     let changed = true;
@@ -206,13 +221,13 @@ class Game {
 }
 
 function pickMove(s) {
-  for (let c = 0; c < s.columns.length; c++) { const t = s.top(c); if (t !== EMPTY && s.bayFor(t) >= 0) return c; }
+  for (let c = 0; c < s.columns.length; c++) { const t = s.top(c); if (!s.frozen[c] && t !== EMPTY && s.bayFor(t) >= 0) return c; }
   const free = s.free(); let best = -1, bestDepth = Infinity;
-  for (let c = 0; c < s.columns.length; c++) { const col = s.columns[c];
+  for (let c = 0; c < s.columns.length; c++) { if (s.frozen[c]) continue; const col = s.columns[c];
     for (let i = col.length - 1; i >= 0; i--) { if (s.bayFor(col[i]) < 0) continue; const depth = col.length - 1 - i; if (depth <= free && depth < bestDepth) { bestDepth = depth; best = c; } break; } }
   if (best >= 0) return best;
   let bestWait = Infinity;
-  for (let c = 0; c < s.columns.length; c++) { const t = s.top(c); if (t === EMPTY || free === 0) continue;
+  for (let c = 0; c < s.columns.length; c++) { const t = s.top(c); if (t === EMPTY || free === 0 || s.frozen[c]) continue;
     let w = s.queue.indexOf(t, s.next); if (w < 0) w = Infinity - 1; if (w < bestWait) { bestWait = w; best = c; } }
   return best;
 }
@@ -231,7 +246,7 @@ const store = {
 const cv = document.getElementById("cv"), ctx = cv.getContext("2d"), boardEl = document.getElementById("board");
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const W = 10.4, H = 15.6; // world box the board is designed for
-const CRATE = 0.86, COLSP = 1.25, ROWSP = 0.95, BASEY = -6.6, BUFY = 2.6, BAYY = 5.6, BAYSP = 4.7, SLOTSP = 0.95;
+const NEXTY = 3.9, CRATE = 0.86, COLSP = 1.25, ROWSP = 0.95, BASEY = -6.6, BUFY = 2.6, BAYY = 5.6, BAYSP = 4.7, SLOTSP = 0.95;
 let scale = 40, cx = 0, cy = 0, dpr = 1;
 
 function resize() {
@@ -259,6 +274,19 @@ function crate(x, y, color, s = 1) {
   const c = COLORS[color], z = CRATE * s;
   rr(x, y, z, z, 0.16 * s, shade(c, 0.45)); rr(x, y, z * 0.86, z * 0.86, 0.12 * s, c); rr(x, y, z * 0.86, z * 0.16, 0.02, shade(c, 0.2));
 }
+function hiddenCrate(x, y) {
+  rr(x, y, CRATE, CRATE, 0.16, "#3a404a"); rr(x, y, CRATE * 0.86, CRATE * 0.86, 0.12, "#6b7380");
+  label("?", x, y, 0.6, "#fff");
+}
+function label(text, x, y, size, fill, align = "center") {
+  ctx.font = `800 ${Math.round(size * scale)}px Vazirmatn, system-ui, sans-serif`; ctx.fillStyle = fill; ctx.textAlign = align; ctx.textBaseline = "middle";
+  ctx.fillText(text, sx(x), sy(y) + size * scale * 0.06);
+}
+function miniTruck(x, y, color, alpha) {
+  ctx.globalAlpha = alpha; const c = COLORS[color];
+  rr(x, y + 0.02, 0.78, 0.42, 0.08, c); rr(x + 0.55, y - 0.02, 0.3, 0.34, 0.06, shade(c, 0.2));
+  ctx.globalAlpha = 1; dot(x - 0.2, y - 0.24, 0.18, "#15181e"); dot(x + 0.5, y - 0.24, 0.18, "#15181e");
+}
 function truck(x, y, color, loaded, cap) {
   const c = COLORS[color], bedW = cap * SLOTSP + 0.2, bedL = slotLocal(0, cap)[0] - SLOTSP / 2 - 0.1, bedC = bedL + bedW / 2, cabX = bedL + bedW + 0.5;
   rr(x + bedC, y + 0.05, bedW, 1.15, 0.18, theme().bed); rr(x + bedC, y - 0.48, bedW, 0.2, 0.05, c);
@@ -274,6 +302,9 @@ function draw() {
   if (!view) return;
   // trucks
   view.bays.forEach((t, b) => { const [x, y] = bayPos(b); rr(x, y - 0.95, BAYSP - 0.4, 0.18, 0.05, theme().slot); if (t) truck(x + (t.off || 0), y, t.color, t.loaded, t.capacity); });
+  // next trucks in line
+  const next = game ? game.upcoming(2) : [];
+  if (next.length) { label(t("next_short"), -2.1, NEXTY, 0.42, "rgba(255,255,255,.7)"); next.forEach((c, i) => miniTruck(-0.6 + i * 1.5, NEXTY, c, i ? 0.6 : 1)); }
   // dock
   rr(0, BUFY, view.buffer.length * bufSp() + 0.3, 1.25, 0.25, theme().ground);
   view.buffer.forEach((c, i) => { const [x, y] = bufPos(i); rr(x, y, CRATE + 0.08, CRATE + 0.08, 0.16, theme().slot); if (c !== EMPTY) crate(x, y, c); });
@@ -282,13 +313,17 @@ function draw() {
   view.columns.forEach((col, c) => {
     const [x] = colPos(c, 0), h = tallest * ROWSP + 0.25;
     rr(x, BASEY - 0.55 + h / 2, COLSP - 0.15, h, 0.22, theme().ground);
-    col.forEach((color, r) => { const [px, py] = colPos(c, r); const shake = view.shake && view.shake.c === c && r === col.length - 1 ? Math.sin(view.shake.t * 40) * 0.12 * (1 - view.shake.t / 0.25) : 0; crate(px + shake, py, color); });
+    col.forEach((color, r) => { const [px, py] = colPos(c, r); const shake = view.shake && view.shake.c === c && r === col.length - 1 ? Math.sin(view.shake.t * 40) * 0.12 * (1 - view.shake.t / 0.25) : 0; if (view.hidden[c][r] && r < col.length - 1) hiddenCrate(px + shake, py); else crate(px + shake, py, color); });
+    if (view.frozen[c] > 0 && col.length) {
+      const [ix, iy] = colPos(c, col.length - 1); const sh = view.shake && view.shake.c === c ? Math.sin(view.shake.t * 40) * 0.12 * (1 - view.shake.t / 0.25) : 0;
+      rr(ix + sh, iy, CRATE + 0.18, CRATE + 0.18, 0.18, "rgba(184,230,255,.85)"); label(num(view.frozen[c]), ix + sh, iy, 0.55, "#1f4e79");
+    }
   });
   if (hintCol >= 0 && hintCol < view.columns.length) { const [hx, hy] = colPos(hintCol, view.columns[hintCol].length); const b = Math.abs(Math.sin(performance.now() / 160)) * 0.3; dot(hx, hy + 0.1 + b, 0.42, "#ffffff"); }
   for (const f of flying) crate(f.x, f.y, f.color);
 }
 
-function cloneView(g) { return { columns: g.columns.map(c => c.slice()), buffer: g.buffer.slice(), bays: g.bays.map(t => t && { ...t, off: 0 }) }; }
+function cloneView(g) { return { columns: g.columns.map(c => c.slice()), hidden: g.hidden.map(h => h.slice()), frozen: g.frozen.slice(), buffer: g.buffer.slice(), bays: g.bays.map(t => t && { ...t, off: 0 }) }; }
 
 function tween(time, step) { return new Promise(res => { if (reduce) { step(1); return res(); } const t0 = performance.now();
   (function f(now) { const k = Math.min(1, (now - t0) / (time * 1000)); step(1 - (1 - k) * (1 - k)); if (k < 1) requestAnimationFrame(f); else res(); })(t0); }); }
@@ -297,7 +332,7 @@ async function play(events) {
   busy = true; hintCol = -1;
   for (const e of events) {
     if (e.k === "move") {
-      let from; if (e.from === "col") { const col = view.columns[e.fi]; from = colPos(e.fi, col.length - 1); col.pop(); } else { from = bufPos(e.fi); view.buffer[e.fi] = EMPTY; }
+      let from; if (e.from === "col") { const col = view.columns[e.fi]; from = colPos(e.fi, col.length - 1); col.pop(); view.hidden[e.fi].pop(); } else { from = bufPos(e.fi); view.buffer[e.fi] = EMPTY; }
       let to; if (e.to === "bay") { const t = view.bays[e.ti]; const [bx, by] = bayPos(e.ti); const [lx, ly] = slotLocal(t.loaded, t.capacity); to = [bx + lx, by + ly]; } else to = bufPos(e.ti);
       const f = { x: from[0], y: from[1], color: e.color }; flying.push(f);
       const arc = 0.6 + Math.hypot(to[0] - from[0], to[1] - from[1]) * 0.06;
@@ -360,7 +395,11 @@ const STR = {
   rewarded_ad: ["Rewarded ad", "تبلیغ جایزه‌دار"], between_ad: ["Ad between levels", "تبلیغ بین مرحله‌ها"], test_ad: ["test ad, 1 second", "تبلیغ آزمایشی، ۱ ثانیه"],
   theme_night: ["Night Dock", "اسکله شب"], theme_sunny: ["Sunny Port", "بندر آفتابی"], theme_snow: ["Snowy Yard", "انبار برفی"],
   theme_desert: ["Desert Depot", "انبار کویری"], theme_neon: ["Neon City", "شهر نئون"],
-  challenge: ["Challenge", "چالش"], levels: ["Levels", "مراحل"], challenge_level: ["Daily challenge", "چالش روزانه"],
+  challenge: ["Challenge", "چالش"], coins_price: ["{0} coins", "{0} سکه"], next_short: ["Next", "بعدی"],
+  hard_level: ["Level {0} - HARD", "مرحله {0} - سخت"], hard_start: ["Hard level! Double coins", "مرحله سخت! سکه دو برابر"],
+  twist_hidden: ["New: ? crates show their color on top", "جدید: رنگ جعبه ؟ بالای ستون معلوم می‌شود"],
+  twist_frozen: ["New: ice melts as you tap other columns", "جدید: یخ با ضربه به ستون‌های دیگر آب می‌شود"],
+  frozen: ["Frozen! Tap other columns to melt it", "یخ زده! به ستون‌های دیگر ضربه بزن"], levels: ["Levels", "مراحل"], challenge_level: ["Daily challenge", "چالش روزانه"],
   challenge_win: ["Challenge complete!", "چالش امروز تمام شد!"], challenge_done: ["Done for today! New challenge tomorrow", "چالش امروز انجام شد! فردا چالش جدید"],
   challenge_start: ["Hard level, big prize: {0} coins", "مرحله سخت، جایزه بزرگ: {0} سکه"],
   sound_on: ["Sound: On", "صدا: روشن"], sound_off: ["Sound: Off", "صدا: خاموش"], vibration_on: ["Vibration: On", "لرزش: روشن"], vibration_off: ["Vibration: Off", "لرزش: خاموش"],
@@ -419,25 +458,30 @@ function checkDaily() {
 function finishDaily(n) { store.set("dailyDay", today()); pendingDaily = 0; $("daily").hidden = true; addCoins(n); }
 
 // ===== Game flow =====
-function toast(msg) { const el = $("toast"); el.textContent = msg; el.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => el.hidden = true, 1600); }
+function toast(msg, ms = 1600) { const el = $("toast"); el.textContent = msg; el.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => el.hidden = true, ms); }
 function refresh() {
-  $("level").textContent = level > 0 ? t("level", level) : t("challenge_level");
+  const hard = level > 0 && isHard(level);
+  $("level").textContent = level > 0 ? t(hard ? "hard_level" : "level", level) : t("challenge_level");
+  $("level").style.color = hard ? "#ff6b5e" : ""; $("level").style.fontSize = hard ? "22px" : "";
   $("challengeBtn").textContent = t(level > 0 ? "challenge" : "levels"); $("trucks").textContent = t("trucks", game.shipped, game.queue.length);
-  $("undoSub").textContent = freeUndos > 0 ? t("free", freeUndos) : t("watch_ad");
-  $("undo").classList.toggle("ad", freeUndos === 0);
+  // Boosters: free first, then coins if there are enough, otherwise a rewarded ad.
+  $("undoSub").textContent = freeUndos > 0 ? t("free", freeUndos) : coins >= PRICE.undo ? t("coins_price", PRICE.undo) : t("watch_ad");
+  $("undo").classList.toggle("ad", freeUndos === 0 && coins < PRICE.undo);
+  for (const k of ["slot", "hint"]) { $(k + "Sub").textContent = coins >= PRICE[k] ? t("coins_price", PRICE[k]) : t("watch_ad"); $(k).classList.toggle("ad", coins < PRICE[k]); }
   $("noads").hidden = store.get("noads", false);
   $("coins").textContent = t("coins", coins);
 }
 function start(n) {
   level = n; game = new Game(n > 0 ? generate(n) : generateChallenge(today())); history = []; freeUndos = 1; bonus = 0; hintCol = -1; busy = false; flying = [];
   view = cloneView(game); $("win").hidden = true; $("lose").hidden = true; pendingWin = 0; refresh();
+  if (n === FROZEN_FROM) toast(t("twist_frozen"), 3000); else if (n === HIDDEN_FROM) toast(t("twist_hidden"), 3000); else if (n > 0 && isHard(n)) toast(t("hard_start"));
 }
 function afterMove() {
   refresh();
   if (game.status === "won") {
     sfx.win();
     if (level === 0) { store.set("challengeDay", today()); pendingWin = CHALLENGE_REWARD; }
-    else { store.set("level", level + 1); pendingWin = 10 + Math.floor(level / 2); }
+    else { store.set("level", level + 1); pendingWin = (10 + Math.floor(level / 2)) * (isHard(level) ? 2 : 1); }
     $("winTitle").textContent = level > 0 ? t("win_title", level) : t("challenge_win"); $("winReward").textContent = t("reward", pendingWin); $("win").hidden = false;
   }
   else if (game.status === "lost") { sfx.lose(); $("lose").hidden = false; }
@@ -455,8 +499,12 @@ cv.addEventListener("pointerdown", ev => {
   if (wy < BASEY - 0.8 || wy > BUFY - 0.7) return;
   let c = -1; for (let i = 0; i < view.columns.length; i++) if (Math.abs(wx - colPos(i, 0)[0]) <= COLSP / 2) c = i;
   if (c < 0) return;
-  if (!game.canTap(c)) { sfx.invalid(); if (game.columns[c].length) { view.shake = { c, t: 0 }; tween(0.25, k => view.shake && (view.shake.t = k * 0.25)).then(() => view.shake = null); } return; }
-  history.push(game.clone()); play(game.tap(c));
+  if (!game.canTap(c)) { sfx.invalid(); if (game.frozen[c] > 0) toast(t("frozen")); if (game.columns[c].length) { view.shake = { c, t: 0 }; tween(0.25, k => view.shake && (view.shake.t = k * 0.25)).then(() => view.shake = null); } return; }
+  const frozenBefore = game.frozen.filter(f => f > 0).length, hiddenBefore = game.columns.map((_, i) => game.columns[i].length > 1 && game.hidden[i][game.columns[i].length - 2]);
+  history.push(game.clone()); const events = game.tap(c);
+  if (game.frozen.filter(f => f > 0).length < frozenBefore) setTimeout(() => { sfx.thud(); sfx.pop(3); buzz(20); }, 150);
+  if (hiddenBefore[c]) setTimeout(() => sfx.pop(5), 120);
+  play(events);
 });
 
 function undo() {
@@ -464,12 +512,14 @@ function undo() {
   const size = game.buffer.length; game = history.pop(); while (game.buffer.length < size) game.addSlot();
   view = cloneView(game); $("lose").hidden = true; hintCol = -1; refresh();
 }
-$("undo").onclick = () => { if (busy || !history.length) return; if (freeUndos > 0) { freeUndos--; undo(); } else rewarded(undo); };
+const PRICE = { undo: 30, slot: 60, hint: 20 };
+function spend(price) { if (coins < price) return false; coins -= price; store.set("coins", coins); sfx.coins(); refresh(); return true; }
+$("undo").onclick = () => { if (busy || !history.length) return; if (freeUndos > 0) { freeUndos--; undo(); } else if (spend(PRICE.undo)) undo(); else rewarded(undo); };
 $("loseUndo").onclick = () => { if (freeUndos > 0) { freeUndos--; undo(); } else rewarded(undo); };
 function addSlot() { bonus++; game.addSlot(); view = cloneView(game); refresh(); }
-$("slot").onclick = () => { if (bonus >= 2) return toast(t("dock_max")); rewarded(addSlot); };
+$("slot").onclick = () => { if (bonus >= 2) return toast(t("dock_max")); if (spend(PRICE.slot)) addSlot(); else rewarded(addSlot); };
 $("revive").onclick = () => rewarded(() => { addSlot(); $("lose").hidden = true; });
-$("hint").onclick = () => rewarded(() => { hintCol = pickMove(game.clone()); });
+$("hint").onclick = () => { if (busy) return; const show = () => { hintCol = pickMove(game.clone()); }; if (spend(PRICE.hint)) show(); else rewarded(show); };
 $("retry").onclick = () => start(level);
 $("reset").onclick = () => { if (!busy) start(level); };
 function finishWin(n, allowAd) {

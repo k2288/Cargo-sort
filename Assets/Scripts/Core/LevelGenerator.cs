@@ -13,6 +13,9 @@ namespace CargoSort.Core
         public int BayCount;
         public List<List<int>> Columns = new List<List<int>>(); // bottom -> top
         public List<int> TruckColors = new List<int>();         // arrival order
+        public List<List<bool>> Hidden = new List<List<bool>>(); // same shape as Columns
+        public List<int> Frozen = new List<int>();               // ice taps per column
+        public bool Hard;
     }
 
     public struct Difficulty
@@ -24,6 +27,10 @@ namespace CargoSort.Core
         public int Bays;
         public int Capacity;
         public int MaxHeight;
+        public int HiddenPercent;   // chance a non-top crate is hidden
+        public int FrozenColumns;
+        public int FrozenTaps;
+        public bool Hard;
     }
 
     /// <summary>
@@ -33,6 +40,11 @@ namespace CargoSort.Core
     public static class LevelGenerator
     {
         public const int MaxColors = 8;
+        public const int HiddenFromLevel = 11;
+        public const int FrozenFromLevel = 21;
+
+        /// <summary>Every 5th level is a hard level: one less dock slot, double coins.</summary>
+        public static bool IsHard(int level) => level >= 5 && level % 5 == 0;
 
         public static Difficulty ForLevel(int level)
         {
@@ -49,6 +61,15 @@ namespace CargoSort.Core
 
             // Every 5th level is a "hard" level with one less dock slot.
             if (level % 5 == 0) d.Buffer -= 1;
+            d.Hard = IsHard(level);
+
+            // A new twist every 10 levels.
+            if (level >= HiddenFromLevel) d.HiddenPercent = Math.Min(20 + (level - HiddenFromLevel) / 2, 30);
+            if (level >= FrozenFromLevel)
+            {
+                d.FrozenColumns = level >= 41 ? 2 : 1;
+                d.FrozenTaps = 3 + (level % 3);
+            }
             return d;
         }
 
@@ -94,6 +115,7 @@ namespace CargoSort.Core
                 TruckCapacity = d.Capacity,
                 BufferSize = d.Buffer,
                 BayCount = d.Bays,
+                Hard = d.Hard,
             };
 
             for (int i = 0; i < d.Trucks; i++) data.TruckColors.Add(i % d.Colors);
@@ -116,6 +138,21 @@ namespace CargoSort.Core
                 foreach (var col in data.Columns) min = Math.Min(min, col.Count);
                 if (data.Columns[c].Count > min + 1 || data.Columns[c].Count >= d.MaxHeight) continue;
                 data.Columns[c].Add(crates[index++]);
+            }
+
+            // Twists use the random numbers after the layout, so earlier levels stay the same.
+            foreach (var col in data.Columns)
+            {
+                var hidden = new List<bool>();
+                for (int r = 0; r < col.Count; r++)
+                    hidden.Add(d.HiddenPercent > 0 && r < col.Count - 1 && rng.Next(100) < d.HiddenPercent);
+                data.Hidden.Add(hidden);
+                data.Frozen.Add(0);
+            }
+            for (int i = 0; i < d.FrozenColumns; i++)
+            {
+                int c = rng.Next(columns);
+                if (data.Frozen[c] == 0) data.Frozen[c] = d.FrozenTaps + i * 2;
             }
             return data;
         }
@@ -154,12 +191,13 @@ namespace CargoSort.Core
         public static int PickMove(GameState s)
         {
             for (int c = 0; c < s.Columns.Count; c++)
-                if (s.Top(c) != GameState.Empty && s.IsWanted(s.Top(c))) return c;
+                if (!s.IsFrozen(c) && s.Top(c) != GameState.Empty && s.IsWanted(s.Top(c))) return c;
 
             int free = s.FreeBufferSlots;
             int best = -1, bestDepth = int.MaxValue;
             for (int c = 0; c < s.Columns.Count; c++)
             {
+                if (s.IsFrozen(c)) continue;
                 var col = s.Columns[c];
                 for (int i = col.Count - 1; i >= 0; i--)
                 {
@@ -176,7 +214,7 @@ namespace CargoSort.Core
             for (int c = 0; c < s.Columns.Count; c++)
             {
                 int top = s.Top(c);
-                if (top == GameState.Empty || free == 0) continue;
+                if (top == GameState.Empty || free == 0 || s.IsFrozen(c)) continue;
                 int wait = s.TruckQueue.IndexOf(top, Math.Min(s.NextTruck, s.TruckQueue.Count));
                 if (wait < 0) wait = int.MaxValue - 1;
                 if (wait < bestWait) { bestWait = wait; best = c; }

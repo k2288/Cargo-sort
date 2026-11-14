@@ -18,6 +18,8 @@ namespace CargoSort.Game
         private const float BaySpacing = 4.7f;
         private const float SlotSpacing = 0.95f;
         private const float OffscreenX = 9f;
+        private const float NextY = 3.9f;
+        private const int NextShown = 2;
 
         public float MoveTime = 0.16f;
         public float TruckTime = 0.24f;
@@ -28,6 +30,9 @@ namespace CargoSort.Game
         private Transform[] bufferCrates = new Transform[0];
         private TruckView[] trucks = new TruckView[0];
         private Transform hintMarker;
+        private Transform nextRoot;
+        private readonly List<List<bool>> shownHidden = new List<List<bool>>();
+        private readonly Dictionary<int, (Transform root, TextMesh count)> ice = new Dictionary<int, (Transform, TextMesh)>();
 
         private sealed class TruckView
         {
@@ -99,6 +104,8 @@ namespace CargoSort.Game
 
             // Columns
             columnCrates.Clear();
+            shownHidden.Clear();
+            ice.Clear();
             int tallest = 1;
             foreach (var col in state.Columns) tallest = Mathf.Max(tallest, col.Count);
             for (int c = 0; c < state.Columns.Count; c++)
@@ -108,14 +115,19 @@ namespace CargoSort.Game
                 Art.Box(root, "Lane", new Vector2(pallet.x, ColumnBaseY - 0.55f + h / 2f), new Vector2(ColumnSpacing - 0.15f, h), Art.Ground, 0);
 
                 var list = new List<Transform>();
+                var hidden = new List<bool>();
                 for (int r = 0; r < state.Columns[c].Count; r++)
                 {
-                    var crate = Art.Crate(root, state.Columns[c][r], CrateSize);
+                    bool isHidden = state.IsHidden(c, r);
+                    var crate = isHidden ? Art.HiddenCrate(root, CrateSize) : Art.Crate(root, state.Columns[c][r], CrateSize);
                     crate.position = ColumnPos(c, r);
                     list.Add(crate);
+                    hidden.Add(isHidden);
                 }
                 columnCrates.Add(list);
+                shownHidden.Add(hidden);
             }
+            RefreshTwists(false);
 
             // Trucks
             trucks = new TruckView[state.Bays.Length];
@@ -127,6 +139,76 @@ namespace CargoSort.Game
                 trucks[b] = CreateTruck(truck.Color, truck.Capacity);
                 trucks[b].Root.position = BayPos(b);
                 for (int i = 0; i < truck.Loaded; i++) AddCrateToTruck(trucks[b], Art.Crate(root, truck.Color, CrateSize));
+            }
+            DrawNextTrucks();
+        }
+
+        /// <summary>The next trucks in line, so players can plan which crates to dig out.</summary>
+        private void DrawNextTrucks()
+        {
+            if (nextRoot != null) Destroy(nextRoot.gameObject);
+            nextRoot = new GameObject("NextTrucks").transform;
+            nextRoot.SetParent(root, false);
+            var next = state.UpcomingTrucks(NextShown);
+            if (next.Count == 0) return;
+
+            Art.Label(nextRoot, Loc.T("next_short"), new Vector2(-2.1f, NextY), 0.42f, new Color(1, 1, 1, 0.7f), 5);
+            for (int i = 0; i < next.Count; i++)
+            {
+                var c = Art.CrateColor(next[i]);
+                float x = -0.6f + i * 1.5f;
+                float alpha = i == 0 ? 1f : 0.6f;
+                var bed = Art.Box(nextRoot, "MiniBed", new Vector2(x, NextY + 0.02f), new Vector2(0.78f, 0.42f), c, 5);
+                bed.color = new Color(c.r, c.g, c.b, alpha);
+                var cab = Art.Box(nextRoot, "MiniCab", new Vector2(x + 0.55f, NextY - 0.02f), new Vector2(0.3f, 0.34f), Art.Darken(c, 0.2f), 5);
+                cab.color = new Color(cab.color.r, cab.color.g, cab.color.b, alpha);
+                Art.Dot(nextRoot, "MiniWheel", new Vector2(x - 0.2f, NextY - 0.24f), 0.18f, Art.Wheel, 6);
+                Art.Dot(nextRoot, "MiniWheel", new Vector2(x + 0.5f, NextY - 0.24f), 0.18f, Art.Wheel, 6);
+            }
+        }
+
+        /// <summary>Reveals "?" crates that reached the top and updates the ice on frozen columns.</summary>
+        private void RefreshTwists(bool animate)
+        {
+            for (int c = 0; c < columnCrates.Count && c < state.Columns.Count; c++)
+            {
+                var list = columnCrates[c];
+                var hidden = shownHidden[c];
+                while (hidden.Count > list.Count) hidden.RemoveAt(hidden.Count - 1);
+                for (int r = 0; r < list.Count; r++)
+                {
+                    if (!hidden[r] || state.IsHidden(c, r)) continue;
+                    var pos = list[r].position;
+                    Destroy(list[r].gameObject);
+                    list[r] = Art.Crate(root, state.Columns[c][r], CrateSize);
+                    list[r].position = pos;
+                    hidden[r] = false;
+                    if (animate) Feedback.Revealed();
+                }
+
+                int taps = state.Frozen[c];
+                if (taps > 0)
+                {
+                    if (!ice.TryGetValue(c, out var block))
+                    {
+                        var top = ColumnPos(c, Mathf.Max(0, state.Columns[c].Count - 1));
+                        var iceRoot = new GameObject("Ice").transform;
+                        iceRoot.SetParent(root, false);
+                        iceRoot.position = top;
+                        var sr = Art.Box(iceRoot, "IceBlock", Vector2.zero, new Vector2(CrateSize + 0.18f, CrateSize + 0.18f), new Color(0.72f, 0.9f, 1f, 0.82f), 20);
+                        sr.sortingOrder = 20;
+                        var count = Art.Label(iceRoot, "", new Vector2(0, 0.02f), 0.6f, new Color32(0x1F, 0x4E, 0x79, 0xFF), 21);
+                        block = (iceRoot, count);
+                        ice[c] = block;
+                    }
+                    block.count.text = taps.ToString();
+                }
+                else if (ice.TryGetValue(c, out var melted))
+                {
+                    Destroy(melted.root.gameObject);
+                    ice.Remove(c);
+                    if (animate) Feedback.IceMelted();
+                }
             }
         }
 
@@ -182,6 +264,8 @@ namespace CargoSort.Game
                     case EventKind.TruckArrive: yield return Arrive(e.Bay, e.Color, s.TruckCapacity); break;
                 }
             }
+            state = s;
+            RefreshTwists(true);
             Redraw(s);
             done?.Invoke();
         }
@@ -194,6 +278,8 @@ namespace CargoSort.Game
                 var list = columnCrates[e.FromIndex];
                 crate = list[list.Count - 1];
                 list.RemoveAt(list.Count - 1);
+                var hidden = shownHidden[e.FromIndex];
+                if (hidden.Count > 0) hidden.RemoveAt(hidden.Count - 1);
             }
             else
             {
