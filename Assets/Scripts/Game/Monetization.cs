@@ -161,6 +161,12 @@ namespace CargoSort.Game
             set { PlayerPrefs.SetInt("challenges_done", value); PlayerPrefs.Save(); }
         }
 
+        public static bool TutorialDone
+        {
+            get => PlayerPrefs.GetInt("tutorial_done", 0) == 1;
+            set { PlayerPrefs.SetInt("tutorial_done", value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
         public static bool Sound
         {
             get => PlayerPrefs.GetInt("sound", 1) == 1;

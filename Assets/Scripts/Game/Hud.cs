@@ -21,6 +21,9 @@ namespace CargoSort.Game
         private GameObject canvasRoot;
         private Text levelText, trucksText, coinsText, undoLabel, slotLabel, hintLabel, toastText, challengeLabel, soundLabel, vibrationLabel;
         private Text winTitle, winReward, dailyTitle, dailyReward, shopCoins;
+        private RectTransform safeRect;
+        private GameObject tip;
+        private Text tipText;
         private GameObject winPanel, losePanel, dailyPanel, shopPanel, removeAdsButton, toast;
         private readonly List<Text> themeButtons = new List<Text>();
         private float toastUntil;
@@ -52,6 +55,7 @@ namespace CargoSort.Game
             var safe = MakeRect("Safe", canvasRoot.transform);
             safe.gameObject.AddComponent<SafeArea>();
             Stretch(safe);
+            safeRect = safe;
 
             // Top bar
             levelText = MakeText(safe, "", 62, TextAnchor.UpperCenter);
@@ -109,6 +113,21 @@ namespace CargoSort.Game
             var dailyHint = MakeText(dailyBox, Loc.T("daily_hint"), 32, TextAnchor.MiddleCenter);
             dailyHint.color = new Color(1, 1, 1, 0.7f);
             Anchor(dailyHint.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, -305), new Vector2(860, 60));
+
+            // Tutorial tip under the top bar
+            tip = MakeRect("Tip", safe).gameObject;
+            var tipImg = tip.AddComponent<Image>();
+            tipImg.sprite = Art.Rounded;
+            tipImg.type = Image.Type.Sliced;
+            tipImg.pixelsPerUnitMultiplier = 0.5f;
+            tipImg.color = new Color32(0xFF, 0xF4, 0xD6, 0xF2);
+            tipImg.raycastTarget = false;
+            Anchor((RectTransform)tip.transform, new Vector2(0.5f, 1), new Vector2(0, -252), new Vector2(940, 106));
+            tipText = MakeText(tip.transform, "", 32, TextAnchor.MiddleCenter);
+            tipText.color = new Color32(0x1B, 0x1B, 0x1B, 0xFF);
+            tipText.raycastTarget = false;
+            Stretch(tipText.rectTransform);
+            tip.SetActive(false);
 
             BuildShop(safe);
 
@@ -254,6 +273,61 @@ namespace CargoSort.Game
                     image.color = Progress.Coins >= Themes.All[i].Price ? ButtonAdColor : ButtonQuiet;
                 }
             }
+        }
+
+        /// <summary>Shows a tutorial tip under the top bar, or hides it when text is null.</summary>
+        public void SetTip(string text)
+        {
+            tip.SetActive(!string.IsNullOrEmpty(text));
+            if (tip.activeSelf) tipText.text = text;
+        }
+
+        /// <summary>Gold coins fly from the middle of the screen to the coin counter.</summary>
+        public void FlyCoins(int amount)
+        {
+            if (amount <= 0) return;
+            StartCoroutine(FlyCoinsRoutine(Mathf.Clamp(amount / 10, 4, 12)));
+        }
+
+        private System.Collections.IEnumerator FlyCoinsRoutine(int count)
+        {
+            var target = coinsText.rectTransform;
+            var coins = new List<RectTransform>();
+            for (int i = 0; i < count; i++)
+            {
+                var rt = MakeRect("FlyingCoin", safeRect);
+                var img = rt.gameObject.AddComponent<Image>();
+                img.sprite = Art.Circle;
+                img.color = Gold;
+                img.raycastTarget = false;
+                rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+                rt.sizeDelta = new Vector2(64, 64);
+                rt.anchoredPosition = UnityEngine.Random.insideUnitCircle * 140f;
+                coins.Add(rt);
+            }
+            var starts = coins.ConvertAll(c => c.position);
+            for (float t = 0; t < 1f + count * 0.05f; t += Time.unscaledDeltaTime / 0.6f)
+            {
+                if (target == null) yield break;
+                for (int i = 0; i < coins.Count; i++)
+                {
+                    if (coins[i] == null) continue;
+                    float k = Mathf.Clamp01(t - i * 0.05f);
+                    k = k * k * (3f - 2f * k);
+                    coins[i].position = Vector3.Lerp(starts[i], target.position, k) + Vector3.up * Mathf.Sin(k * Mathf.PI) * 120f;
+                    if (k >= 1f)
+                    {
+                        Destroy(coins[i].gameObject);
+                        coins[i] = null;
+                        Feedback.Click();
+                        target.localScale = Vector3.one * 1.25f;
+                    }
+                }
+                target.localScale = Vector3.Lerp(target.localScale, Vector3.one, Time.unscaledDeltaTime * 10f);
+                yield return null;
+            }
+            foreach (var c in coins) if (c != null) Destroy(c.gameObject);
+            if (target != null) target.localScale = Vector3.one;
         }
 
         public void Toast(string message, float seconds = 1.6f)

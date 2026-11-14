@@ -31,6 +31,7 @@ namespace CargoSort.Game
         private TruckView[] trucks = new TruckView[0];
         private Transform hintMarker;
         private Transform nextRoot;
+        private Transform confetti;
         private readonly List<List<bool>> shownHidden = new List<List<bool>>();
         private readonly Dictionary<int, (Transform root, TextMesh count)> ice = new Dictionary<int, (Transform, TextMesh)>();
 
@@ -77,6 +78,8 @@ namespace CargoSort.Game
         public void Rebuild(GameState s)
         {
             StopAllCoroutines();
+            if (confetti != null) Destroy(confetti.gameObject);
+            confetti = null;
             Redraw(s);
         }
 
@@ -397,6 +400,123 @@ namespace CargoSort.Game
             int top = Mathf.Max(0, columnCrates[column].Count);
             hintMarker = Art.Dot(root, "Hint", ColumnPos(column, top) + Vector3.up * 0.1f, 0.45f, Color.white, 50).transform;
             StartCoroutine(Bounce(hintMarker));
+        }
+
+        /// <summary>Tutorial: a hand pointing at the column to tap, with a pulsing ring on its top crate.</summary>
+        public void ShowTutorialHand(int column)
+        {
+            ClearHint();
+            if (column < 0 || column >= columnCrates.Count) return;
+            int top = Mathf.Max(0, columnCrates[column].Count - 1);
+            var target = ColumnPos(column, top);
+            hintMarker = new GameObject("TutorialHand").transform;
+            hintMarker.SetParent(root, false);
+            hintMarker.position = target;
+
+            var ring = Art.Dot(hintMarker, "Ring", Vector2.zero, 1.25f, new Color(1, 1, 1, 0.35f), 9);
+            var hand = new GameObject("Hand").transform;
+            hand.SetParent(hintMarker, false);
+            var outline = new Color32(0x1B, 0x1B, 0x1B, 0xFF);
+            Art.Box(hand, "PalmOutline", new Vector2(0, 1.25f), new Vector2(0.72f, 0.66f), outline, 50);
+            Art.Box(hand, "Palm", new Vector2(0, 1.25f), new Vector2(0.6f, 0.54f), Color.white, 51);
+            Art.Box(hand, "FingerOutline", new Vector2(-0.12f, 0.72f), new Vector2(0.3f, 0.66f), outline, 50);
+            Art.Box(hand, "Finger", new Vector2(-0.12f, 0.74f), new Vector2(0.2f, 0.58f), Color.white, 52);
+            StartCoroutine(TutorialPulse(ring.transform, hand));
+        }
+
+        private static IEnumerator TutorialPulse(Transform ring, Transform hand)
+        {
+            while (ring != null && hand != null)
+            {
+                float k = Mathf.Repeat(Time.time * 1.4f, 1f);
+                ring.localScale = Vector3.one * (0.8f + k * 0.7f);
+                var sr = ring.GetComponent<SpriteRenderer>();
+                sr.color = new Color(1, 1, 1, 0.45f * (1f - k));
+                hand.localPosition = Vector3.up * Mathf.Abs(Mathf.Sin(Time.time * 4f)) * 0.3f;
+                yield return null;
+            }
+        }
+
+        /// <summary>Level start: trucks drive in and the crate stacks pop up.</summary>
+        public void PlayIntro()
+        {
+            StartCoroutine(IntroRoutine());
+        }
+
+        private IEnumerator IntroRoutine()
+        {
+            Busy = true;
+            var crates = new List<Transform>();
+            foreach (var list in columnCrates) crates.AddRange(list);
+            foreach (var c in crates) c.localScale = Vector3.zero;
+            for (int b = 0; b < trucks.Length; b++)
+                if (trucks[b] != null) trucks[b].Root.position = BayPos(b) + Vector3.left * OffscreenX;
+
+            for (float t = 0; t < 1f; t += Time.deltaTime / 0.45f)
+            {
+                for (int i = 0; i < crates.Count; i++)
+                {
+                    if (crates[i] == null) continue;
+                    float k = Mathf.Clamp01(t * 1.6f - (i % 8) * 0.06f);
+                    crates[i].localScale = Vector3.one * BackOut(k);
+                }
+                for (int b = 0; b < trucks.Length; b++)
+                    if (trucks[b] != null) trucks[b].Root.position = Vector3.Lerp(BayPos(b) + Vector3.left * OffscreenX, BayPos(b), EaseOut(t));
+                yield return null;
+            }
+            foreach (var c in crates) if (c != null) c.localScale = Vector3.one;
+            for (int b = 0; b < trucks.Length; b++)
+                if (trucks[b] != null) trucks[b].Root.position = BayPos(b);
+            Busy = false;
+        }
+
+        private static float BackOut(float k)
+        {
+            k = Mathf.Clamp01(k);
+            const float s = 1.7f;
+            k -= 1f;
+            return k * k * ((s + 1f) * k + s) + 1f;
+        }
+
+        /// <summary>Win: a burst of confetti in the crate colors.</summary>
+        public void Confetti()
+        {
+            StartCoroutine(ConfettiRoutine());
+        }
+
+        private IEnumerator ConfettiRoutine()
+        {
+            if (confetti != null) Destroy(confetti.gameObject);
+            var host = new GameObject("Confetti").transform;
+            host.SetParent(transform, false);
+            confetti = host;
+            const int count = 60;
+            var bits = new Transform[count];
+            var vel = new Vector3[count];
+            var spin = new float[count];
+            for (int i = 0; i < count; i++)
+            {
+                var sr = Art.Box(host, "Bit", new Vector2(UnityEngine.Random.Range(-1.5f, 1.5f), 0f),
+                    new Vector2(0.22f, 0.12f), Art.CrateColor(i), 60);
+                bits[i] = sr.transform;
+                float angle = UnityEngine.Random.Range(50f, 130f) * Mathf.Deg2Rad;
+                float speed = UnityEngine.Random.Range(9f, 16f);
+                vel[i] = new Vector3(Mathf.Cos(angle), Mathf.Sin(angle)) * speed;
+                spin[i] = UnityEngine.Random.Range(-720f, 720f);
+            }
+            for (float t = 0; t < 2.2f; t += Time.deltaTime)
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    vel[i] += Vector3.down * 18f * Time.deltaTime;
+                    vel[i] *= 1f - 0.8f * Time.deltaTime;
+                    bits[i].position += vel[i] * Time.deltaTime;
+                    bits[i].Rotate(0, 0, spin[i] * Time.deltaTime);
+                }
+                yield return null;
+            }
+            Destroy(host.gameObject);
+            confetti = null;
         }
 
         private void ClearHint()

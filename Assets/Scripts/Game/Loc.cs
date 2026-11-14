@@ -55,6 +55,8 @@ namespace CargoSort.Game
             { "twist_frozen", ("New: ice melts as you tap other columns", "جدید: یخ با ضربه به ستون‌های دیگر آب می‌شود") },
             { "frozen", ("Frozen! Tap other columns to melt it", "یخ زده! به ستون‌های دیگر ضربه بزن") },
             { "next_short", ("Next", "بعدی") },
+            { "tut_truck", ("Tap this column: its top crate\njumps onto the matching truck", "روی این ستون بزن: جعبه بالایی\nروی کامیون هم‌رنگ می‌پرد") },
+            { "tut_dock", ("No truck for this color? It waits on the dock.\nDon't let the dock fill up!", "کامیون هم‌رنگ نیست؟ جعبه روی اسکله می‌ماند.\nنگذار اسکله پر شود!") },
             { "levels", ("Levels", "مراحل") },
             { "challenge_level", ("Daily challenge", "چالش روزانه") },
             { "challenge_win", ("Challenge complete!", "چالش امروز تمام شد!") },

@@ -56,6 +56,10 @@ button small { display: block; font-size: 11px; opacity: .7; font-weight: 800; l
 .card p { margin: 0 0 6px; color: var(--muted); }
 .fakead { font-family: var(--display); font-size: 26px; text-align: center; color: var(--ink); }
 .fakead span { display: block; font-family: var(--body); font-size: 14px; color: var(--muted); margin-top: 6px; }
+.board { position: relative; }
+.tip { position: absolute; left: 12px; right: 12px; top: 6px; background: #fff4d6; color: #1b1b1b; padding: 10px 14px; border-radius: 14px; font-weight: 800; font-size: 14px; text-align: center; white-space: pre-line; pointer-events: none; }
+.flycoin { position: fixed; width: 18px; height: 18px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 2px rgba(0,0,0,.25); z-index: 7; pointer-events: none; transition: transform .6s cubic-bezier(.5,-0.3,.6,1), opacity .6s; }
+.coins.bump { transform: scale(1.3); transition: transform .1s; }
 .toast { position: fixed; left: 50%; top: 40%; transform: translateX(-50%); background: var(--panel); padding: 12px 18px; border-radius: 12px; font-weight: 800; z-index: 6; max-width: calc(100% - 48px); text-align: center; }
 :root[lang="fa"] { --display: "Vazirmatn", system-ui, sans-serif; --body: "Vazirmatn", system-ui, sans-serif; }
 :root[lang="fa"] .title h1 { font-weight: 800; font-size: 26px; }
@@ -83,7 +87,7 @@ button.quiet { background: var(--muted); }
     <div class="title"><h1 id="level">Level 1</h1><p id="trucks">Trucks 0/0</p></div>
     <div class="right"><button class="small" id="shopBtn" data-t="shop">Shop</button><span class="coins" id="coins">0</span></div>
   </div>
-  <div class="board" id="board"><canvas id="cv"></canvas></div>
+  <div class="board" id="board"><canvas id="cv"></canvas><div class="tip" id="tip" hidden></div></div>
   <div class="bar">
     <button id="undo"><span data-t="undo">Undo</span><small id="undoSub">1 FREE</small></button>
     <button class="ad" id="slot"><span data-t="slot">+1 Slot</span><small id="slotSub">WATCH AD</small></button>
@@ -313,7 +317,11 @@ function draw() {
   view.columns.forEach((col, c) => {
     const [x] = colPos(c, 0), h = tallest * ROWSP + 0.25;
     rr(x, BASEY - 0.55 + h / 2, COLSP - 0.15, h, 0.22, theme().ground);
-    col.forEach((color, r) => { const [px, py] = colPos(c, r); const shake = view.shake && view.shake.c === c && r === col.length - 1 ? Math.sin(view.shake.t * 40) * 0.12 * (1 - view.shake.t / 0.25) : 0; if (view.hidden[c][r] && r < col.length - 1) hiddenCrate(px + shake, py); else crate(px + shake, py, color); });
+    col.forEach((color, r) => { const [px, py] = colPos(c, r); const shake = view.shake && view.shake.c === c && r === col.length - 1 ? Math.sin(view.shake.t * 40) * 0.12 * (1 - view.shake.t / 0.25) : 0; const k = Math.max(0, Math.min(1, introK * 1.6 - (r % 8) * 0.06)), sc = backOut(k);
+      if (sc <= 0.01) return;
+      if (sc < 0.999) { ctx.save(); ctx.translate(sx(px), sy(py)); ctx.scale(sc, sc); ctx.translate(-sx(px), -sy(py)); }
+      if (view.hidden[c][r] && r < col.length - 1) hiddenCrate(px + shake, py); else crate(px + shake, py, color);
+      if (sc < 0.999) ctx.restore(); });
     if (view.frozen[c] > 0 && col.length) {
       const [ix, iy] = colPos(c, col.length - 1); const sh = view.shake && view.shake.c === c ? Math.sin(view.shake.t * 40) * 0.12 * (1 - view.shake.t / 0.25) : 0;
       rr(ix + sh, iy, CRATE + 0.18, CRATE + 0.18, 0.18, "rgba(184,230,255,.85)"); label(num(view.frozen[c]), ix + sh, iy, 0.55, "#1f4e79");
@@ -321,6 +329,47 @@ function draw() {
   });
   if (hintCol >= 0 && hintCol < view.columns.length) { const [hx, hy] = colPos(hintCol, view.columns[hintCol].length); const b = Math.abs(Math.sin(performance.now() / 160)) * 0.3; dot(hx, hy + 0.1 + b, 0.42, "#ffffff"); }
   for (const f of flying) crate(f.x, f.y, f.color);
+  if (tutCol >= 0 && tutCol < view.columns.length && !busy) drawHand(tutCol);
+  drawConfetti();
+}
+let introK = 1, tutCol = -1, confetti = [], lastFrame = performance.now();
+function backOut(k) { const s = 1.7; k -= 1; return k * k * ((s + 1) * k + s) + 1; }
+function drawHand(c) {
+  const col = view.columns[c]; const [x, y] = colPos(c, Math.max(0, col.length - 1)), now = performance.now() / 1000;
+  const k = (now * 1.4) % 1; ctx.globalAlpha = 0.45 * (1 - k); dot(x, y, 1.25 * (0.8 + k * 0.7), "#fff"); ctx.globalAlpha = 1;
+  const b = Math.abs(Math.sin(now * 4)) * 0.3;
+  rr(x, y + 1.25 + b, 0.72, 0.66, 0.2, "#1b1b1b"); rr(x, y + 1.25 + b, 0.6, 0.54, 0.16, "#fff");
+  rr(x - 0.12, y + 0.72 + b, 0.3, 0.66, 0.15, "#1b1b1b"); rr(x - 0.12, y + 0.74 + b, 0.2, 0.58, 0.1, "#fff");
+}
+function burstConfetti() {
+  if (reduce) return;
+  for (let i = 0; i < 60; i++) { const a = (50 + Math.random() * 80) * Math.PI / 180, v = 9 + Math.random() * 7;
+    confetti.push({ x: Math.random() * 3 - 1.5, y: 0, vx: Math.cos(a) * v, vy: Math.sin(a) * v, rot: 0, spin: (Math.random() * 2 - 1) * 12, color: COLORS[i % COLORS.length], life: 2.2 }); }
+}
+function drawConfetti() {
+  const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now;
+  confetti = confetti.filter(p => (p.life -= dt) > 0);
+  for (const p of confetti) {
+    p.vy -= 18 * dt; p.vx *= 1 - 0.8 * dt; p.vy *= 1 - 0.8 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.spin * dt;
+    ctx.save(); ctx.translate(sx(p.x), sy(p.y)); ctx.rotate(p.rot); ctx.fillStyle = p.color; ctx.fillRect(-0.11 * scale, -0.06 * scale, 0.22 * scale, 0.12 * scale); ctx.restore();
+  }
+}
+function flyCoins(amount) {
+  if (reduce || amount <= 0) return;
+  const target = $("coins").getBoundingClientRect(), n = Math.max(4, Math.min(12, Math.floor(amount / 10)));
+  for (let i = 0; i < n; i++) {
+    const el = document.createElement("div"); el.className = "flycoin";
+    const x0 = innerWidth / 2 + (Math.random() - 0.5) * 120, y0 = innerHeight / 2 + (Math.random() - 0.5) * 120;
+    el.style.left = x0 + "px"; el.style.top = y0 + "px"; document.body.appendChild(el);
+    setTimeout(() => { el.style.transform = `translate(${target.left + target.width / 2 - x0 - 9}px, ${target.top + target.height / 2 - y0 - 9}px)`; }, 20 + i * 50);
+    setTimeout(() => { el.remove(); sfx.click(); $("coins").classList.add("bump"); setTimeout(() => $("coins").classList.remove("bump"), 100); }, 640 + i * 50);
+  }
+}
+function tutorialStep() {
+  const active = level === 1 && !store.get("tutDone", false) && game.status === "playing";
+  tutCol = active ? pickMove(game.clone()) : -1;
+  $("tip").hidden = !active;
+  if (active) { const top = game.top(tutCol); $("tip").textContent = t(top !== EMPTY && game.bayFor(top) >= 0 ? "tut_truck" : "tut_dock"); }
 }
 
 function cloneView(g) { return { columns: g.columns.map(c => c.slice()), hidden: g.hidden.map(h => h.slice()), frozen: g.frozen.slice(), buffer: g.buffer.slice(), bays: g.bays.map(t => t && { ...t, off: 0 }) }; }
@@ -395,7 +444,9 @@ const STR = {
   rewarded_ad: ["Rewarded ad", "تبلیغ جایزه‌دار"], between_ad: ["Ad between levels", "تبلیغ بین مرحله‌ها"], test_ad: ["test ad, 1 second", "تبلیغ آزمایشی، ۱ ثانیه"],
   theme_night: ["Night Dock", "اسکله شب"], theme_sunny: ["Sunny Port", "بندر آفتابی"], theme_snow: ["Snowy Yard", "انبار برفی"],
   theme_desert: ["Desert Depot", "انبار کویری"], theme_neon: ["Neon City", "شهر نئون"],
-  challenge: ["Challenge", "چالش"], coins_price: ["{0} coins", "{0} سکه"], next_short: ["Next", "بعدی"],
+  challenge: ["Challenge", "چالش"],
+  tut_truck: ["Tap this column: its top crate\njumps onto the matching truck", "روی این ستون بزن: جعبه بالایی\nروی کامیون هم‌رنگ می‌پرد"],
+  tut_dock: ["No truck for this color? It waits on the dock.\nDon't let the dock fill up!", "کامیون هم‌رنگ نیست؟ جعبه روی اسکله می‌ماند.\nنگذار اسکله پر شود!"], coins_price: ["{0} coins", "{0} سکه"], next_short: ["Next", "بعدی"],
   hard_level: ["Level {0} - HARD", "مرحله {0} - سخت"], hard_start: ["Hard level! Double coins", "مرحله سخت! سکه دو برابر"],
   twist_hidden: ["New: ? crates show their color on top", "جدید: رنگ جعبه ؟ بالای ستون معلوم می‌شود"],
   twist_frozen: ["New: ice melts as you tap other columns", "جدید: یخ با ضربه به ستون‌های دیگر آب می‌شود"],
@@ -418,7 +469,7 @@ function t(key, ...args) { const pair = STR[key]; if (!pair) return key; return 
 function theme() { return THEMES[Math.min(store.get("theme", 0), THEMES.length - 1)]; }
 const owns = i => i === 0 || store.get("owned" + i, false);
 let coins = store.get("coins", 0), pendingWin = 0, pendingDaily = 0;
-function addCoins(n) { sfx.coins(); coins += n; store.set("coins", coins); refresh(); renderShop(); }
+function addCoins(n) { sfx.coins(); flyCoins(n); coins += n; store.set("coins", coins); refresh(); renderShop(); }
 function applyLanguage() {
   document.documentElement.lang = lang; document.documentElement.dir = fa() ? "rtl" : "ltr";
   document.querySelectorAll("[data-t]").forEach(el => el.textContent = t(el.dataset.t));
@@ -474,15 +525,20 @@ function refresh() {
 function start(n) {
   level = n; game = new Game(n > 0 ? generate(n) : generateChallenge(today())); history = []; freeUndos = 1; bonus = 0; hintCol = -1; busy = false; flying = [];
   view = cloneView(game); $("win").hidden = true; $("lose").hidden = true; pendingWin = 0; refresh();
+  // Intro: trucks drive in, crates pop up.
+  view.bays.forEach(tr => tr && (tr.off = -9)); introK = 0; busy = true;
+  tween(0.45, k => { introK = k; view.bays.forEach(tr => tr && (tr.off = -9 + 9 * k)); }).then(() => { introK = 1; busy = false; });
+  tutorialStep();
   if (n === FROZEN_FROM) toast(t("twist_frozen"), 3000); else if (n === HIDDEN_FROM) toast(t("twist_hidden"), 3000); else if (n > 0 && isHard(n)) toast(t("hard_start"));
 }
 function afterMove() {
-  refresh();
+  refresh(); tutorialStep();
   if (game.status === "won") {
-    sfx.win();
+    sfx.win(); burstConfetti(); if (level === 1) store.set("tutDone", true); tutorialStep();
     if (level === 0) { store.set("challengeDay", today()); pendingWin = CHALLENGE_REWARD; }
     else { store.set("level", level + 1); pendingWin = (10 + Math.floor(level / 2)) * (isHard(level) ? 2 : 1); }
-    $("winTitle").textContent = level > 0 ? t("win_title", level) : t("challenge_win"); $("winReward").textContent = t("reward", pendingWin); $("win").hidden = false;
+    $("winTitle").textContent = level > 0 ? t("win_title", level) : t("challenge_win"); $("winReward").textContent = t("reward", pendingWin);
+    busy = true; setTimeout(() => { busy = false; $("win").hidden = false; }, 800);
   }
   else if (game.status === "lost") { sfx.lose(); $("lose").hidden = false; }
 }
@@ -510,7 +566,7 @@ cv.addEventListener("pointerdown", ev => {
 function undo() {
   if (busy || !history.length || game.status === "won") return;
   const size = game.buffer.length; game = history.pop(); while (game.buffer.length < size) game.addSlot();
-  view = cloneView(game); $("lose").hidden = true; hintCol = -1; refresh();
+  view = cloneView(game); $("lose").hidden = true; hintCol = -1; refresh(); tutorialStep();
 }
 const PRICE = { undo: 30, slot: 60, hint: 20 };
 function spend(price) { if (coins < price) return false; coins -= price; store.set("coins", coins); sfx.coins(); refresh(); return true; }
@@ -546,7 +602,7 @@ $("closeShop").onclick = () => $("shop").hidden = true;
 $("freeCoins").onclick = () => rewarded(() => addCoins(50));
 $("noads").onclick = () => { store.set("noads", true); refresh(); toast(t("ads_removed")); };
 $("lang").onclick = () => {
-  lang = fa() ? "en" : "fa"; store.set("lang", lang); applyLanguage();
+  lang = fa() ? "en" : "fa"; store.set("lang", lang); applyLanguage(); tutorialStep();
   if (pendingDaily) { $("dailyTitle").textContent = t("daily_title", store.get("streak", 1)); $("dailyReward").textContent = t("reward", pendingDaily); }
 };
 

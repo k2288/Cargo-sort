@@ -145,7 +145,9 @@ namespace CargoSort.Game
             hud.SetLevel(n, IsHard);
             hud.SetChallengeButton(n == 0);
             board.Rebuild(session.State);
+            board.PlayIntro();
             RefreshHud();
+            ShowTutorialStep();
 
             if (n == LevelGenerator.FrozenFromLevel) hud.Toast(Loc.T("twist_frozen"), 3f);
             else if (n == LevelGenerator.HiddenFromLevel) hud.Toast(Loc.T("twist_hidden"), 3f);
@@ -207,12 +209,34 @@ namespace CargoSort.Game
 #endif
         }
 
+        // ---------- First-level tutorial ----------
+
+        private bool TutorialActive => level == 1 && !Progress.TutorialDone;
+
+        /// <summary>Points the hand at the best column and explains where its crate will go.</summary>
+        private void ShowTutorialStep()
+        {
+            if (!TutorialActive || session.State.Status != GameStatus.Playing)
+            {
+                hud.SetTip(null);
+                return;
+            }
+            int column = session.HintColumn();
+            board.ShowTutorialHand(column);
+            int top = column >= 0 ? session.State.Top(column) : GameState.Empty;
+            hud.SetTip(Loc.T(top != GameState.Empty && session.State.IsWanted(top) ? "tut_truck" : "tut_dock"));
+        }
+
         private void AfterMove()
         {
             RefreshHud();
+            ShowTutorialStep();
             if (session.State.Status == GameStatus.Won)
             {
                 Feedback.Won();
+                board.Confetti();
+                if (level == 1) Progress.TutorialDone = true;
+                hud.SetTip(null);
                 if (level == 0)
                 {
                     Progress.ChallengeDay = Progress.Today;
@@ -224,13 +248,22 @@ namespace CargoSort.Game
                     Progress.Level = level + 1;
                     pendingWinReward = (10 + level / 2) * (IsHard ? 2 : 1);
                 }
-                hud.ShowWin(true, level, pendingWinReward);
+                StartCoroutine(ShowWinSoon(level, pendingWinReward));
             }
             else if (session.State.Status == GameStatus.Lost)
             {
                 Feedback.Lost();
                 hud.ShowLose(true);
             }
+        }
+
+        /// <summary>Lets the confetti play for a moment before the win panel covers the board.</summary>
+        private System.Collections.IEnumerator ShowWinSoon(int wonLevel, int reward)
+        {
+            waitingForAd = true; // blocks other buttons for the short pause
+            yield return new WaitForSeconds(0.8f);
+            waitingForAd = false;
+            if (level == wonLevel && pendingWinReward == reward) hud.ShowWin(true, wonLevel, reward);
         }
 
         // ---------- Boosters (rewarded ads) ----------
@@ -254,6 +287,7 @@ namespace CargoSort.Game
             hud.ShowLose(false);
             board.Rebuild(session.State);
             RefreshHud();
+            ShowTutorialStep();
         }
 
         private void OnAddSlot()
@@ -284,6 +318,7 @@ namespace CargoSort.Game
             session.AddBufferSlot();
             board.Rebuild(session.State);
             RefreshHud();
+            ShowTutorialStep();
         }
 
         private void OnHint()
@@ -382,6 +417,7 @@ namespace CargoSort.Game
         private void AddCoins(int amount)
         {
             Feedback.Coins();
+            hud.FlyCoins(amount);
             Progress.Coins += amount;
             hud.SetCoins(Progress.Coins);
             hud.RefreshShop();
@@ -463,6 +499,7 @@ namespace CargoSort.Game
             bool lost = session.State.Status == GameStatus.Lost;
             BuildHud();
             hud.SetChallengeButton(level == 0);
+            ShowTutorialStep();
             hud.RefreshShop();
             hud.ShowShop(true);
             if (dailyOpen) hud.ShowDaily(true, Progress.DailyStreak, pendingDaily);
