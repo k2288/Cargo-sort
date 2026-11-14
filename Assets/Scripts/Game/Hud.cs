@@ -9,7 +9,8 @@ namespace CargoSort.Game
     /// <summary>All screen UI, built in code: top bar, boosters, and the win, lose, daily gift and shop panels.</summary>
     public sealed class Hud : MonoBehaviour
     {
-        public event Action Undo, AddSlot, Hint, Restart, Revive, Retry, RemoveAds, OpenShop, FreeCoins, ToggleLanguage;
+        public event Action Undo, AddSlot, Hint, Restart, Revive, Retry, RemoveAds, OpenShop, FreeCoins, ToggleLanguage,
+            Challenge, ToggleSound, ToggleVibration;
         public event Action<bool> ClaimWin;   // true = x3 with ad
         public event Action<bool> ClaimDaily; // true = x2 with ad
         public event Action<int> ThemeTapped;
@@ -18,7 +19,7 @@ namespace CargoSort.Game
 
         private Font font;
         private GameObject canvasRoot;
-        private Text levelText, trucksText, coinsText, undoLabel, toastText;
+        private Text levelText, trucksText, coinsText, undoLabel, toastText, challengeLabel, soundLabel, vibrationLabel;
         private Text winTitle, winReward, dailyTitle, dailyReward, shopCoins;
         private GameObject winPanel, losePanel, dailyPanel, shopPanel, removeAdsButton, toast;
         private readonly List<Text> themeButtons = new List<Text>();
@@ -61,6 +62,9 @@ namespace CargoSort.Game
 
             Anchor(MakeButton(safe, Loc.T("reset"), ButtonColor, () => Restart?.Invoke(), 34), new Vector2(0, 1), new Vector2(130, -90), new Vector2(200, 100));
             Anchor(MakeButton(safe, Loc.T("shop"), ButtonColor, () => OpenShop?.Invoke(), 34), new Vector2(1, 1), new Vector2(-130, -90), new Vector2(200, 100));
+            var challenge = MakeButton(safe, "", ButtonAdColor, () => Challenge?.Invoke(), 30);
+            challengeLabel = challenge.GetComponentInChildren<Text>();
+            Anchor(challenge, new Vector2(0, 1), new Vector2(130, -205), new Vector2(200, 90));
             coinsText = MakeText(safe, "", 34, TextAnchor.UpperCenter);
             coinsText.color = Gold;
             Anchor(coinsText.rectTransform, new Vector2(1, 1), new Vector2(-130, -165), new Vector2(260, 50));
@@ -123,7 +127,7 @@ namespace CargoSort.Game
 
         private void BuildShop(RectTransform safe)
         {
-            shopPanel = MakePanel(safe, new Vector2(960, 1560), out var box);
+            shopPanel = MakePanel(safe, new Vector2(960, 1700), out var box);
             var title = MakeText(box, Loc.T("shop_title"), 66, TextAnchor.MiddleCenter);
             Anchor(title.rectTransform, new Vector2(0.5f, 1), new Vector2(0, -80), new Vector2(900, 100));
             shopCoins = MakeText(box, "", 44, TextAnchor.MiddleCenter);
@@ -151,6 +155,13 @@ namespace CargoSort.Game
                 themeButtons.Add(button.GetComponentInChildren<Text>());
             }
 
+            var sound = MakeButton(box, "", ButtonQuiet, () => ToggleSound?.Invoke(), 36);
+            soundLabel = sound.GetComponentInChildren<Text>();
+            Anchor(sound, new Vector2(0.5f, 0), new Vector2(-210, 620), new Vector2(400, 100));
+            var vibration = MakeButton(box, "", ButtonQuiet, () => ToggleVibration?.Invoke(), 36);
+            vibrationLabel = vibration.GetComponentInChildren<Text>();
+            Anchor(vibration, new Vector2(0.5f, 0), new Vector2(210, 620), new Vector2(400, 100));
+
             Anchor(MakeButton(box, Loc.T("free_coins", FreeCoinsAmount), ButtonAdColor, () => FreeCoins?.Invoke(), 42), new Vector2(0.5f, 0), new Vector2(0, 470), new Vector2(700, 130));
             removeAdsButton = MakeButton(box, Loc.T("remove_ads"), ButtonColor, () => RemoveAds?.Invoke(), 40).gameObject;
             Anchor((RectTransform)removeAdsButton.transform, new Vector2(0.5f, 0), new Vector2(-190, 310), new Vector2(400, 120));
@@ -163,7 +174,9 @@ namespace CargoSort.Game
             if (toast != null && toast.activeSelf && Time.unscaledTime > toastUntil) toast.SetActive(false);
         }
 
-        public void SetLevel(int level) => levelText.text = Loc.T("level", level);
+        public void SetLevel(int level) => levelText.text = level > 0 ? Loc.T("level", level) : Loc.T("challenge_level");
+
+        public void SetChallengeButton(bool inChallenge) => challengeLabel.text = Loc.T(inChallenge ? "levels" : "challenge");
         public void SetTrucks(int shipped, int total) => trucksText.text = Loc.T("trucks", shipped, total);
         public void SetUndoLabel(int freeUndos) => undoLabel.text = freeUndos > 0 ? Loc.T("undo", freeUndos) : Loc.T("undo_ad");
         public void SetRemoveAdsVisible(bool visible) => removeAdsButton.SetActive(visible);
@@ -179,7 +192,7 @@ namespace CargoSort.Game
         {
             winPanel.SetActive(show);
             if (!show) return;
-            winTitle.text = Loc.T("win_title", level);
+            winTitle.text = level > 0 ? Loc.T("win_title", level) : Loc.T("challenge_win");
             winReward.text = Loc.T("reward", reward);
         }
 
@@ -199,6 +212,8 @@ namespace CargoSort.Game
 
         public void RefreshShop()
         {
+            soundLabel.text = Loc.T(Progress.Sound ? "sound_on" : "sound_off");
+            vibrationLabel.text = Loc.T(Progress.Vibration ? "vibration_on" : "vibration_off");
             for (int i = 0; i < themeButtons.Count; i++)
             {
                 var label = themeButtons[i];
@@ -289,7 +304,11 @@ namespace CargoSort.Game
             img.pixelsPerUnitMultiplier = 0.5f;
             img.color = color;
             var btn = rt.gameObject.AddComponent<Button>();
-            btn.onClick.AddListener(() => onClick());
+            btn.onClick.AddListener(() =>
+            {
+                Feedback.Click();
+                onClick();
+            });
             var t = MakeText(rt, label, fontSize, TextAnchor.MiddleCenter);
             t.color = new Color32(0x1B, 0x1B, 0x1B, 0xFF);
             Stretch(t.rectTransform);

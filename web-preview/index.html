@@ -71,13 +71,15 @@ button small { display: block; font-size: 11px; opacity: .7; font-weight: 800; l
 .theme button { min-width: 108px; }
 button.quiet { background: var(--muted); }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.left { display: grid; gap: 6px; justify-items: start; }
+#challengeBtn { font-size: 12px; padding-inline: 10px; }
 .hint { color: var(--muted); font-size: 13px; margin: 2px 0 0; }
 @media (prefers-reduced-motion: reduce) { button { transition: none; } }
 </style>
 
 <div class="app">
   <div class="top">
-    <div><button class="small" id="reset" data-t="reset">Reset</button></div>
+    <div class="left"><button class="small" id="reset" data-t="reset">Reset</button><button class="small ad" id="challengeBtn">Challenge</button></div>
     <div class="title"><h1 id="level">Level 1</h1><p id="trucks">Trucks 0/0</p></div>
     <div class="right"><button class="small" id="shopBtn" data-t="shop">Shop</button><span class="coins" id="coins">0</span></div>
   </div>
@@ -101,6 +103,7 @@ button.quiet { background: var(--muted); }
 <div class="overlay" id="shop" hidden><div class="card shop"><h2 data-t="shop">Shop</h2><p class="reward" id="shopCoins">0</p>
   <div class="themes" id="themes"></div>
   <button class="ad" id="freeCoins"><span id="freeCoinsLabel">+50 coins</span><small data-t="watch_ad">WATCH AD</small></button>
+  <div class="row2"><button class="quiet" id="soundBtn">Sound</button><button class="quiet" id="vibeBtn">Vibration</button></div>
   <div class="row2"><button id="noads" data-t="remove_ads">Remove ads</button><button class="quiet" id="lang" data-t="other_language">فارسی</button></div>
   <button id="closeShop" data-t="close">Close</button></div></div>
 <div class="overlay" id="ad" hidden><div class="fakead" id="adText">Ad<span>test ad, 1 second</span></div></div>
@@ -145,14 +148,20 @@ function build(level, d, r) {
   return data;
 }
 
-function generate(level) {
-  const d = difficulty(level); let last = null;
+function generate(level, d = difficulty(level), seed = level * 7919) {
+  let last = null;
   for (let extra = 0; extra <= 3; extra++)
     for (let a = 0; a < 200; a++) {
-      last = build(level, { ...d, buffer: d.buffer + extra }, rng(level * 7919 + a * 104729 + extra * 31));
+      last = build(level, { ...d, buffer: d.buffer + extra }, rng(seed + a * 104729 + extra * 31));
       if (canSolve(last)) return last;
     }
   return last;
+}
+
+// Daily challenge: same hard level for everyone that day (many colors and trucks, small dock), still solver-checked.
+function generateChallenge(day) {
+  const d = difficulty(12 + (day % 9)); d.trucks = Math.min(d.trucks + 2, 18); d.buffer = 4;
+  return generate(0, d, 500009 + day * 7349);
 }
 
 class Game {
@@ -212,9 +221,10 @@ function canSolve(data) { const s = new Game(data); let guard = 2000;
   return s.status === "won"; }
 
 // ===== Saved progress =====
+const memory = {}; // used when the browser blocks storage
 const store = {
-  get(k, d) { try { const v = localStorage.getItem("cargo-" + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
-  set(k, v) { try { localStorage.setItem("cargo-" + k, JSON.stringify(v)); } catch {} }
+  get(k, d) { try { const v = localStorage.getItem("cargo-" + k); return v === null ? d : JSON.parse(v); } catch { return k in memory ? memory[k] : d; } },
+  set(k, v) { memory[k] = v; try { localStorage.setItem("cargo-" + k, JSON.stringify(v)); } catch {} }
 };
 
 // ===== View =====
@@ -293,9 +303,9 @@ async function play(events) {
       const arc = 0.6 + Math.hypot(to[0] - from[0], to[1] - from[1]) * 0.06;
       await tween(0.16, k => { f.x = from[0] + (to[0] - from[0]) * k; f.y = from[1] + (to[1] - from[1]) * k + Math.sin(k * Math.PI) * arc; });
       flying = flying.filter(x => x !== f);
-      if (e.to === "bay") view.bays[e.ti].loaded++; else view.buffer[e.ti] = e.color;
+      if (e.to === "bay") { view.bays[e.ti].loaded++; sfx.pop(view.bays[e.ti].loaded - 1); } else { view.buffer[e.ti] = e.color; sfx.thud(); buzz(12); }
     } else if (e.k === "depart") {
-      const t = view.bays[e.bay]; await tween(0.24, k => t.off = k * 9); view.bays[e.bay] = null;
+      const t = view.bays[e.bay]; sfx.horn(); buzz(25); await tween(0.24, k => t.off = k * 9); view.bays[e.bay] = null;
     } else if (e.k === "arrive") {
       const t = { color: e.color, capacity: game.capacity, loaded: 0, off: -9 }; view.bays[e.bay] = t; await tween(0.24, k => t.off = -9 + 9 * k);
     }
@@ -304,6 +314,34 @@ async function play(events) {
 }
 
 function loop() { draw(); requestAnimationFrame(loop); }
+
+// ===== Sounds (made with WebAudio, no files) and vibration =====
+let actx = null;
+const soundOn = () => store.get("sound", true), vibeOn = () => store.get("vibe", true);
+function note(freq, start, dur, type = "sine", vol = 0.25, endFreq = freq) {
+  if (!soundOn()) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === "suspended") actx.resume();
+    const t0 = actx.currentTime + start, o = actx.createOscillator(), g = actx.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t0); o.frequency.linearRampToValueAtTime(endFreq, t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(vol, t0 + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g).connect(actx.destination); o.start(t0); o.stop(t0 + dur + 0.02);
+  } catch (_) {}
+}
+function buzz(ms) { if (vibeOn() && navigator.vibrate) try { navigator.vibrate(ms); } catch (_) {} }
+const NOTES = [523.25, 659.25, 783.99, 1046.5, 1318.5, 1568];
+const sfx = {
+  pop: i => { const f = NOTES[Math.min(i, NOTES.length - 1)]; note(f * 1.25, 0, 0.11, "sine", 0.3, f); },
+  thud: () => note(170, 0, 0.14, "sine", 0.4, 70),
+  horn: () => { note(330, 0, 0.18, "sawtooth", 0.07); note(415, 0, 0.18, "sawtooth", 0.06); note(330, 0.2, 0.22, "sawtooth", 0.07); note(415, 0.2, 0.22, "sawtooth", 0.06); },
+  invalid: () => { note(120, 0, 0.16, "square", 0.08, 100); buzz(40); },
+  win: () => { [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => note(f, i * 0.11, i === 3 ? 0.45 : 0.12, "triangle", 0.3)); buzz(60); },
+  lose: () => { [392, 329.63, 261.63].forEach((f, i) => note(f, i * 0.22, i === 2 ? 0.5 : 0.2, "triangle", 0.3, i === 2 ? f * 0.94 : f)); buzz(120); },
+  click: () => note(1400, 0, 0.04, "sine", 0.12, 900),
+  coins: () => { note(1318.5, 0, 0.08, "sine", 0.2); note(1975.5, 0.07, 0.18, "sine", 0.2); },
+};
+document.addEventListener("click", ev => { if (ev.target.closest("button")) sfx.click(); }, true);
 
 // ===== Language, coins, themes =====
 const $ = id => document.getElementById(id);
@@ -322,6 +360,10 @@ const STR = {
   rewarded_ad: ["Rewarded ad", "تبلیغ جایزه‌دار"], between_ad: ["Ad between levels", "تبلیغ بین مرحله‌ها"], test_ad: ["test ad, 1 second", "تبلیغ آزمایشی، ۱ ثانیه"],
   theme_night: ["Night Dock", "اسکله شب"], theme_sunny: ["Sunny Port", "بندر آفتابی"], theme_snow: ["Snowy Yard", "انبار برفی"],
   theme_desert: ["Desert Depot", "انبار کویری"], theme_neon: ["Neon City", "شهر نئون"],
+  challenge: ["Challenge", "چالش"], levels: ["Levels", "مراحل"], challenge_level: ["Daily challenge", "چالش روزانه"],
+  challenge_win: ["Challenge complete!", "چالش امروز تمام شد!"], challenge_done: ["Done for today! New challenge tomorrow", "چالش امروز انجام شد! فردا چالش جدید"],
+  challenge_start: ["Hard level, big prize: {0} coins", "مرحله سخت، جایزه بزرگ: {0} سکه"],
+  sound_on: ["Sound: On", "صدا: روشن"], sound_off: ["Sound: Off", "صدا: خاموش"], vibration_on: ["Vibration: On", "لرزش: روشن"], vibration_off: ["Vibration: Off", "لرزش: خاموش"],
 };
 const THEMES = [
   { key: "theme_night", price: 0, bg: "#273a55", ground: "#324868", slot: "#1c2b40", bed: "#4a5566" },
@@ -337,7 +379,7 @@ function t(key, ...args) { const pair = STR[key]; if (!pair) return key; return 
 function theme() { return THEMES[Math.min(store.get("theme", 0), THEMES.length - 1)]; }
 const owns = i => i === 0 || store.get("owned" + i, false);
 let coins = store.get("coins", 0), pendingWin = 0, pendingDaily = 0;
-function addCoins(n) { coins += n; store.set("coins", coins); refresh(); renderShop(); }
+function addCoins(n) { sfx.coins(); coins += n; store.set("coins", coins); refresh(); renderShop(); }
 function applyLanguage() {
   document.documentElement.lang = lang; document.documentElement.dir = fa() ? "rtl" : "ltr";
   document.querySelectorAll("[data-t]").forEach(el => el.textContent = t(el.dataset.t));
@@ -346,6 +388,8 @@ function applyLanguage() {
 }
 function renderShop() {
   $("shopCoins").textContent = t("coins", coins);
+  $("soundBtn").textContent = t(soundOn() ? "sound_on" : "sound_off");
+  $("vibeBtn").textContent = t(vibeOn() ? "vibration_on" : "vibration_off");
   const box = $("themes"); box.textContent = "";
   THEMES.forEach((th, i) => {
     const row = document.createElement("div"); row.className = "theme";
@@ -377,23 +421,26 @@ function finishDaily(n) { store.set("dailyDay", today()); pendingDaily = 0; $("d
 // ===== Game flow =====
 function toast(msg) { const el = $("toast"); el.textContent = msg; el.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => el.hidden = true, 1600); }
 function refresh() {
-  $("level").textContent = t("level", level); $("trucks").textContent = t("trucks", game.shipped, game.queue.length);
+  $("level").textContent = level > 0 ? t("level", level) : t("challenge_level");
+  $("challengeBtn").textContent = t(level > 0 ? "challenge" : "levels"); $("trucks").textContent = t("trucks", game.shipped, game.queue.length);
   $("undoSub").textContent = freeUndos > 0 ? t("free", freeUndos) : t("watch_ad");
   $("undo").classList.toggle("ad", freeUndos === 0);
   $("noads").hidden = store.get("noads", false);
   $("coins").textContent = t("coins", coins);
 }
 function start(n) {
-  level = n; game = new Game(generate(n)); history = []; freeUndos = 1; bonus = 0; hintCol = -1; busy = false; flying = [];
+  level = n; game = new Game(n > 0 ? generate(n) : generateChallenge(today())); history = []; freeUndos = 1; bonus = 0; hintCol = -1; busy = false; flying = [];
   view = cloneView(game); $("win").hidden = true; $("lose").hidden = true; pendingWin = 0; refresh();
 }
 function afterMove() {
   refresh();
   if (game.status === "won") {
-    store.set("level", level + 1); pendingWin = 10 + Math.floor(level / 2);
-    $("winTitle").textContent = t("win_title", level); $("winReward").textContent = t("reward", pendingWin); $("win").hidden = false;
+    sfx.win();
+    if (level === 0) { store.set("challengeDay", today()); pendingWin = CHALLENGE_REWARD; }
+    else { store.set("level", level + 1); pendingWin = 10 + Math.floor(level / 2); }
+    $("winTitle").textContent = level > 0 ? t("win_title", level) : t("challenge_win"); $("winReward").textContent = t("reward", pendingWin); $("win").hidden = false;
   }
-  else if (game.status === "lost") $("lose").hidden = false;
+  else if (game.status === "lost") { sfx.lose(); $("lose").hidden = false; }
 }
 function fakeAd(label, done) {
   $("adText").firstChild.textContent = label; $("adText").lastChild.textContent = t("test_ad"); $("ad").hidden = false;
@@ -408,7 +455,7 @@ cv.addEventListener("pointerdown", ev => {
   if (wy < BASEY - 0.8 || wy > BUFY - 0.7) return;
   let c = -1; for (let i = 0; i < view.columns.length; i++) if (Math.abs(wx - colPos(i, 0)[0]) <= COLSP / 2) c = i;
   if (c < 0) return;
-  if (!game.canTap(c)) { if (game.columns[c].length) { view.shake = { c, t: 0 }; tween(0.25, k => view.shake && (view.shake.t = k * 0.25)).then(() => view.shake = null); } return; }
+  if (!game.canTap(c)) { sfx.invalid(); if (game.columns[c].length) { view.shake = { c, t: 0 }; tween(0.25, k => view.shake && (view.shake.t = k * 0.25)).then(() => view.shake = null); } return; }
   history.push(game.clone()); play(game.tap(c));
 });
 
@@ -426,7 +473,9 @@ $("hint").onclick = () => rewarded(() => { hintCol = pickMove(game.clone()); });
 $("retry").onclick = () => start(level);
 $("reset").onclick = () => { if (!busy) start(level); };
 function finishWin(n, allowAd) {
-  addCoins(n); pendingWin = 0; $("win").hidden = true; const next = level + 1;
+  addCoins(n); pendingWin = 0; $("win").hidden = true;
+  if (level === 0) return start(Math.max(1, store.get("level", 1)));
+  const next = level + 1;
   if (allowAd && !store.get("noads", false) && next >= 4 && (next - 4) % 3 === 0) fakeAd(t("between_ad"), () => start(next)); else start(next);
 }
 $("claim").onclick = () => { if (pendingWin) finishWin(pendingWin, true); };
@@ -434,6 +483,15 @@ $("claim3").onclick = () => { if (pendingWin) rewarded(() => finishWin(pendingWi
 $("claimDaily").onclick = () => { if (pendingDaily) finishDaily(pendingDaily); };
 $("claim2").onclick = () => { if (pendingDaily) rewarded(() => finishDaily(pendingDaily * 2)); };
 $("shopBtn").onclick = () => { if (busy) return; renderShop(); $("shop").hidden = false; };
+const CHALLENGE_REWARD = 100;
+$("challengeBtn").onclick = () => {
+  if (busy) return;
+  if (level === 0) return start(Math.max(1, store.get("level", 1)));
+  if (store.get("challengeDay", 0) === today()) return toast(t("challenge_done"));
+  start(0); toast(t("challenge_start", CHALLENGE_REWARD));
+};
+$("soundBtn").onclick = () => { store.set("sound", !soundOn()); renderShop(); };
+$("vibeBtn").onclick = () => { store.set("vibe", !vibeOn()); buzz(40); renderShop(); };
 $("closeShop").onclick = () => $("shop").hidden = true;
 $("freeCoins").onclick = () => rewarded(() => addCoins(50));
 $("noads").onclick = () => { store.set("noads", true); refresh(); toast(t("ads_removed")); };

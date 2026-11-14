@@ -45,6 +45,21 @@ namespace CargoSort.Game
             { "theme_snow", ("Snowy Yard", "انبار برفی") },
             { "theme_desert", ("Desert Depot", "انبار کویری") },
             { "theme_neon", ("Neon City", "شهر نئون") },
+            { "challenge", ("Challenge", "چالش") },
+            { "levels", ("Levels", "مراحل") },
+            { "challenge_level", ("Daily challenge", "چالش روزانه") },
+            { "challenge_win", ("Challenge complete!", "چالش امروز تمام شد!") },
+            { "challenge_done", ("Done for today! New challenge tomorrow", "چالش امروز انجام شد! فردا چالش جدید") },
+            { "challenge_start", ("Hard level, big prize: {0} coins", "مرحله سخت، جایزه بزرگ: {0} سکه") },
+            { "sound_on", ("Sound: On", "صدا: روشن") },
+            { "sound_off", ("Sound: Off", "صدا: خاموش") },
+            { "vibration_on", ("Vibration: On", "لرزش: روشن") },
+            { "vibration_off", ("Vibration: Off", "لرزش: خاموش") },
+            { "notif_channel", ("Daily reminders", "یادآوری روزانه") },
+            { "notif_gift_title", ("Your daily gift is ready 🎁", "هدیه روزانه‌ات آماده است 🎁") },
+            { "notif_gift_text", ("Claim your coins and beat today's challenge!", "سکه‌هایت را بگیر و چالش امروز را ببر!") },
+            { "notif_miss_title", ("The trucks are waiting 🚚", "کامیون‌ها منتظرت هستند 🚚") },
+            { "notif_miss_text", ("Your dock is piling up. Come sort some crates!", "اسکله شلوغ شده. بیا جعبه‌ها را مرتب کن!") },
         };
 
         public static bool Persian => Progress.Language == "fa";
@@ -59,6 +74,13 @@ namespace CargoSort.Game
             for (int i = 0; i < args.Length; i++) faArgs[i] = PersianDigits(args[i]?.ToString() ?? "");
             string text = args.Length == 0 ? pair.fa : string.Format(pair.fa, faArgs);
             return PersianShaper.Fix(text);
+        }
+
+        /// <summary>Text without RTL shaping, for places that draw Persian themselves (Android notifications).</summary>
+        public static string Raw(string key)
+        {
+            if (!Strings.TryGetValue(key, out var pair)) return key;
+            return Persian ? pair.fa : pair.en;
         }
 
         /// <summary>The language the game starts in: Persian for Bazaar and Myket builds, English otherwise.</summary>

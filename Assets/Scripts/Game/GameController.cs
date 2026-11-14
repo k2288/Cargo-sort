@@ -16,13 +16,15 @@ namespace CargoSort.Game
         // Economy tuning.
         private const int DailyBase = 20;      // day 1 gift; +20 per streak day, up to day 7
         private const int MaxStreak = 7;
+        private const int ChallengeReward = 100;  // x3 with an ad, like normal levels
+        private const int AskNotificationsAfterLevel = 2;
 
         private Camera cam;
         private BoardView board;
         private Hud hud;
         private IAdsService ads;
         private GameSession session;
-        private int level;
+        private int level;          // 0 while playing the daily challenge
         private int freeUndos;
         private int bonusSlots;
         private bool waitingForAd;
@@ -48,6 +50,7 @@ namespace CargoSort.Game
             board = new GameObject("BoardView").AddComponent<BoardView>();
             board.transform.SetParent(transform, false);
 
+            Feedback.Init(gameObject);
             ads = MonetizationServices.CreateAds?.Invoke(gameObject) ?? gameObject.AddComponent<DebugAds>();
             Store.AdsRemoved += OnAdsRemoved;
 
@@ -57,6 +60,14 @@ namespace CargoSort.Game
             hud.Hint += OnHint;
             hud.Restart += () => { if (!board.Busy && !waitingForAd) StartLevel(level); };
             hud.Retry += () => StartLevel(level);
+            hud.Challenge += OnChallenge;
+            hud.ToggleSound += () => { Progress.Sound = !Progress.Sound; hud.RefreshShop(); };
+            hud.ToggleVibration += () =>
+            {
+                Progress.Vibration = !Progress.Vibration;
+                Feedback.Vibrate(40);
+                hud.RefreshShop();
+            };
             hud.Revive += OnRevive;
             hud.ClaimWin += OnClaimWin;
             hud.ClaimDaily += OnClaimDaily;
@@ -69,7 +80,21 @@ namespace CargoSort.Game
 
             StartLevel(Progress.Level);
             CheckDailyGift();
+            Reminders.Clear();
         }
+
+        private void OnApplicationPause(bool paused)
+        {
+            if (paused)
+            {
+                Reminders.Schedule();
+                return;
+            }
+            Reminders.Clear();
+            if (session != null && pendingDaily <= 0 && !hud.PanelOpen) CheckDailyGift();
+        }
+
+        private void OnApplicationQuit() => Reminders.Schedule();
 
         /// <summary>(Re)creates all UI texts, e.g. after switching language.</summary>
         private void BuildHud()
@@ -105,15 +130,17 @@ namespace CargoSort.Game
             cam.orthographicSize = Mathf.Max(9f, 5.2f / Mathf.Max(0.1f, cam.aspect));
         }
 
+        /// <summary>Starts level n, or today's daily challenge when n is 0.</summary>
         private void StartLevel(int n)
         {
             level = n;
-            session = new GameSession(LevelGenerator.Generate(n));
+            session = new GameSession(n > 0 ? LevelGenerator.Generate(n) : LevelGenerator.GenerateChallenge(Progress.Today));
             freeUndos = FreeUndosPerLevel;
             bonusSlots = 0;
             hud.ShowWin(false);
             hud.ShowLose(false);
             hud.SetLevel(n);
+            hud.SetChallengeButton(n == 0);
             board.Rebuild(session.State);
             RefreshHud();
         }
@@ -137,6 +164,7 @@ namespace CargoSort.Game
 
             if (!session.State.CanTap(column))
             {
+                Feedback.Invalid();
                 board.Shake(column);
                 return;
             }
@@ -174,12 +202,23 @@ namespace CargoSort.Game
             RefreshHud();
             if (session.State.Status == GameStatus.Won)
             {
-                Progress.Level = level + 1;
-                pendingWinReward = 10 + level / 2;
+                Feedback.Won();
+                if (level == 0)
+                {
+                    Progress.ChallengeDay = Progress.Today;
+                    Progress.ChallengesDone++;
+                    pendingWinReward = ChallengeReward;
+                }
+                else
+                {
+                    Progress.Level = level + 1;
+                    pendingWinReward = 10 + level / 2;
+                }
                 hud.ShowWin(true, level, pendingWinReward);
             }
             else if (session.State.Status == GameStatus.Lost)
             {
+                Feedback.Lost();
                 hud.ShowLose(true);
             }
         }
@@ -275,6 +314,13 @@ namespace CargoSort.Game
             AddCoins(coins);
             pendingWinReward = 0;
             hud.ShowWin(false);
+            if (level >= AskNotificationsAfterLevel) Reminders.AskPermission();
+            if (level == 0)
+            {
+                // After the challenge, go back to the normal levels (no interstitial here).
+                StartLevel(Progress.Level);
+                return;
+            }
             int next = level + 1;
             bool showAd = allowInterstitial && !Progress.AdsRemoved &&
                           next >= FirstInterstitialLevel && (next - FirstInterstitialLevel) % InterstitialEveryLevels == 0;
@@ -291,8 +337,28 @@ namespace CargoSort.Game
             });
         }
 
+        // ---------- Daily challenge ----------
+
+        private void OnChallenge()
+        {
+            if (board.Busy || waitingForAd) return;
+            if (level == 0)
+            {
+                StartLevel(Progress.Level);
+                return;
+            }
+            if (Progress.ChallengeDay == Progress.Today)
+            {
+                hud.Toast(Loc.T("challenge_done"), 2.2f);
+                return;
+            }
+            StartLevel(0);
+            hud.Toast(Loc.T("challenge_start", ChallengeReward), 2.2f);
+        }
+
         private void AddCoins(int amount)
         {
+            Feedback.Coins();
             Progress.Coins += amount;
             hud.SetCoins(Progress.Coins);
             hud.RefreshShop();
@@ -372,6 +438,7 @@ namespace CargoSort.Game
             bool winOpen = pendingWinReward > 0;
             bool lost = session.State.Status == GameStatus.Lost;
             BuildHud();
+            hud.SetChallengeButton(level == 0);
             hud.RefreshShop();
             hud.ShowShop(true);
             if (dailyOpen) hud.ShowDaily(true, Progress.DailyStreak, pendingDaily);

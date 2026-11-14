@@ -230,11 +230,13 @@ namespace CargoSort.Game
             if (truck != null)
             {
                 AddCrateToTruck(truck, crate);
+                Feedback.CrateLoaded(truck.Crates.Count - 1);
                 yield return Punch(truck.Root, 0.08f);
             }
             else
             {
                 bufferCrates[e.ToIndex] = crate;
+                Feedback.CrateParked();
             }
         }
 
@@ -243,6 +245,7 @@ namespace CargoSort.Game
             var truck = trucks[bay];
             trucks[bay] = null;
             if (truck == null) yield break;
+            Feedback.TruckLeft();
             yield return Slide(truck.Root, truck.Root.position + Vector3.right * OffscreenX, TruckTime);
             Destroy(truck.Root.gameObject);
         }

@@ -148,6 +148,31 @@ namespace CargoSort.Game
             set { PlayerPrefs.SetInt("daily_streak", value); PlayerPrefs.Save(); }
         }
 
+        /// <summary>Day number of the last finished daily challenge.</summary>
+        public static int ChallengeDay
+        {
+            get => PlayerPrefs.GetInt("challenge_day", 0);
+            set { PlayerPrefs.SetInt("challenge_day", value); PlayerPrefs.Save(); }
+        }
+
+        public static int ChallengesDone
+        {
+            get => PlayerPrefs.GetInt("challenges_done", 0);
+            set { PlayerPrefs.SetInt("challenges_done", value); PlayerPrefs.Save(); }
+        }
+
+        public static bool Sound
+        {
+            get => PlayerPrefs.GetInt("sound", 1) == 1;
+            set { PlayerPrefs.SetInt("sound", value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
+        public static bool Vibration
+        {
+            get => PlayerPrefs.GetInt("vibration", 1) == 1;
+            set { PlayerPrefs.SetInt("vibration", value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
         public static int Today => (int)(System.DateTime.Now.Date - new System.DateTime(2000, 1, 1)).TotalDays;
 
         public static int Level

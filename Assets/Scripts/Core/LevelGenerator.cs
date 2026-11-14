@@ -52,9 +52,22 @@ namespace CargoSort.Core
             return d;
         }
 
-        public static LevelData Generate(int level)
+        public static LevelData Generate(int level) => Generate(level, ForLevel(level), level * 7919);
+
+        /// <summary>
+        /// The daily challenge for a day number: the same level for every player that day, harder than
+        /// normal levels (many colors and trucks, a small dock), but still checked to be solvable.
+        /// </summary>
+        public static LevelData GenerateChallenge(int day)
         {
-            var d = ForLevel(level);
+            var d = ForLevel(12 + (day % 9));
+            d.Trucks = Math.Min(d.Trucks + 2, 18);
+            d.Buffer = 4;
+            return Generate(0, d, 500009 + day * 7349);
+        }
+
+        private static LevelData Generate(int level, Difficulty d, int seed)
+        {
             LevelData last = null;
 
             // If no solvable layout is found, loosen the dock one slot at a time.
@@ -62,7 +75,7 @@ namespace CargoSort.Core
             {
                 for (int attempt = 0; attempt < 200; attempt++)
                 {
-                    var rng = new Random(level * 7919 + attempt * 104729 + extraBuffer * 31);
+                    var rng = new Random(seed + attempt * 104729 + extraBuffer * 31);
                     var dd = d;
                     dd.Buffer += extraBuffer;
                     last = Build(level, dd, rng);
