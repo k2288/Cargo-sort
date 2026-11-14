@@ -52,6 +52,16 @@ jobs:
           buildName: CargoSort
           buildMethod: CargoSort.EditorTools.BuildScript.BuildAndroid
           customParameters: -store ${{ matrix.store }}
+          # Release signing (optional). Without these secrets the APK is debug-signed for testing.
+          androidKeystoreName: release.keystore
+          androidKeystoreBase64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          androidKeystorePass: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+          androidKeyaliasName: ${{ secrets.ANDROID_KEYALIAS_NAME }}
+          androidKeyaliasPass: ${{ secrets.ANDROID_KEYALIAS_PASS }}
+          # Version shown in the store; bump the number for each upload.
+          versioning: Custom
+          version: 1.0.${{ github.run_number }}
+          androidVersionCode: ${{ github.run_number }}
 
       - uses: actions/upload-artifact@v4
         with:

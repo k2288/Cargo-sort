@@ -18,6 +18,7 @@ namespace CargoSort.EditorTools
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64 | AndroidArchitecture.ARMv7;
             EditorUserBuildSettings.buildAppBundle = false;
+            ApplyVersionAndSigning();
 
             // -store googleplay|bazaar|myket picks the store from the command line (CI); otherwise the menu choice is used.
             switch (Arg("-store"))
@@ -47,6 +48,35 @@ namespace CargoSort.EditorTools
 
             if (Application.isBatchMode)
                 EditorApplication.Exit(report.summary.result == BuildResult.Succeeded ? 0 : 1);
+        }
+
+        /// <summary>
+        /// Version and release signing from the command line (GameCI passes these). Without a keystore
+        /// the APK is debug-signed, which is fine for testing but not for store uploads.
+        /// </summary>
+        private static void ApplyVersionAndSigning()
+        {
+            var version = Arg("-buildVersion");
+            if (!string.IsNullOrEmpty(version)) PlayerSettings.bundleVersion = version;
+            if (int.TryParse(Arg("-androidVersionCode"), out int code) && code > 0)
+                PlayerSettings.Android.bundleVersionCode = code;
+
+            string keystore = Arg("-androidKeystoreName");
+            string storePass = Arg("-androidKeystorePass");
+            if (!string.IsNullOrEmpty(keystore) && !string.IsNullOrEmpty(storePass) && File.Exists(keystore))
+            {
+                PlayerSettings.Android.useCustomKeystore = true;
+                PlayerSettings.Android.keystoreName = Path.GetFullPath(keystore);
+                PlayerSettings.Android.keystorePass = storePass;
+                PlayerSettings.Android.keyaliasName = Arg("-androidKeyaliasName");
+                PlayerSettings.Android.keyaliasPass = Arg("-androidKeyaliasPass");
+                Debug.Log("[Cargo Sort] Release signing with " + keystore);
+            }
+            else
+            {
+                PlayerSettings.Android.useCustomKeystore = false;
+                Debug.Log("[Cargo Sort] No keystore given: debug-signed test build.");
+            }
         }
 
         private static string Arg(string name)
