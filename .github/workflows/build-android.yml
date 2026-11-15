@@ -42,6 +42,8 @@ jobs:
           restore-keys: Library-Android-${{ matrix.store }}-
 
       - name: Check signing key (prints yes/no only, never the secrets)
+        continue-on-error: true
+        shell: bash
         env:
           KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
@@ -49,7 +51,8 @@ jobs:
           KEY_PASS: ${{ secrets.ANDROID_KEYALIAS_PASS }}
         run: |
           if [ -z "$KS_B64" ]; then echo "No keystore secret: debug-signed build"; exit 0; fi
-          echo "$KS_B64" | base64 -d > /tmp/check.keystore
+          printf '%s' "$KS_B64" | tr -d ' \r\n\t' | base64 -d > /tmp/check.keystore 2>/tmp/b64err || echo "Base64 text: has invalid characters ($(cat /tmp/b64err))"
+          echo "Decoded keystore size: $(stat -c %s /tmp/check.keystore) bytes"
           if keytool -list -keystore /tmp/check.keystore -storepass "$KS_PASS" > /tmp/list.txt 2>&1; then echo "Keystore password: OK"; else echo "Keystore password: WRONG"; cat /tmp/list.txt | grep -v -i pass; fi
           grep -i "keystore type" /tmp/list.txt || true
           echo "Number of keys: $(grep -c PrivateKeyEntry /tmp/list.txt)"
