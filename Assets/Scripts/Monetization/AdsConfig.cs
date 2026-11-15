@@ -18,7 +18,7 @@ public static class AdsConfig
     public const string TapsellInterstitialZoneId = "6af95d666cbc4169d6c382e6";
 
     // ----- Cafe Bazaar in-app payments: the RSA public key from the Bazaar developer panel -----
-    public const string BazaarRsaPublicKey = "YOUR_BAZAAR_RSA_PUBLIC_KEY";
+    public const string BazaarRsaPublicKey = "MIHNMA0GCSqGSIb3DQEBAQUAA4G7ADCBtwKBrwCfAXrDaUXK6+oIkWaFFN9tMTFDVlieZk3I1MhDtFmbnAd6oyZwIxhzjKbw3rXZvyJzkEr+svgEWWR8OABIOOciFhs6V5iYrizsFqJ8yWnufZZbP3Uw9/gOwEU2CrMyWFy0pWnP9pjSybrVg0IZcQ44EY0KV+myrWIMaeXI9WEWLD/RkoYszSGEUy+4962i2VgmKoU+9igDVP0S+XCwWZa4zoXatf7j5VLVkMIIaJkCAwEAAQ==";
 
     public static bool LevelPlayConfigured => !AppKey.StartsWith("YOUR_");
     public static bool TapsellConfigured => !TapsellAppKey.StartsWith("YOUR_");
