@@ -51,9 +51,11 @@ public static class MonetizationSetup
             MonetizationServices.StoreBackend = store;
             store.Begin();
         }
-#elif CARGO_STORE_MYKET && !UNITY_EDITOR
-        // Myket payments are not wired yet: hide the No Ads button instead of faking a purchase.
-        MonetizationServices.PurchasesEnabled = false;
+#endif
+#if !UNITY_EDITOR
+        // No real payment library yet (Myket, or Bazaar without Poolakey/RSA key):
+        // hide the Remove ads button instead of giving it away as a test unlock.
+        if (MonetizationServices.StoreBackend == null) MonetizationServices.PurchasesEnabled = false;
 #endif
     }
 }
