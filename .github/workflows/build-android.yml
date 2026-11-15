@@ -53,8 +53,10 @@ jobs:
           # Keep only real base64 characters (pasted text can carry a BOM, quotes or line breaks).
           bad=$(printf '%s' "$KS_B64" | tr -d 'A-Za-z0-9+/=' | od -An -tx1 | tr -s ' \n' ' ')
           [ -n "${bad// /}" ] && echo "Ignored non-base64 bytes (hex):$bad"
-          printf '%s' "$KS_B64" | tr -cd 'A-Za-z0-9+/=' | base64 -d > release.keystore || echo "Base64 text is damaged"
           clean=$(printf '%s' "$KS_B64" | tr -cd 'A-Za-z0-9+/=')
+          # A trailing "=" is easy to miss when copying; add the padding back if it is missing.
+          while [ $(( ${#clean} % 4 )) -ne 0 ]; do clean="$clean="; echo "Added missing '=' padding"; done
+          printf '%s' "$clean" | base64 -d > release.keystore || echo "Base64 text is damaged"
           echo "Base64 length: ${#clean} (should be a multiple of 4: remainder $(( ${#clean} % 4 )))"
           echo "Padding '=' count: $(printf '%s' "$clean" | tr -cd '=' | wc -c), last 2 chars are padding: $([[ "$clean" == *= ]] && echo yes || echo no)"
           echo "Decoded keystore size: $(stat -c %s release.keystore) bytes"
