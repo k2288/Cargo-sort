@@ -13,9 +13,9 @@ public static class AdsConfig
 #endif
 
     // ----- Cafe Bazaar / Myket builds: Tapsell Plus (https://dashboard.tapsell.ir) -----
-    public const string TapsellAppKey = "YOUR_TAPSELL_APP_KEY";
-    public const string TapsellRewardedZoneId = "YOUR_TAPSELL_REWARDED_ZONE_ID";
-    public const string TapsellInterstitialZoneId = "YOUR_TAPSELL_INTERSTITIAL_ZONE_ID";
+    public const string TapsellAppKey = "gedlrkgciabhnhqtddhforqbelrkcjtoshkqjjiakkmqfspdptnqhtoqonrharljlojgfh";
+    public const string TapsellRewardedZoneId = "6af95c6daeabeb750feb8c11";
+    public const string TapsellInterstitialZoneId = "6af95d666cbc4169d6c382e6";
 
     // ----- Cafe Bazaar in-app payments: the RSA public key from the Bazaar developer panel -----
     public const string BazaarRsaPublicKey = "YOUR_BAZAAR_RSA_PUBLIC_KEY";
