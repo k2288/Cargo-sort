@@ -42,7 +42,6 @@ jobs:
           restore-keys: Library-Android-${{ matrix.store }}-
 
       - name: Decode and check signing key (prints yes/no only, never the secrets)
-        continue-on-error: true
         shell: bash
         env:
           KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -55,7 +54,14 @@ jobs:
           bad=$(printf '%s' "$KS_B64" | tr -d 'A-Za-z0-9+/=' | od -An -tx1 | tr -s ' \n' ' ')
           [ -n "${bad// /}" ] && echo "Ignored non-base64 bytes (hex):$bad"
           printf '%s' "$KS_B64" | tr -cd 'A-Za-z0-9+/=' | base64 -d > release.keystore || echo "Base64 text is damaged"
+          clean=$(printf '%s' "$KS_B64" | tr -cd 'A-Za-z0-9+/=')
+          echo "Base64 length: ${#clean} (should be a multiple of 4: remainder $(( ${#clean} % 4 )))"
+          echo "Padding '=' count: $(printf '%s' "$clean" | tr -cd '=' | wc -c), last 2 chars are padding: $([[ "$clean" == *= ]] && echo yes || echo no)"
           echo "Decoded keystore size: $(stat -c %s release.keystore) bytes"
+          if [ ! -s release.keystore ] || ! keytool -list -keystore release.keystore -storepass "$KS_PASS" > /dev/null 2>&1; then
+            echo "::error::The keystore secret is damaged or the password is wrong. Paste ANDROID_KEYSTORE_BASE64 again (the whole text) and check ANDROID_KEYSTORE_PASS."
+            FAIL=1
+          fi
           if keytool -list -keystore release.keystore -storepass "$KS_PASS" > /tmp/list.txt 2>&1; then echo "Keystore password: OK"; else echo "Keystore password or file: WRONG"; grep -i "exception\|error" /tmp/list.txt | grep -v -i pass | head -3; fi
           grep -i "keystore type" /tmp/list.txt || true
           echo "Number of keys: $(grep -c PrivateKeyEntry /tmp/list.txt)"
@@ -63,6 +69,7 @@ jobs:
           if [ "$KEY_PASS" = "$KS_PASS" ]; then echo "Key password equals keystore password: yes"; else echo "Key password equals keystore password: NO"; fi
           if keytool -certreq -keystore release.keystore -storepass "$KS_PASS" -alias "$KEY_ALIAS" -keypass "$KEY_PASS" > /dev/null 2>&1; then echo "Key password: OK"; else echo "Key password: WRONG"; fi
           rm -f /tmp/list.txt
+          if [ "$FAIL" = "1" ]; then exit 1; fi
 
       - name: Build APK
         uses: game-ci/unity-builder@v4
