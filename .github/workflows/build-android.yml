@@ -41,7 +41,7 @@ jobs:
           key: Library-Android-${{ matrix.store }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
           restore-keys: Library-Android-${{ matrix.store }}-
 
-      - name: Check signing key (prints yes/no only, never the secrets)
+      - name: Decode and check signing key (prints yes/no only, never the secrets)
         continue-on-error: true
         shell: bash
         env:
@@ -51,15 +51,18 @@ jobs:
           KEY_PASS: ${{ secrets.ANDROID_KEYALIAS_PASS }}
         run: |
           if [ -z "$KS_B64" ]; then echo "No keystore secret: debug-signed build"; exit 0; fi
-          printf '%s' "$KS_B64" | tr -d ' \r\n\t' | base64 -d > /tmp/check.keystore 2>/tmp/b64err || echo "Base64 text: has invalid characters ($(cat /tmp/b64err))"
-          echo "Decoded keystore size: $(stat -c %s /tmp/check.keystore) bytes"
-          if keytool -list -keystore /tmp/check.keystore -storepass "$KS_PASS" > /tmp/list.txt 2>&1; then echo "Keystore password: OK"; else echo "Keystore password: WRONG"; cat /tmp/list.txt | grep -v -i pass; fi
+          # Keep only real base64 characters (pasted text can carry a BOM, quotes or line breaks).
+          bad=$(printf '%s' "$KS_B64" | tr -d 'A-Za-z0-9+/=' | od -An -tx1 | tr -s ' \n' ' ')
+          [ -n "${bad// /}" ] && echo "Ignored non-base64 bytes (hex):$bad"
+          printf '%s' "$KS_B64" | tr -cd 'A-Za-z0-9+/=' | base64 -d > release.keystore || echo "Base64 text is damaged"
+          echo "Decoded keystore size: $(stat -c %s release.keystore) bytes"
+          if keytool -list -keystore release.keystore -storepass "$KS_PASS" > /tmp/list.txt 2>&1; then echo "Keystore password: OK"; else echo "Keystore password or file: WRONG"; grep -i "exception\|error" /tmp/list.txt | grep -v -i pass | head -3; fi
           grep -i "keystore type" /tmp/list.txt || true
           echo "Number of keys: $(grep -c PrivateKeyEntry /tmp/list.txt)"
-          if keytool -list -keystore /tmp/check.keystore -storepass "$KS_PASS" -alias "$KEY_ALIAS" > /dev/null 2>&1; then echo "Alias: found"; else echo "Alias: NOT FOUND (the alias secret does not match)"; fi
+          if keytool -list -keystore release.keystore -storepass "$KS_PASS" -alias "$KEY_ALIAS" > /dev/null 2>&1; then echo "Alias: found"; else echo "Alias: NOT FOUND (the alias secret does not match)"; fi
           if [ "$KEY_PASS" = "$KS_PASS" ]; then echo "Key password equals keystore password: yes"; else echo "Key password equals keystore password: NO"; fi
-          if keytool -certreq -keystore /tmp/check.keystore -storepass "$KS_PASS" -alias "$KEY_ALIAS" -keypass "$KEY_PASS" > /dev/null 2>&1; then echo "Key password: OK"; else echo "Key password: WRONG"; fi
-          rm -f /tmp/check.keystore /tmp/list.txt
+          if keytool -certreq -keystore release.keystore -storepass "$KS_PASS" -alias "$KEY_ALIAS" -keypass "$KEY_PASS" > /dev/null 2>&1; then echo "Key password: OK"; else echo "Key password: WRONG"; fi
+          rm -f /tmp/list.txt
 
       - name: Build APK
         uses: game-ci/unity-builder@v4
@@ -74,7 +77,6 @@ jobs:
           customParameters: -store ${{ matrix.store }}
           # Release signing (optional). Without these secrets the APK is debug-signed for testing.
           androidKeystoreName: release.keystore
-          androidKeystoreBase64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           androidKeystorePass: ${{ secrets.ANDROID_KEYSTORE_PASS }}
           androidKeyaliasName: ${{ secrets.ANDROID_KEYALIAS_NAME }}
           androidKeyaliasPass: ${{ secrets.ANDROID_KEYALIAS_PASS }}
