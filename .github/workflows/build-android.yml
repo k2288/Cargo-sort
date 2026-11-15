@@ -41,6 +41,23 @@ jobs:
           key: Library-Android-${{ matrix.store }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
           restore-keys: Library-Android-${{ matrix.store }}-
 
+      - name: Check signing key (prints yes/no only, never the secrets)
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEYALIAS_NAME }}
+          KEY_PASS: ${{ secrets.ANDROID_KEYALIAS_PASS }}
+        run: |
+          if [ -z "$KS_B64" ]; then echo "No keystore secret: debug-signed build"; exit 0; fi
+          echo "$KS_B64" | base64 -d > /tmp/check.keystore
+          if keytool -list -keystore /tmp/check.keystore -storepass "$KS_PASS" > /tmp/list.txt 2>&1; then echo "Keystore password: OK"; else echo "Keystore password: WRONG"; cat /tmp/list.txt | grep -v -i pass; fi
+          grep -i "keystore type" /tmp/list.txt || true
+          echo "Number of keys: $(grep -c PrivateKeyEntry /tmp/list.txt)"
+          if keytool -list -keystore /tmp/check.keystore -storepass "$KS_PASS" -alias "$KEY_ALIAS" > /dev/null 2>&1; then echo "Alias: found"; else echo "Alias: NOT FOUND (the alias secret does not match)"; fi
+          if [ "$KEY_PASS" = "$KS_PASS" ]; then echo "Key password equals keystore password: yes"; else echo "Key password equals keystore password: NO"; fi
+          if keytool -certreq -keystore /tmp/check.keystore -storepass "$KS_PASS" -alias "$KEY_ALIAS" -keypass "$KEY_PASS" > /dev/null 2>&1; then echo "Key password: OK"; else echo "Key password: WRONG"; fi
+          rm -f /tmp/check.keystore /tmp/list.txt
+
       - name: Build APK
         uses: game-ci/unity-builder@v4
         env:
