@@ -19,6 +19,7 @@ namespace CargoSort.EditorTools
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64 | AndroidArchitecture.ARMv7;
             EditorUserBuildSettings.buildAppBundle = false;
             ApplyVersionAndSigning();
+            AppIcons.Apply();
 
             // -store googleplay|bazaar|myket picks the store from the command line (CI); otherwise the menu choice is used.
             switch (Arg("-store"))
