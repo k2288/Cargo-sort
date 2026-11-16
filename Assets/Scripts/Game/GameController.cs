@@ -75,6 +75,8 @@ namespace CargoSort.Game
             hud.ClaimWin += OnClaimWin;
             hud.ClaimDaily += OnClaimDaily;
             hud.OpenShop += OnOpenShop;
+            hud.OpenPort += OnOpenPort;
+            hud.BuildPortItem += OnBuildPortItem;
             hud.ThemeTapped += OnThemeTapped;
             hud.FreeCoins += OnFreeCoins;
             hud.RemoveAds += OnRemoveAds;
@@ -156,6 +158,8 @@ namespace CargoSort.Game
             if (n == LevelGenerator.FrozenFromLevel) hud.Toast(Loc.T("twist_frozen"), 3f);
             else if (n == LevelGenerator.HiddenFromLevel) hud.Toast(Loc.T("twist_hidden"), 3f);
             else if (IsHard) hud.Toast(Loc.T("hard_start"), 2f);
+            else if (portTipPending) hud.Toast(Loc.T("port_tip"), 2.4f);
+            portTipPending = false;
         }
 
         private bool IsHard => level > 0 && LevelGenerator.IsHard(level);
@@ -383,6 +387,12 @@ namespace CargoSort.Game
             AddCoins(coins);
             pendingWinReward = 0;
             hud.ShowWin(false);
+            if (Port.CanBuildSomething(Progress.Coins) && PlayerPrefs.GetInt("port_tip_shown", 0) == 0)
+            {
+                PlayerPrefs.SetInt("port_tip_shown", 1);
+                PlayerPrefs.Save();
+                portTipPending = true;
+            }
             if (level >= AskNotificationsAfterLevel) Reminders.AskPermission();
             if (level == 0)
             {
@@ -433,6 +443,7 @@ namespace CargoSort.Game
             Progress.Coins += amount;
             hud.SetCoins(Progress.Coins);
             hud.RefreshShop();
+            hud.RefreshPort();
             if (session != null) RefreshHud();
         }
 
@@ -475,6 +486,50 @@ namespace CargoSort.Game
             if (board.Busy || waitingForAd) return;
             hud.RefreshShop();
             hud.ShowShop(true);
+        }
+
+        // ---------- Port building ----------
+
+        private void OnOpenPort()
+        {
+            if (board.Busy || waitingForAd) return;
+            Analytics.PortOpened(Port.Index, Port.BuiltCount);
+            hud.ShowPort(true);
+        }
+
+        private void OnBuildPortItem(int item)
+        {
+            if (portCompleting || Port.IsBuilt(item)) return;
+            int cost = Port.Cost(item);
+            if (!TrySpend(cost))
+            {
+                hud.Toast(Loc.T("not_enough"));
+                return;
+            }
+            Port.Build(item);
+            Analytics.PortBuild(Port.Index, Port.ItemKeys[item], cost);
+            Feedback.TruckLeft();
+            hud.RefreshPort();
+            hud.AnimatePortItem(item);
+            if (Port.Complete) StartCoroutine(CompletePort());
+        }
+
+        private bool portCompleting, portTipPending;
+
+        /// <summary>Plays the finished port for a moment, pays the bonus, then opens the next port.</summary>
+        private System.Collections.IEnumerator CompletePort()
+        {
+            portCompleting = true;
+            yield return new WaitForSecondsRealtime(0.7f);
+            int reward = Port.CompletionReward;
+            Analytics.PortComplete(Port.Index);
+            Feedback.Won();
+            hud.Toast(Loc.T("port_done", reward), 2.2f);
+            yield return new WaitForSecondsRealtime(2.2f);
+            Port.NextPort();
+            AddCoins(reward);
+            hud.Toast(Loc.T("port_next", Port.RawName), 2f);
+            portCompleting = false;
         }
 
         private void OnThemeTapped(int index)

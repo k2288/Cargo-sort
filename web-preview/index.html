@@ -78,6 +78,19 @@ button.quiet { background: var(--muted); }
 .left { display: grid; gap: 6px; justify-items: start; }
 #challengeBtn { font-size: 12px; padding-inline: 10px; }
 .hint { color: var(--muted); font-size: 13px; margin: 2px 0 0; }
+.right { display: grid; gap: 4px; justify-items: end; }
+#portBtn.ready { background: var(--btn-ad); animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { transform: scale(1.07); } }
+.card.port { width: min(420px, 100%); max-height: calc(100% - 32px); overflow-y: auto; gap: 10px; }
+.portmeta { display: flex; justify-content: space-between; font-weight: 800; color: var(--muted); }
+.portmeta b { color: var(--gold); }
+.scene { width: 100%; border-radius: 14px; display: block; }
+.scene .pop { transform-box: fill-box; transform-origin: 50% 100%; animation: popin .45s ease-out; }
+@keyframes popin { 0% { transform: scale(0); } 60% { transform: scale(1.18); } 100% { transform: scale(1); } }
+.pieces { display: grid; gap: 6px; }
+.piece { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; padding: 4px 6px; border-radius: 12px; background: rgba(255,255,255,.04); text-align: start; }
+.piece button { min-width: 112px; }
+@media (prefers-reduced-motion: reduce) { #portBtn.ready, .scene .pop { animation: none; } }
 @media (prefers-reduced-motion: reduce) { button { transition: none; } }
 </style>
 
@@ -85,7 +98,7 @@ button.quiet { background: var(--muted); }
   <div class="top">
     <div class="left"><button class="small" id="reset" data-t="reset">Reset</button><button class="small ad" id="challengeBtn">Challenge</button></div>
     <div class="title"><h1 id="level">Level 1</h1><p id="trucks">Trucks 0/0</p></div>
-    <div class="right"><button class="small" id="shopBtn" data-t="shop">Shop</button><span class="coins" id="coins">0</span></div>
+    <div class="right"><button class="small" id="shopBtn" data-t="shop">Shop</button><span class="coins" id="coins">0</span><button class="small" id="portBtn">Port</button></div>
   </div>
   <div class="board" id="board"><canvas id="cv"></canvas><div class="tip" id="tip" hidden></div></div>
   <div class="bar">
@@ -110,6 +123,11 @@ button.quiet { background: var(--muted); }
   <div class="row2"><button class="quiet" id="soundBtn">Sound</button><button class="quiet" id="vibeBtn">Vibration</button></div>
   <div class="row2"><button id="noads" data-t="remove_ads">Remove ads</button><button class="quiet" id="lang" data-t="other_language">فارسی</button></div>
   <button id="closeShop" data-t="close">Close</button></div></div>
+<div class="overlay" id="port" hidden><div class="card port"><h2 id="portTitle">Port</h2>
+  <div class="portmeta"><span id="portProgress"></span><b id="portCoins"></b></div>
+  <svg class="scene" id="scene" viewBox="-440 -260 880 520" role="img" aria-label="Port"></svg>
+  <div class="pieces" id="pieces"></div>
+  <button id="closePort" data-t="close">Close</button></div></div>
 <div class="overlay" id="ad" hidden><div class="fakead" id="adText">Ad<span>test ad, 1 second</span></div></div>
 <div class="toast" id="toast" hidden></div>
 
@@ -484,6 +502,12 @@ const STR = {
   twist_frozen: ["New: ice melts as you tap other columns", "جدید: یخ با ضربه به ستون‌های دیگر آب می‌شود"],
   frozen: ["Frozen! Tap other columns to melt it", "یخ زده! به ستون‌های دیگر ضربه بزن"], levels: ["Levels", "مراحل"], challenge_level: ["Daily challenge", "چالش روزانه"],
   challenge_win: ["Challenge complete!", "چالش امروز تمام شد!"], challenge_done: ["Done for today! New challenge tomorrow", "چالش امروز انجام شد! فردا چالش جدید"],
+  port: ["Port", "بندر"], port_ready: ["Build!", "بساز!"], port_progress: ["Built {0}/{1}", "ساخته شده {0}/{1}"], built: ["Built", "ساخته شد"],
+  port_done: ["Port complete! +{0} coins", "بندر کامل شد! +{0} سکه"], port_next: ["New port: {0}", "بندر جدید: {0}"], port_tip: ["You can build in your port!", "می‌توانی در بندرت بسازی!"],
+  port_1: ["Fishing Cove", "بندر ماهیگیری"], port_2: ["River Harbor", "بندر رودخانه"], port_3: ["Sunset Bay", "خلیج غروب"],
+  port_4: ["Island Port", "بندر جزیره"], port_5: ["Coral Coast", "ساحل مرجانی"], port_6: ["Grand Port", "بندر بزرگ"],
+  pi_pier: ["Pier", "اسکله چوبی"], pi_warehouse: ["Warehouse", "انبار"], pi_crane: ["Crane", "جرثقیل"], pi_truck: ["Truck", "کامیون"],
+  pi_lighthouse: ["Lighthouse", "فانوس دریایی"], pi_ship: ["Cargo ship", "کشتی باری"],
   challenge_start: ["Hard level, big prize: {0} coins", "مرحله سخت، جایزه بزرگ: {0} سکه"],
   sound_on: ["Sound: On", "صدا: روشن"], sound_off: ["Sound: Off", "صدا: خاموش"], vibration_on: ["Vibration: On", "لرزش: روشن"], vibration_off: ["Vibration: Off", "لرزش: خاموش"],
 };
@@ -531,6 +555,63 @@ function renderShop() {
     row.append(sw, name, btn); box.appendChild(row);
   });
 }
+// ===== Port building (same as Assets/Scripts/Game/Port.cs) =====
+const PORT_ITEMS = ["pi_pier", "pi_warehouse", "pi_crane", "pi_truck", "pi_lighthouse", "pi_ship"], PORT_BASE = [60, 90, 120, 150, 190, 240];
+const SKIES = ["#8fd3f4", "#ffc88a", "#a8e6cf", "#c7b8f2", "#f7a8b8", "#2c3e6b"], WATERS = ["#2e86c8", "#3b8e9e", "#1f9e9a", "#4a6fc9", "#3a7bb8", "#164a7a"];
+const portIndex = () => store.get("portIndex", 0), portMask = () => store.get("portBuilt", 0);
+const isBuilt = i => (portMask() & (1 << i)) !== 0, builtCount = () => PORT_ITEMS.filter((_, i) => isBuilt(i)).length;
+const portCost = i => Math.round(PORT_BASE[i] * (1 + 0.5 * portIndex()) / 10) * 10, portReward = () => 100 + 50 * portIndex();
+function portName() { const i = portIndex(); return i < 6 ? t("port_" + (i + 1)) : t("port_6") + " " + num(i - 4); }
+function canBuild() { return PORT_ITEMS.some((_, i) => !isBuilt(i) && coins >= portCost(i)); }
+const GHOST = "rgba(255,255,255,.22)";
+const PORT_PARTS = [ // [x, y, w, h, color, shape] relative to the piece's base point; y up
+  { at: [190, -95], parts: [[-60, -35, 12, 60, "#5e3b1a"], [0, -35, 12, 60, "#5e3b1a"], [60, -35, 12, 60, "#5e3b1a"], [0, 0, 170, 18, "#8b5a2b", "r"]] },
+  { at: [-300, -90], parts: [[0, 65, 200, 130, "#b5533c"], [0, 140, 224, 26, "#6b2e22", "r"], [0, 35, 72, 70, "#4a2a20"], [-65, 90, 34, 26, "#cfeaff"], [65, 90, 34, 26, "#cfeaff"]] },
+  { at: [60, -90], parts: [[0, 130, 26, 260, "#ffc23a"], [110, 250, 260, 20, "#ffc23a"], [-30, 238, 40, 36, "#555"], [200, 175, 4, 130, "#333"], [200, 92, 46, 46, "#e74c3c", "r"]] },
+  { at: [-170, -200], parts: [[-30, 30, 120, 55, "#3498db", "r"], [55, 22, 46, 42, "#f1c40f", "r"], [62, 30, 22, 16, "#cfeaff"], [-60, -5, 26, 26, "#15181e", "c"], [-10, -5, 26, 26, "#15181e", "c"], [55, -5, 26, 26, "#15181e", "c"]] },
+  { at: [-120, -90], parts: [[0, 115, 46, 230, "#f5f5f5"], [0, 60, 46, 26, "#e74c3c"], [0, 150, 46, 26, "#e74c3c"], [0, 243, 56, 30, "#333"], [0, 243, 26, 26, "#ffe066", "c"], [0, 266, 66, 16, "#e74c3c", "r"]] },
+  { at: [350, -170], parts: [[-55, 45, 50, 40, "#f5f5f5"], [10, 42, 40, 30, "#2ecc71"], [55, 42, 40, 30, "#f39c12"], [32, 72, 40, 30, "#3498db"], [0, 0, 190, 56, "#c0392b", "r"]] },
+];
+function svgRect(x, y, w, h, fill, shape) {
+  if (shape === "c") return `<circle cx="${x}" cy="${-y}" r="${w / 2}" fill="${fill}"/>`;
+  return `<rect x="${x - w / 2}" y="${-y - h / 2}" width="${w}" height="${h}" rx="${shape === "r" ? Math.min(10, h / 2) : 0}" fill="${fill}"/>`;
+}
+function renderPort(popItem = -1) {
+  const btn = $("portBtn"), ready = canBuild(); btn.textContent = t(ready ? "port_ready" : "port"); btn.classList.toggle("ready", ready);
+  if ($("port").hidden) return;
+  $("portTitle").textContent = portName(); $("portProgress").textContent = t("port_progress", builtCount(), 6); $("portCoins").textContent = t("coins", coins);
+  const k = portIndex() % SKIES.length;
+  let svg = `<rect x="-440" y="-260" width="880" height="520" fill="${SKIES[k]}"/><circle cx="300" cy="-170" r="40" fill="#fff3b0"/>` +
+    svgRect(0, -200, 880, 120, WATERS[k]) + svgRect(-155, -175, 570, 170, "#c9b27c") + svgRect(-155, -95, 570, 12, "#9c8658");
+  PORT_PARTS.forEach((p, i) => {
+    const built = isBuilt(i);
+    svg += `<g${i === popItem ? ' class="pop"' : ""}>` + p.parts.map(([x, y, w, h, c, sh]) => svgRect(p.at[0] + x, p.at[1] + y, w, h, built ? c : GHOST, sh)).join("") + "</g>";
+  });
+  $("scene").innerHTML = svg;
+  const box = $("pieces"); box.textContent = "";
+  PORT_ITEMS.forEach((key, i) => {
+    const row = document.createElement("div"); row.className = "piece";
+    const name = document.createElement("b"); name.textContent = t(key);
+    const b = document.createElement("button"); b.className = "small";
+    if (isBuilt(i)) { b.textContent = t("built"); b.classList.add("quiet"); }
+    else { b.textContent = t("coins", portCost(i)); b.classList.add(coins >= portCost(i) ? "ad" : "quiet"); }
+    b.onclick = () => buildPiece(i);
+    row.append(name, b); box.appendChild(row);
+  });
+}
+let portBusy = false;
+function buildPiece(i) {
+  if (portBusy || isBuilt(i)) return;
+  if (!spend(portCost(i))) return toast(t("not_enough"));
+  store.set("portBuilt", portMask() | (1 << i)); sfx.horn(); buzz(25); renderPort(i);
+  if (builtCount() < 6) return;
+  portBusy = true; const reward = portReward();
+  setTimeout(() => { sfx.win(); toast(t("port_done", reward), 2200); }, 700);
+  setTimeout(() => { store.set("portBuilt", 0); store.set("portIndex", portIndex() + 1); addCoins(reward); toast(t("port_next", portName()), 2000); portBusy = false; renderPort(); }, 2900);
+}
+$("portBtn").onclick = () => { if (busy) return; $("port").hidden = false; renderPort(); };
+$("closePort").onclick = () => $("port").hidden = true;
+
 function today() { const d = new Date(); return Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(2000, 0, 1)) / 86400000); }
 function checkDaily() {
   const last = store.get("dailyDay", 0); if (last === today()) return;
@@ -553,6 +634,7 @@ function refresh() {
   for (const k of ["slot", "hint"]) { $(k + "Sub").textContent = coins >= PRICE[k] ? t("coins_price", PRICE[k]) : t("watch_ad"); $(k).classList.toggle("ad", coins < PRICE[k]); }
   $("noads").hidden = store.get("noads", false);
   $("coins").textContent = t("coins", coins);
+  renderPort();
 }
 function start(n) {
   level = n; game = new Game(n > 0 ? generate(n) : generateChallenge(today())); history = []; freeUndos = 1; bonus = 0; hintCol = -1; busy = false; flying = [];
@@ -612,6 +694,7 @@ $("retry").onclick = () => start(level);
 $("reset").onclick = () => { if (!busy) start(level); };
 function finishWin(n, allowAd) {
   addCoins(n); pendingWin = 0; $("win").hidden = true;
+  if (canBuild() && !store.get("portTip", false)) { store.set("portTip", true); setTimeout(() => toast(t("port_tip"), 2400), 600); }
   if (level === 0) return start(Math.max(1, store.get("level", 1)));
   const next = level + 1;
   if (allowAd && !store.get("noads", false) && next >= 4 && (next - 4) % 3 === 0) fakeAd(t("between_ad"), () => start(next)); else start(next);

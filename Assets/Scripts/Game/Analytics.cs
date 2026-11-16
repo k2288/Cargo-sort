@@ -113,6 +113,15 @@ namespace CargoSort.Game
         public static void DailyGift(int streak, bool doubled) =>
             Send("daily_gift", new Dictionary<string, object> { { "streak", streak }, { "doubled", doubled } });
 
+        public static void PortOpened(int port, int built) =>
+            Send("port_open", new Dictionary<string, object> { { "port", port + 1 }, { "built", built }, { "level", LevelId(level) } });
+
+        public static void PortBuild(int port, string item, int cost) =>
+            Send("port_build", new Dictionary<string, object> { { "port", port + 1 }, { "item", item }, { "cost", cost }, { "level", LevelId(level) } });
+
+        public static void PortComplete(int port) =>
+            Send("port_complete", new Dictionary<string, object> { { "port", port + 1 }, { "level", LevelId(level) } });
+
         public static void Coins(string source, int amount) =>
             Send("coins", new Dictionary<string, object> { { "source", source }, { "amount", amount }, { "balance", Progress.Coins } });
 

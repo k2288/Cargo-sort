@@ -38,6 +38,9 @@ public sealed class GameAnalyticsService : IAnalyticsService
             case "daily_gift": Design($"daily_gift:{(Get(f, "doubled") == "True" ? "x2" : "x1")}", f, Number(f, "streak")); break;
             case "level_quit": Design($"level_quit:{Get(f, "level")}", f, Number(f, "trucks_shipped")); break;
             case "session_start": Design("session:start", f, Number(f, "days_since_install")); break;
+            case "port_open": Design($"port:open:{Get(f, "port")}", f, Number(f, "built")); break;
+            case "port_build": Design($"port:build:{Get(f, "port")}:{Get(f, "item")}", f, Number(f, "cost")); break;
+            case "port_complete": Design($"port:complete:{Get(f, "port")}", f); break;
             default: Design(name, f); break;
         }
     }

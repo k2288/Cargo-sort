@@ -7,7 +7,7 @@ using UnityEngine.UI;
 namespace CargoSort.Game
 {
     /// <summary>All screen UI, built in code: top bar, boosters, and the win, lose, daily gift and shop panels.</summary>
-    public sealed class Hud : MonoBehaviour
+    public sealed partial class Hud : MonoBehaviour
     {
         public event Action Undo, AddSlot, Hint, Restart, Revive, Retry, RemoveAds, OpenShop, FreeCoins, ToggleLanguage,
             Challenge, ToggleSound, ToggleVibration;
@@ -34,7 +34,7 @@ namespace CargoSort.Game
         private static readonly Color PanelColor = new Color32(0x15, 0x22, 0x35, 0xF2);
         private static readonly Color Gold = new Color32(0xFF, 0xCC, 0x33, 0xFF);
 
-        public bool PanelOpen => winPanel.activeSelf || losePanel.activeSelf || dailyPanel.activeSelf || shopPanel.activeSelf;
+        public bool PanelOpen => winPanel.activeSelf || losePanel.activeSelf || dailyPanel.activeSelf || shopPanel.activeSelf || portPanel.activeSelf;
 
         public void Build()
         {
@@ -72,6 +72,7 @@ namespace CargoSort.Game
             coinsText = MakeText(safe, "", 34, TextAnchor.UpperCenter);
             coinsText.color = Gold;
             Anchor(coinsText.rectTransform, new Vector2(1, 1), new Vector2(-130, -165), new Vector2(260, 50));
+            BuildPortButton(safe);
 
             // Boosters
             var undo = MakeButton(safe, "", ButtonColor, () => Undo?.Invoke(), 34);
@@ -130,6 +131,7 @@ namespace CargoSort.Game
             tip.SetActive(false);
 
             BuildShop(safe);
+            BuildPortPanel(safe);
 
             // Toast
             toast = MakeRect("Toast", safe).gameObject;
@@ -195,6 +197,7 @@ namespace CargoSort.Game
         private void Update()
         {
             if (toast != null && toast.activeSelf && Time.unscaledTime > toastUntil) toast.SetActive(false);
+            PulsePortButton();
         }
 
         public void SetLevel(int level, bool hard = false)
@@ -225,6 +228,7 @@ namespace CargoSort.Game
         {
             coinsText.text = Loc.T("coins", coins);
             shopCoins.text = Loc.T("coins", coins);
+            UpdatePortButton(coins);
         }
 
         public void ShowWin(bool show, int level = 0, int reward = 0)
@@ -280,6 +284,7 @@ namespace CargoSort.Game
         {
             tip.SetActive(!string.IsNullOrEmpty(text));
             if (tip.activeSelf) tipText.text = text;
+            portButton.gameObject.SetActive(!tip.activeSelf); // the tutorial tip sits where the Port button is
         }
 
         /// <summary>Gold coins fly from the middle of the screen to the coin counter.</summary>
