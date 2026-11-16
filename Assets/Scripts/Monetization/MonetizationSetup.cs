@@ -13,6 +13,9 @@ public static class MonetizationSetup
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void Register()
     {
+#if !UNITY_EDITOR
+        if (AdsConfig.GameAnalyticsConfigured) GameAnalyticsService.Begin();
+#endif
 #if CARGO_STORE_BAZAAR || CARGO_STORE_MYKET
         RegisterIranStores();
 #else
