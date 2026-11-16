@@ -161,14 +161,46 @@ function build(level, d, r) {
   return data;
 }
 
-function generate(level, d = difficulty(level), seed = level * 7919) {
-  let last = null;
-  for (let extra = 0; extra <= 3; extra++)
-    for (let a = 0; a < 200; a++) {
-      last = build(level, { ...d, buffer: d.buffer + extra }, rng(seed + a * 104729 + extra * 31));
-      if (canSolve(last)) return last;
+// Builds several solvable layouts and keeps the one whose casual-player win rate is closest to the
+// target for this level (a slowly falling sawtooth). If all are far too hard, the dock gets one more slot.
+const CANDIDATES = 12, TOO_HARD = 0.2, MAX_EASING = 1;
+function targetWinRate(level) {
+  if (level <= 0) return 0.3;
+  if (level <= 3) return 0.95;
+  const base = level <= 30 ? 0.9 - (level - 3) * (0.5 / 27) : Math.max(0.25, 0.4 - (level - 30) * 0.005);
+  const wave = [-0.15, 0.12, 0.04, 0, -0.05];
+  return Math.min(0.97, Math.max(0.12, base + wave[level % 5]));
+}
+function casualWinRate(data, seed, runs = 40) {
+  const r = rng(seed ^ 0x5bd1e995), start = new Game(data); let wins = 0;
+  for (let run = 0; run < runs; run++) {
+    const s = start.clone(); let guard = 2000;
+    while (s.status === "playing" && guard-- > 0) {
+      const cols = [...s.columns.keys()];
+      let choices = cols.filter(c => s.canTap(c) && s.bayFor(s.top(c)) >= 0);
+      if (!choices.length && r() < 0.65) { const m = pickMove(s); if (m >= 0 && s.canTap(m)) { s.tap(m); continue; } }
+      if (!choices.length) choices = cols.filter(c => s.canTap(c));
+      if (!choices.length) break;
+      s.tap(choices[Math.floor(r() * choices.length)]);
     }
-  return last;
+    if (s.status === "won") wins++;
+  }
+  return wins / runs;
+}
+function generate(level, d = difficulty(level), seed = level * 7919) {
+  let last = null, best = null, bestGap = Infinity, bestRate = 0; const target = targetWinRate(level);
+  for (let extra = 0; extra <= 3; extra++) {
+    let found = 0;
+    for (let a = 0; a < 200 && found < CANDIDATES; a++) {
+      last = build(level, { ...d, buffer: d.buffer + extra }, rng(seed + a * 104729 + extra * 31));
+      if (!canSolve(last)) continue;
+      found++;
+      const rate = casualWinRate(last, seed), gap = Math.abs(rate - target);
+      if (gap < bestGap) { bestGap = gap; best = last; bestRate = rate; }
+    }
+    if (best && (bestRate >= target - TOO_HARD || extra >= MAX_EASING)) break;
+  }
+  return best || last;
 }
 
 // Daily challenge: same hard level for everyone that day (many colors and trucks, small dock), still solver-checked.

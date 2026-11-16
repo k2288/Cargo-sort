@@ -81,6 +81,7 @@ namespace CargoSort.Game
             hud.ToggleLanguage += OnToggleLanguage;
             BuildHud();
 
+            Analytics.SessionStart();
             StartLevel(Progress.Level);
             CheckDailyGift();
             Reminders.Clear();
@@ -136,6 +137,8 @@ namespace CargoSort.Game
         /// <summary>Starts level n, or today's daily challenge when n is 0.</summary>
         private void StartLevel(int n)
         {
+            if (session != null && session.State.Status == GameStatus.Playing)
+                Analytics.LevelQuit(level, session.State.TrucksShipped, session.State.TrucksTotal);
             level = n;
             session = new GameSession(n > 0 ? LevelGenerator.Generate(n) : LevelGenerator.GenerateChallenge(Progress.Today));
             freeUndos = FreeUndosPerLevel;
@@ -146,6 +149,7 @@ namespace CargoSort.Game
             hud.SetChallengeButton(n == 0);
             board.Rebuild(session.State);
             board.PlayIntro();
+            Analytics.LevelStart(n);
             RefreshHud();
             ShowTutorialStep();
 
@@ -181,6 +185,7 @@ namespace CargoSort.Game
                 return;
             }
             var events = session.Tap(column);
+            Analytics.Move();
             board.Play(events, session.State, AfterMove);
         }
 
@@ -235,7 +240,9 @@ namespace CargoSort.Game
             {
                 Feedback.Won();
                 board.Confetti();
+                if (level == 1 && !Progress.TutorialDone) Analytics.Tutorial("done");
                 if (level == 1) Progress.TutorialDone = true;
+                Analytics.LevelWin(level, session.State.Buffer.Length);
                 hud.SetTip(null);
                 if (level == 0)
                 {
@@ -254,6 +261,7 @@ namespace CargoSort.Game
             {
                 Feedback.Lost();
                 hud.ShowLose(true);
+                Analytics.LevelFail(level, session.State.TrucksShipped, session.State.TrucksTotal, session.State.Buffer.Length);
             }
         }
 
@@ -274,11 +282,12 @@ namespace CargoSort.Game
             if (freeUndos > 0)
             {
                 freeUndos--;
+                Analytics.Booster("undo", "free");
                 DoUndo();
                 return;
             }
-            if (TrySpend(UndoPrice)) { DoUndo(); return; }
-            WatchRewarded("undo", DoUndo);
+            if (TrySpend(UndoPrice)) { Analytics.Booster("undo", "coins"); DoUndo(); return; }
+            WatchRewarded("undo", () => { Analytics.Booster("undo", "ad"); DoUndo(); });
         }
 
         private void DoUndo()
@@ -298,8 +307,8 @@ namespace CargoSort.Game
                 hud.Toast(Loc.T("dock_max"));
                 return;
             }
-            if (TrySpend(SlotPrice)) { AddSlotNow(); return; }
-            WatchRewarded("extra_slot", AddSlotNow);
+            if (TrySpend(SlotPrice)) { Analytics.Booster("slot", "coins"); AddSlotNow(); return; }
+            WatchRewarded("extra_slot", () => { Analytics.Booster("slot", "ad"); AddSlotNow(); });
         }
 
         private void OnRevive()
@@ -307,6 +316,7 @@ namespace CargoSort.Game
             if (waitingForAd) return;
             WatchRewarded("revive", () =>
             {
+                Analytics.Booster("revive", "ad");
                 AddSlotNow();
                 hud.ShowLose(false);
             });
@@ -324,8 +334,8 @@ namespace CargoSort.Game
         private void OnHint()
         {
             if (board.Busy || waitingForAd) return;
-            if (TrySpend(HintPrice)) { board.ShowHint(session.HintColumn()); return; }
-            WatchRewarded("hint", () => board.ShowHint(session.HintColumn()));
+            if (TrySpend(HintPrice)) { Analytics.Booster("hint", "coins"); board.ShowHint(session.HintColumn()); return; }
+            WatchRewarded("hint", () => { Analytics.Booster("hint", "ad"); board.ShowHint(session.HintColumn()); });
         }
 
         /// <summary>Pays for a booster with coins if the player has enough.</summary>
@@ -349,6 +359,7 @@ namespace CargoSort.Game
             ads.ShowRewarded(placement, ok =>
             {
                 waitingForAd = false;
+                Analytics.Ad("rewarded", placement, ok);
                 if (ok) reward();
             });
         }
@@ -391,6 +402,7 @@ namespace CargoSort.Game
             ads.ShowInterstitial("level_end", () =>
             {
                 waitingForAd = false;
+                Analytics.Ad("interstitial", "level_end", true);
                 StartLevel(next);
             });
         }
@@ -450,6 +462,7 @@ namespace CargoSort.Game
         private void FinishDaily(int coins)
         {
             Progress.LastDailyDay = Progress.Today;
+            Analytics.DailyGift(Progress.DailyStreak, coins > pendingDaily);
             pendingDaily = 0;
             hud.ShowDaily(false);
             AddCoins(coins);
@@ -512,6 +525,7 @@ namespace CargoSort.Game
             if (waitingForAd) return;
             Store.BuyRemoveAds(ok =>
             {
+                Analytics.Purchase(Store.RemoveAdsProductId, ok);
                 if (ok) hud.Toast(Loc.T("ads_removed"));
                 else hud.Toast(Loc.T("purchase_failed"));
             });

@@ -87,23 +87,54 @@ namespace CargoSort.Core
             return Generate(0, d, 500009 + day * 7349);
         }
 
+        /// <summary>How many solvable layouts are compared before picking the one closest to the target difficulty.</summary>
+        public const int Candidates = 12;
+        private const double TooHardMargin = 0.2;
+        private const int MaxEasing = 1;
+
         private static LevelData Generate(int level, Difficulty d, int seed)
         {
             LevelData last = null;
+            LevelData best = null;
+            double bestGap = double.MaxValue, bestRate = 0;
+            double target = TargetWinRate(level);
 
-            // If no solvable layout is found, loosen the dock one slot at a time.
+            // Build several solvable layouts and keep the one whose casual-player win rate is closest to
+            // the target for this level. If every layout is far too hard (or none is solvable), give the
+            // dock one more slot and try again.
             for (int extraBuffer = 0; extraBuffer <= 3; extraBuffer++)
             {
-                for (int attempt = 0; attempt < 200; attempt++)
+                int found = 0;
+                for (int attempt = 0; attempt < 200 && found < Candidates; attempt++)
                 {
                     var rng = new Random(seed + attempt * 104729 + extraBuffer * 31);
                     var dd = d;
                     dd.Buffer += extraBuffer;
                     last = Build(level, dd, rng);
-                    if (Solver.CanSolve(last)) return last;
+                    if (!Solver.CanSolve(last)) continue;
+                    found++;
+                    double rate = LevelRater.CasualWinRate(last, seed);
+                    double gap = Math.Abs(rate - target);
+                    if (gap < bestGap) { bestGap = gap; best = last; bestRate = rate; }
                 }
+                if (best != null && (bestRate >= target - TooHardMargin || extraBuffer >= MaxEasing)) break;
             }
-            return last;
+            return best ?? last;
+        }
+
+        /// <summary>
+        /// The share of casual players (see <see cref="LevelRater"/>) who should beat the level on the first try.
+        /// Falls slowly as levels go up, in a sawtooth: every 5 levels end on a HARD level, followed by a relief level.
+        /// </summary>
+        public static double TargetWinRate(int level)
+        {
+            if (level <= 0) return 0.3;                      // daily challenge
+            if (level <= 3) return 0.95;                     // first levels: everyone wins
+            double baseRate = level <= 30
+                ? 0.9 - (level - 3) * (0.5 / 27.0)          // 0.90 at level 3 -> 0.40 at level 30
+                : Math.Max(0.25, 0.4 - (level - 30) * 0.005);
+            double[] wave = { -0.15, 0.12, 0.04, 0.0, -0.05 }; // index = level % 5 (0 = HARD level)
+            return Math.Min(0.97, Math.Max(0.12, baseRate + wave[level % 5]));
         }
 
         public static LevelData Build(int level, Difficulty d, Random rng)
