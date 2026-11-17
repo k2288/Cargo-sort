@@ -34,7 +34,7 @@ body {
 .title h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 30px; letter-spacing: .5px; line-height: 1; }
 .title p { margin: 4px 0 0; color: var(--muted); font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; letter-spacing: .4px; }
 .top .right { justify-self: end; }
-.board { flex: 1; min-height: 0; position: relative; }
+.board { flex: 1; min-height: 0; position: relative; border-radius: 18px; overflow: hidden; }
 canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 button {
@@ -324,9 +324,19 @@ function rr(x, y, w, h, r, fill) { // world-space rounded rect centered at x,y
 }
 function dot(x, y, d, fill) { ctx.beginPath(); ctx.arc(sx(x), sy(y), d / 2 * scale, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); }
 function shade(hex, k) { const n = parseInt(hex.slice(1), 16); const f = v => Math.round(v * (1 - k)); return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`; }
-function crate(x, y, color, s = 1) {
-  const c = COLORS[color], z = CRATE * s;
-  rr(x, y, z, z, 0.16 * s, shade(c, 0.45)); rr(x, y, z * 0.86, z * 0.86, 0.12 * s, c); rr(x, y, z * 0.86, z * 0.16, 0.02, shade(c, 0.2));
+function tint(hex, k) { const n = parseInt(hex.slice(1), 16); const f = v => Math.round(v + (255 - v) * k); return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`; }
+function rot(x, y, a, fn) { ctx.save(); ctx.translate(sx(x), sy(y)); ctx.rotate(-a); ctx.translate(-sx(x), -sy(y)); fn(); ctx.restore(); }
+// Wooden crate: dark frame, colored planks, a diagonal brace, corner nails and a soft shadow.
+function crate(x, y, color, s = 1, shadow = true) {
+  const c = COLORS[color], z = CRATE * s, frame = shade(c, 0.42), groove = shade(c, 0.16);
+  if (shadow) rr(x + 0.03 * s, y - 0.07 * s, z, z * 0.96, 0.16 * s, "rgba(0,0,0,.22)");
+  rr(x, y, z, z, 0.15 * s, frame);
+  rr(x, y, z * 0.8, z * 0.8, 0.07 * s, c);
+  rr(x, y + z * 0.135, z * 0.8, z * 0.045, 0, groove); rr(x, y - z * 0.135, z * 0.8, z * 0.045, 0, groove);
+  ctx.save(); ctx.beginPath(); ctx.rect(sx(x - z * 0.4), sy(y + z * 0.4), z * 0.8 * scale, z * 0.8 * scale); ctx.clip();
+  rot(x, y, Math.PI / 4, () => rr(x, y, z * 1.12, z * 0.15, 0.02, frame)); ctx.restore();
+  rr(x - z * 0.12, y + z * 0.33, z * 0.42, z * 0.06, 0.03 * s, "rgba(255,255,255,.4)");
+  for (const [dx, dy] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) dot(x + dx * z * 0.42, y + dy * z * 0.42, 0.07 * s, tint(c, 0.35));
 }
 function hiddenCrate(x, y) {
   rr(x, y, CRATE, CRATE, 0.16, "#3a404a"); rr(x, y, CRATE * 0.86, CRATE * 0.86, 0.12, "#6b7380");
@@ -336,37 +346,99 @@ function label(text, x, y, size, fill, align = "center") {
   ctx.font = `800 ${Math.round(size * scale)}px Vazirmatn, system-ui, sans-serif`; ctx.fillStyle = fill; ctx.textAlign = align; ctx.textBaseline = "middle";
   ctx.fillText(text, sx(x), sy(y) + size * scale * 0.06);
 }
+function wheel(x, y, d) { dot(x, y, d, "#15181e"); dot(x, y, d * 0.45, "#9aa3ad"); dot(x, y, d * 0.16, "#15181e"); }
 function miniTruck(x, y, color, alpha) {
   ctx.globalAlpha = alpha; const c = COLORS[color];
-  rr(x, y + 0.02, 0.78, 0.42, 0.08, c); rr(x + 0.55, y - 0.02, 0.3, 0.34, 0.06, shade(c, 0.2));
-  ctx.globalAlpha = 1; dot(x - 0.2, y - 0.24, 0.18, "#15181e"); dot(x + 0.5, y - 0.24, 0.18, "#15181e");
+  rr(x + 0.05, y - 0.3, 1.05, 0.12, 0.06, "rgba(0,0,0,.2)");
+  rr(x, y + 0.02, 0.78, 0.42, 0.08, c); rr(x, y - 0.15, 0.78, 0.07, 0.03, shade(c, 0.25));
+  rr(x + 0.55, y - 0.02, 0.3, 0.34, 0.07, shade(c, 0.15)); rr(x + 0.6, y + 0.06, 0.14, 0.12, 0.03, "#cfeaff");
+  wheel(x - 0.2, y - 0.24, 0.2); wheel(x + 0.5, y - 0.24, 0.2); ctx.globalAlpha = 1;
 }
-function truck(x, y, color, loaded, cap) {
+// Flatbed truck with side rails, a cab with window, headlight and roof light, and hubcap wheels.
+function truck(x, y, color, loaded, cap, bounce = 0) {
   const c = COLORS[color], bedW = cap * SLOTSP + 0.2, bedL = slotLocal(0, cap)[0] - SLOTSP / 2 - 0.1, bedC = bedL + bedW / 2, cabX = bedL + bedW + 0.5;
-  rr(x + bedC, y + 0.05, bedW, 1.15, 0.18, theme().bed); rr(x + bedC, y - 0.48, bedW, 0.2, 0.05, c);
+  const wheels = [bedL + 0.55, bedL + bedW - 0.4, cabX + 0.05];
+  rr(x + (bedL + cabX + 0.45) / 2 + 0.1, y - 0.86, cabX + 0.45 - bedL + 0.3, 0.2, 0.1, "rgba(0,0,0,.25)");
+  for (const wx of wheels) wheel(x + wx, y - 0.62, 0.52);
+  y += bounce;
+  rr(x + bedC, y - 0.52, bedW + 0.1, 0.16, 0.05, "#2a2f37");
+  rr(x + bedC, y + 0.05, bedW, 1.15, 0.18, theme().bed);
+  rr(x + bedC, y + 0.58, bedW, 0.08, 0.04, tint(theme().bed, 0.25));
+  rr(x + bedC, y - 0.44, bedW, 0.22, 0.06, c); rr(x + bedC, y - 0.37, bedW, 0.05, 0.02, tint(c, 0.35));
   for (let i = 0; i < cap; i++) { const [lx, ly] = slotLocal(i, cap); rr(x + lx, y + ly, CRATE, CRATE, 0.14, shade(theme().bed, 0.25)); }
-  rr(x + cabX, y - 0.05, 0.9, 1.0, 0.2, c); rr(x + cabX + 0.12, y + 0.15, 0.5, 0.5, 0.1, "#cfeaff");
-  for (const wx of [bedL + 0.55, bedL + bedW - 0.4, cabX + 0.05]) dot(x + wx, y - 0.62, 0.5, "#15181e");
-  for (let i = 0; i < loaded; i++) { const [lx, ly] = slotLocal(i, cap); crate(x + lx, y + ly, color, 0.95); }
+  rr(x + cabX, y - 0.05, 0.9, 1.0, 0.22, c);
+  rr(x + cabX, y + 0.4, 0.9, 0.1, 0.05, tint(c, 0.3));
+  rr(x + cabX - 0.05, y - 0.32, 0.8, 0.07, 0.03, shade(c, 0.25));
+  rr(x + cabX + 0.12, y + 0.15, 0.5, 0.48, 0.1, "#cfeaff"); rr(x + cabX + 0.02, y + 0.26, 0.14, 0.2, 0.05, "rgba(255,255,255,.75)");
+  rr(x + cabX - 0.02, y + 0.53, 0.3, 0.1, 0.04, "#ffb72b");
+  rr(x + cabX + 0.48, y - 0.22, 0.12, 0.16, 0.04, "#fff3b0");
+  rr(x + cabX + 0.45, y - 0.48, 0.16, 0.12, 0.03, "#7b8794");
+  for (let i = 0; i < loaded; i++) { const [lx, ly] = slotLocal(i, cap); const sq = i === loaded - 1 ? squash : 0; crateSquash(x + lx, y + ly, color, 0.95, sq); }
 }
-
+// A crate that squashes a little when it lands (k: 1 just landed -> 0 settled).
+function crateSquash(x, y, color, s, k) {
+  if (k <= 0) return crate(x, y, color, s);
+  const sxk = 1 + 0.18 * k, syk = 1 - 0.18 * k, bottom = y - CRATE * s / 2;
+  ctx.save(); ctx.translate(sx(x), sy(bottom)); ctx.scale(sxk, syk); ctx.translate(-sx(x), -sy(bottom)); crate(x, y, color, s); ctx.restore();
+}
+let squash = 0, puffs = [];
+function puff(x, y, n = 6, color = "rgba(255,255,255,.55)", spread = 0.6) {
+  if (reduce) return;
+  for (let i = 0; i < n; i++) puffs.push({ x: x + (Math.random() - 0.5) * spread, y, vx: (Math.random() - 0.5) * 2.2, vy: 0.4 + Math.random() * 1.2, r: 0.14 + Math.random() * 0.14, life: 0.5, max: 0.5, color });
+}
+function drawPuffs(dt) {
+  puffs = puffs.filter(p => (p.life -= dt) > 0);
+  for (const p of puffs) { p.x += p.vx * dt; p.y += p.vy * dt; const k = p.life / p.max; ctx.globalAlpha = k; dot(p.x, p.y, p.r * 2 * (1.6 - k * 0.6), p.color); }
+  ctx.globalAlpha = 1;
+}
+// Harbor backdrop: lighter sky behind the trucks, far-off cranes and stacked containers, water line, and the road.
+function backdrop() {
+  const bg = theme().bg, top = sy(H / 2 + 1), roadY = BAYY - 1.05;
+  const g = ctx.createLinearGradient(0, 0, 0, sy(roadY));
+  g.addColorStop(0, tint(bg, 0.16)); g.addColorStop(1, bg); ctx.fillStyle = g; ctx.fillRect(0, 0, cv.width, sy(roadY));
+  const far = shade(bg, 0.18);
+  ctx.globalAlpha = 0.85;
+  for (const [cx0, hgt] of [[-4.6, 2.2], [3.9, 2.6]]) {
+    rr(cx0, roadY + 0.55 + hgt / 2, 0.16, hgt, 0, far); rr(cx0 + 0.55, roadY + 0.55 + hgt, 1.6, 0.14, 0, far); rr(cx0 - 0.3, roadY + 0.45 + hgt, 0.45, 0.25, 0, far);
+  }
+  for (const [bx, by, w] of [[-2.6, 0, 1.3], [-1.3, 0, 1.3], [-2.0, 1, 1.3], [1.4, 0, 1.3], [2.7, 0, 1.3], [2.0, 1, 1.3]])
+    rr(bx, roadY + 0.75 + by * 0.42, w - 0.08, 0.38, 0.03, far);
+  ctx.globalAlpha = 1;
+  rr(0, roadY + 0.35, W + 4, 0.22, 0, shade(bg, 0.28));
+  // road
+  rr(0, roadY + 0.02, W + 4, 0.48, 0, shade(bg, 0.38));
+  for (let i = -7; i <= 7; i++) rr(i * 1.0, roadY + 0.02, 0.45, 0.06, 0.03, "rgba(255,255,255,.35)");
+  // ground fades a bit darker towards the bottom
+  const g2 = ctx.createLinearGradient(0, sy(roadY), 0, cv.height);
+  g2.addColorStop(0, "rgba(0,0,0,0)"); g2.addColorStop(1, "rgba(0,0,0,.22)"); ctx.fillStyle = g2; ctx.fillRect(0, sy(roadY - 0.22), cv.width, cv.height);
+}
+// Wooden dock with posts.
+function dockDeck(w) {
+  const wood = theme().ground;
+  rr(0, BUFY - 0.72, w, 0.18, 0.05, "rgba(0,0,0,.25)");
+  for (const px of [-w / 2 + 0.35, w / 2 - 0.35]) rr(px, BUFY - 0.86, 0.22, 0.4, 0.05, shade(wood, 0.35));
+  rr(0, BUFY, w, 1.25, 0.25, wood);
+  rr(0, BUFY + 0.56, w - 0.2, 0.06, 0.03, tint(wood, 0.18));
+  rr(0, BUFY - 0.56, w - 0.2, 0.06, 0.03, shade(wood, 0.2));
+}
 function draw() {
   ctx.clearRect(0, 0, cv.width, cv.height);
   ctx.fillStyle = theme().bg; ctx.fillRect(0, 0, cv.width, cv.height);
   if (!view) return;
+  backdrop();
   // trucks
-  view.bays.forEach((t, b) => { const [x, y] = bayPos(b); rr(x, y - 0.95, BAYSP - 0.4, 0.18, 0.05, theme().slot); if (t) truck(x + (t.off || 0), y, t.color, t.loaded, t.capacity); });
+  view.bays.forEach((t, b) => { const [x, y] = bayPos(b); rr(x, y - 0.95, BAYSP - 0.4, 0.06, 0.03, "rgba(255,255,255,.18)"); if (t) truck(x + (t.off || 0), y, t.color, t.loaded, t.capacity, t.bounce || 0); });
   // next trucks in line
   const next = game ? game.upcoming(2) : [];
   if (next.length) { label(t("next_short"), -2.1, NEXTY, 0.42, "rgba(255,255,255,.7)"); next.forEach((c, i) => miniTruck(-0.6 + i * 1.5, NEXTY, c, i ? 0.6 : 1)); }
   // dock
-  rr(0, BUFY, view.buffer.length * bufSp() + 0.3, 1.25, 0.25, theme().ground);
+  dockDeck(view.buffer.length * bufSp() + 0.3);
   view.buffer.forEach((c, i) => { const [x, y] = bufPos(i); rr(x, y, CRATE + 0.08, CRATE + 0.08, 0.16, theme().slot); if (c !== EMPTY) crate(x, y, c); });
   // lanes and stacks
   const tallest = Math.max(1, ...view.columns.map(c => c.length));
   view.columns.forEach((col, c) => {
     const [x] = colPos(c, 0), h = tallest * ROWSP + 0.25;
-    rr(x, BASEY - 0.55 + h / 2, COLSP - 0.15, h, 0.22, theme().ground);
+    rr(x, BASEY - 0.55 + h / 2, COLSP - 0.15, h, 0.22, theme().ground); rr(x, BASEY - 0.55 + h / 2, COLSP - 0.43, h - 0.28, 0.14, shade(theme().ground, 0.12));
     col.forEach((color, r) => { const [px, py] = colPos(c, r); const shake = view.shake && view.shake.c === c && r === col.length - 1 ? Math.sin(view.shake.t * 40) * 0.12 * (1 - view.shake.t / 0.25) : 0; const k = Math.max(0, Math.min(1, introK * 1.6 - (r % 8) * 0.06)), sc = backOut(k);
       if (sc <= 0.01) return;
       if (sc < 0.999) { ctx.save(); ctx.translate(sx(px), sy(py)); ctx.scale(sc, sc); ctx.translate(-sx(px), -sy(py)); }
@@ -378,8 +450,9 @@ function draw() {
     }
   });
   if (hintCol >= 0 && hintCol < view.columns.length) { const [hx, hy] = colPos(hintCol, view.columns[hintCol].length); const b = Math.abs(Math.sin(performance.now() / 160)) * 0.3; dot(hx, hy + 0.1 + b, 0.42, "#ffffff"); }
-  for (const f of flying) crate(f.x, f.y, f.color);
+  for (const f of flying) rot(f.x, f.y, f.a || 0, () => crate(f.x, f.y, f.color, 1.06));
   if (tutCol >= 0 && tutCol < view.columns.length && !busy) drawHand(tutCol);
+  drawPuffs(Math.min(0.05, (performance.now() - lastFrame) / 1000));
   drawConfetti();
 }
 let introK = 1, tutCol = -1, confetti = [], lastFrame = performance.now();
@@ -435,13 +508,20 @@ async function play(events) {
       let to; if (e.to === "bay") { const t = view.bays[e.ti]; const [bx, by] = bayPos(e.ti); const [lx, ly] = slotLocal(t.loaded, t.capacity); to = [bx + lx, by + ly]; } else to = bufPos(e.ti);
       const f = { x: from[0], y: from[1], color: e.color }; flying.push(f);
       const arc = 0.6 + Math.hypot(to[0] - from[0], to[1] - from[1]) * 0.06;
-      await tween(0.16, k => { f.x = from[0] + (to[0] - from[0]) * k; f.y = from[1] + (to[1] - from[1]) * k + Math.sin(k * Math.PI) * arc; });
+      const spin = (to[0] > from[0] ? -1 : 1) * 0.35;
+      await tween(0.17, k => { f.x = from[0] + (to[0] - from[0]) * k; f.y = from[1] + (to[1] - from[1]) * k + Math.sin(k * Math.PI) * arc; f.a = Math.sin(k * Math.PI) * spin; });
       flying = flying.filter(x => x !== f);
-      if (e.to === "bay") { view.bays[e.ti].loaded++; sfx.pop(view.bays[e.ti].loaded - 1); } else { view.buffer[e.ti] = e.color; sfx.thud(); buzz(12); }
+      if (e.to === "bay") {
+        const tr = view.bays[e.ti]; tr.loaded++; sfx.pop(tr.loaded - 1); puff(to[0], to[1] - 0.4, 4, "rgba(255,255,255,.5)", 0.5);
+        squash = 1; tween(0.22, k => { squash = 1 - k; tr.bounce = -0.09 * Math.sin(k * Math.PI); });
+      } else { view.buffer[e.ti] = e.color; sfx.thud(); buzz(12); puff(to[0], to[1] - 0.45, 5, "rgba(255,255,255,.4)", 0.7); }
     } else if (e.k === "depart") {
-      const t = view.bays[e.bay]; sfx.horn(); buzz(25); await tween(0.24, k => t.off = k * 9); view.bays[e.bay] = null;
+      const t = view.bays[e.bay], [bx, by] = bayPos(e.bay); sfx.horn(); buzz(25);
+      puff(bx - 1.6, by - 0.6, 6, "rgba(200,200,200,.6)", 0.3);
+      await tween(0.32, k => { const e2 = Math.pow(k, 1.6); t.off = e2 * 10; t.bounce = 0.05 * Math.sin(k * 9) * (1 - k); }); view.bays[e.bay] = null;
     } else if (e.k === "arrive") {
-      const t = { color: e.color, capacity: game.capacity, loaded: 0, off: -9 }; view.bays[e.bay] = t; await tween(0.24, k => t.off = -9 + 9 * k);
+      const t = { color: e.color, capacity: game.capacity, loaded: 0, off: -9, bounce: 0 }; view.bays[e.bay] = t;
+      await tween(0.3, k => t.off = -9 + 9 * k); tween(0.25, k => t.bounce = -0.08 * Math.sin(k * Math.PI) * (1 - k * 0.5));
     }
   }
   view = cloneView(game); busy = false; afterMove();

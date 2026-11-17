@@ -30,6 +30,9 @@ namespace CargoSort.Game
 
         public static Color CrateColor(int index) => CrateColors[Mathf.Abs(index) % CrateColors.Length];
 
+        public static Color Lighten(Color c, float amount) =>
+            new Color(c.r + (1f - c.r) * amount, c.g + (1f - c.g) * amount, c.b + (1f - c.b) * amount, c.a);
+
         public static Color Darken(Color c, float amount) =>
             new Color(c.r * (1f - amount), c.g * (1f - amount), c.b * (1f - amount), c.a);
 
@@ -116,16 +119,34 @@ namespace CargoSort.Game
             return sr;
         }
 
-        /// <summary>A crate: dark outline, colored body, and a tape stripe.</summary>
+        /// <summary>A wooden crate: dark frame, colored planks, a diagonal brace, corner nails and a soft shadow.</summary>
         public static Transform Crate(Transform parent, int colorIndex, float size)
         {
             var c = CrateColor(colorIndex);
+            var frame = Darken(c, 0.42f);
+            var groove = Darken(c, 0.16f);
             var root = new GameObject("Crate").transform;
             root.SetParent(parent, false);
-            Box(root, "Outline", Vector2.zero, new Vector2(size, size), Darken(c, 0.45f), 10);
-            Box(root, "Body", Vector2.zero, new Vector2(size * 0.86f, size * 0.86f), c, 11);
-            Box(root, "Tape", Vector2.zero, new Vector2(size * 0.86f, size * 0.16f), Darken(c, 0.2f), 12);
+            Box(root, "Shadow", new Vector2(0.035f * size, -0.08f * size), new Vector2(size, size * 0.96f), new Color(0, 0, 0, 0.22f), 9);
+            Box(root, "Frame", Vector2.zero, new Vector2(size, size), frame, 10);
+            Box(root, "Planks", Vector2.zero, new Vector2(size * 0.8f, size * 0.8f), c, 11);
+            Box(root, "Groove", new Vector2(0, size * 0.135f), new Vector2(size * 0.8f, size * 0.045f), groove, 12);
+            Box(root, "Groove", new Vector2(0, -size * 0.135f), new Vector2(size * 0.8f, size * 0.045f), groove, 12);
+            var brace = Box(root, "Brace", Vector2.zero, new Vector2(size * 0.98f, size * 0.13f), frame, 13);
+            brace.transform.localRotation = Quaternion.Euler(0, 0, 45f);
+            Box(root, "Shine", new Vector2(-size * 0.12f, size * 0.33f), new Vector2(size * 0.42f, size * 0.06f), new Color(1, 1, 1, 0.4f), 14);
+            var nail = Lighten(c, 0.35f);
+            for (int i = 0; i < 4; i++)
+                Dot(root, "Nail", new Vector2((i % 2 == 0 ? -1 : 1) * size * 0.42f, (i < 2 ? 1 : -1) * size * 0.42f), size * 0.08f, nail, 14);
             return root;
+        }
+
+        /// <summary>A wheel with a hubcap.</summary>
+        public static void DrawWheel(Transform parent, Vector2 pos, float diameter, int order)
+        {
+            Dot(parent, "Tire", pos, diameter, Wheel, order);
+            Dot(parent, "Hub", pos, diameter * 0.45f, new Color32(0x9A, 0xA3, 0xAD, 0xFF), order + 1);
+            Dot(parent, "Bolt", pos, diameter * 0.16f, Wheel, order + 2);
         }
 
         private static Font labelFont;
@@ -169,9 +190,8 @@ namespace CargoSort.Game
         /// <summary>Raises a crate's sorting orders while it flies so it draws above everything.</summary>
         public static void SetLift(Transform crate, bool lifted)
         {
-            int baseOrder = lifted ? 40 : 10;
             var renderers = crate.GetComponentsInChildren<SpriteRenderer>();
-            for (int i = 0; i < renderers.Length; i++) renderers[i].sortingOrder = baseOrder + i;
+            for (int i = 0; i < renderers.Length; i++) renderers[i].sortingOrder += lifted ? 30 : -30;
         }
     }
 }

@@ -38,6 +38,7 @@ namespace CargoSort.Game
         private sealed class TruckView
         {
             public Transform Root;
+            public Transform Body; // everything above the wheels; it bounces when crates land
             public int Capacity;
             public readonly List<Transform> Crates = new List<Transform>();
         }
@@ -93,7 +94,8 @@ namespace CargoSort.Game
             hintMarker = null;
 
             // Dock buffer
-            Art.Box(root, "Dock", new Vector2(0, BufferY), new Vector2(state.Buffer.Length * BufferSpacing + 0.3f, 1.25f), Art.Ground, 0);
+            DrawBackdrop();
+            DrawDock(state.Buffer.Length * BufferSpacing + 0.3f);
             bufferCrates = new Transform[state.Buffer.Length];
             for (int i = 0; i < state.Buffer.Length; i++)
             {
@@ -116,6 +118,7 @@ namespace CargoSort.Game
                 var pallet = ColumnPos(c, 0);
                 float h = tallest * RowSpacing + 0.25f;
                 Art.Box(root, "Lane", new Vector2(pallet.x, ColumnBaseY - 0.55f + h / 2f), new Vector2(ColumnSpacing - 0.15f, h), Art.Ground, 0);
+                Art.Box(root, "LaneInner", new Vector2(pallet.x, ColumnBaseY - 0.55f + h / 2f), new Vector2(ColumnSpacing - 0.43f, h - 0.28f), Art.Darken(Art.Ground, 0.12f), 0);
 
                 var list = new List<Transform>();
                 var hidden = new List<bool>();
@@ -136,7 +139,7 @@ namespace CargoSort.Game
             trucks = new TruckView[state.Bays.Length];
             for (int b = 0; b < state.Bays.Length; b++)
             {
-                Art.Box(root, "BayMark", BayPos(b) + new Vector3(0, -0.95f), new Vector2(BaySpacing - 0.4f, 0.18f), Art.Slot, 0);
+                Art.Box(root, "BayMark", BayPos(b) + new Vector3(0, -0.95f), new Vector2(BaySpacing - 0.4f, 0.06f), new Color(1, 1, 1, 0.18f), -1);
                 var truck = state.Bays[b];
                 if (truck == null) continue;
                 trucks[b] = CreateTruck(truck.Color, truck.Capacity);
@@ -161,12 +164,14 @@ namespace CargoSort.Game
                 var c = Art.CrateColor(next[i]);
                 float x = -0.6f + i * 1.5f;
                 float alpha = i == 0 ? 1f : 0.6f;
-                var bed = Art.Box(nextRoot, "MiniBed", new Vector2(x, NextY + 0.02f), new Vector2(0.78f, 0.42f), c, 5);
-                bed.color = new Color(c.r, c.g, c.b, alpha);
-                var cab = Art.Box(nextRoot, "MiniCab", new Vector2(x + 0.55f, NextY - 0.02f), new Vector2(0.3f, 0.34f), Art.Darken(c, 0.2f), 5);
-                cab.color = new Color(cab.color.r, cab.color.g, cab.color.b, alpha);
-                Art.Dot(nextRoot, "MiniWheel", new Vector2(x - 0.2f, NextY - 0.24f), 0.18f, Art.Wheel, 6);
-                Art.Dot(nextRoot, "MiniWheel", new Vector2(x + 0.5f, NextY - 0.24f), 0.18f, Art.Wheel, 6);
+                Color A(Color col) => new Color(col.r, col.g, col.b, col.a * alpha);
+                Art.Box(nextRoot, "MiniShadow", new Vector2(x + 0.05f, NextY - 0.3f), new Vector2(1.05f, 0.12f), A(new Color(0, 0, 0, 0.2f)), 4);
+                Art.Box(nextRoot, "MiniBed", new Vector2(x, NextY + 0.02f), new Vector2(0.78f, 0.42f), A(c), 5);
+                Art.Box(nextRoot, "MiniStripe", new Vector2(x, NextY - 0.15f), new Vector2(0.78f, 0.07f), A(Art.Darken(c, 0.25f)), 6);
+                Art.Box(nextRoot, "MiniCab", new Vector2(x + 0.55f, NextY - 0.02f), new Vector2(0.3f, 0.34f), A(Art.Darken(c, 0.15f)), 5);
+                Art.Box(nextRoot, "MiniWindow", new Vector2(x + 0.6f, NextY + 0.06f), new Vector2(0.14f, 0.12f), A(Art.Window), 6);
+                Art.DrawWheel(nextRoot, new Vector2(x - 0.2f, NextY - 0.24f), 0.2f, 7);
+                Art.DrawWheel(nextRoot, new Vector2(x + 0.5f, NextY - 0.24f), 0.2f, 7);
             }
         }
 
@@ -215,32 +220,49 @@ namespace CargoSort.Game
             }
         }
 
+        /// <summary>Flatbed truck: side rails, cab with window, headlight and roof light, and hubcap wheels.</summary>
         private TruckView CreateTruck(int color, int capacity)
         {
             var view = new TruckView { Capacity = capacity, Root = new GameObject("Truck").transform };
             view.Root.SetParent(root, false);
+            view.Body = new GameObject("Body").transform;
+            view.Body.SetParent(view.Root, false);
+            var body = view.Body;
             var c = Art.CrateColor(color);
             float bedWidth = capacity * SlotSpacing + 0.2f;
             float bedLeft = TruckSlotLocal(0, capacity).x - SlotSpacing / 2f - 0.1f;
             float bedCenter = bedLeft + bedWidth / 2f;
-
-            Art.Box(view.Root, "Bed", new Vector2(bedCenter, 0.05f), new Vector2(bedWidth, 1.15f), Art.TruckBed, 2);
-            Art.Box(view.Root, "BedRim", new Vector2(bedCenter, -0.48f), new Vector2(bedWidth, 0.2f), c, 3);
-            for (int i = 0; i < capacity; i++)
-                Art.Box(view.Root, "SlotMark", TruckSlotLocal(i, capacity), new Vector2(CrateSize, CrateSize), Art.Darken(Art.TruckBed, 0.25f), 3);
-
             float cabX = bedLeft + bedWidth + 0.5f;
-            Art.Box(view.Root, "Cab", new Vector2(cabX, -0.05f), new Vector2(0.9f, 1.0f), c, 2);
-            Art.Box(view.Root, "Window", new Vector2(cabX + 0.12f, 0.15f), new Vector2(0.5f, 0.5f), Art.Window, 3);
-            Art.Dot(view.Root, "WheelBack", new Vector2(bedLeft + 0.55f, -0.62f), 0.5f, Art.Wheel, 4);
-            Art.Dot(view.Root, "WheelMid", new Vector2(bedLeft + bedWidth - 0.4f, -0.62f), 0.5f, Art.Wheel, 4);
-            Art.Dot(view.Root, "WheelFront", new Vector2(cabX + 0.05f, -0.62f), 0.5f, Art.Wheel, 4);
+
+            float length = cabX + 0.45f - bedLeft + 0.3f;
+            Art.Box(view.Root, "Shadow", new Vector2((bedLeft + cabX + 0.45f) / 2f + 0.1f, -0.86f), new Vector2(length, 0.2f), new Color(0, 0, 0, 0.25f), 0);
+            Art.DrawWheel(view.Root, new Vector2(bedLeft + 0.55f, -0.62f), 0.52f, 1);
+            Art.DrawWheel(view.Root, new Vector2(bedLeft + bedWidth - 0.4f, -0.62f), 0.52f, 1);
+            Art.DrawWheel(view.Root, new Vector2(cabX + 0.05f, -0.62f), 0.52f, 1);
+
+            Art.Box(body, "Chassis", new Vector2(bedCenter, -0.52f), new Vector2(bedWidth + 0.1f, 0.16f), new Color32(0x2A, 0x2F, 0x37, 0xFF), 4);
+            Art.Box(body, "Bed", new Vector2(bedCenter, 0.05f), new Vector2(bedWidth, 1.15f), Art.TruckBed, 4);
+            Art.Box(body, "TopRail", new Vector2(bedCenter, 0.58f), new Vector2(bedWidth, 0.08f), Art.Lighten(Art.TruckBed, 0.25f), 5);
+            Art.Box(body, "SideRail", new Vector2(bedCenter, -0.44f), new Vector2(bedWidth, 0.22f), c, 5);
+            Art.Box(body, "RailShine", new Vector2(bedCenter, -0.37f), new Vector2(bedWidth, 0.05f), Art.Lighten(c, 0.35f), 6);
+            for (int i = 0; i < capacity; i++)
+                Art.Box(body, "SlotMark", TruckSlotLocal(i, capacity), new Vector2(CrateSize, CrateSize), Art.Darken(Art.TruckBed, 0.25f), 5);
+
+            Art.Box(body, "Cab", new Vector2(cabX, -0.05f), new Vector2(0.9f, 1.0f), c, 4);
+            Art.Box(body, "Roof", new Vector2(cabX, 0.4f), new Vector2(0.9f, 0.1f), Art.Lighten(c, 0.3f), 5);
+            Art.Box(body, "Trim", new Vector2(cabX - 0.05f, -0.32f), new Vector2(0.8f, 0.07f), Art.Darken(c, 0.25f), 5);
+            Art.Box(body, "Window", new Vector2(cabX + 0.12f, 0.15f), new Vector2(0.5f, 0.48f), Art.Window, 5);
+            Art.Box(body, "Glare", new Vector2(cabX + 0.02f, 0.26f), new Vector2(0.14f, 0.2f), new Color(1, 1, 1, 0.75f), 6);
+            Art.Box(body, "RoofLight", new Vector2(cabX - 0.02f, 0.53f), new Vector2(0.3f, 0.1f), new Color32(0xFF, 0xB7, 0x2B, 0xFF), 5);
+            Art.Box(body, "Headlight", new Vector2(cabX + 0.48f, -0.22f), new Vector2(0.12f, 0.16f), new Color32(0xFF, 0xF3, 0xB0, 0xFF), 5);
+            Art.Box(body, "Bumper", new Vector2(cabX + 0.45f, -0.48f), new Vector2(0.16f, 0.12f), new Color32(0x7B, 0x87, 0x94, 0xFF), 5);
             return view;
         }
 
         private void AddCrateToTruck(TruckView truck, Transform crate)
         {
-            crate.SetParent(truck.Root, true);
+            crate.SetParent(truck.Body, true);
+            crate.localRotation = Quaternion.identity;
             crate.localPosition = TruckSlotLocal(truck.Crates.Count, truck.Capacity);
             crate.localScale = Vector3.one * 0.95f;
             truck.Crates.Add(crate);
@@ -297,7 +319,7 @@ namespace CargoSort.Game
             {
                 truck = trucks[e.ToIndex];
                 if (truck == null) yield break;
-                target = truck.Root.TransformPoint(TruckSlotLocal(truck.Crates.Count, truck.Capacity));
+                target = truck.Body.TransformPoint(TruckSlotLocal(truck.Crates.Count, truck.Capacity));
             }
             else
             {
@@ -307,25 +329,35 @@ namespace CargoSort.Game
             Art.SetLift(crate, true);
             Vector3 start = crate.position;
             float arc = 0.6f + Vector3.Distance(start, target) * 0.06f;
+            float spin = (target.x > start.x ? -1f : 1f) * 20f;
+            Vector3 baseScale = crate.localScale;
             for (float t = 0; t < 1f; t += Time.deltaTime / MoveTime)
             {
                 float k = EaseOut(t);
                 crate.position = Vector3.Lerp(start, target, k) + Vector3.up * Mathf.Sin(k * Mathf.PI) * arc;
+                crate.localRotation = Quaternion.Euler(0, 0, Mathf.Sin(k * Mathf.PI) * spin);
+                crate.localScale = baseScale * (1f + 0.06f * Mathf.Sin(k * Mathf.PI));
                 yield return null;
             }
             crate.position = target;
+            crate.localRotation = Quaternion.identity;
+            crate.localScale = baseScale;
             Art.SetLift(crate, false);
 
             if (truck != null)
             {
                 AddCrateToTruck(truck, crate);
                 Feedback.CrateLoaded(truck.Crates.Count - 1);
-                yield return Punch(truck.Root, 0.08f);
+                Puff(target + Vector3.down * 0.4f, 4, 0.5f);
+                StartCoroutine(Squash(crate));
+                yield return Bob(truck.Body, -0.09f, 0.22f);
             }
             else
             {
                 bufferCrates[e.ToIndex] = crate;
                 Feedback.CrateParked();
+                Puff(target + Vector3.down * 0.45f, 5, 0.7f);
+                StartCoroutine(Squash(crate));
             }
         }
 
@@ -335,7 +367,15 @@ namespace CargoSort.Game
             trucks[bay] = null;
             if (truck == null) yield break;
             Feedback.TruckLeft();
-            yield return Slide(truck.Root, truck.Root.position + Vector3.right * OffscreenX, TruckTime);
+            Puff(truck.Root.position + new Vector3(-1.6f, -0.6f), 6, 0.3f, new Color(0.8f, 0.8f, 0.8f, 0.6f));
+            // Pull away slowly, then speed up, rocking on the springs.
+            Vector3 from = truck.Root.position;
+            for (float k = 0; k < 1f; k += Time.deltaTime / (TruckTime * 1.35f))
+            {
+                truck.Root.position = from + Vector3.right * Mathf.Pow(k, 1.6f) * (OffscreenX + 1f);
+                truck.Body.localPosition = Vector3.up * 0.05f * Mathf.Sin(k * 9f) * (1f - k);
+                yield return null;
+            }
             Destroy(truck.Root.gameObject);
         }
 
@@ -344,7 +384,8 @@ namespace CargoSort.Game
             var truck = CreateTruck(color, capacity);
             trucks[bay] = truck;
             truck.Root.position = BayPos(bay) + Vector3.left * OffscreenX;
-            yield return Slide(truck.Root, BayPos(bay), TruckTime);
+            yield return Slide(truck.Root, BayPos(bay), TruckTime * 1.25f);
+            StartCoroutine(Bob(truck.Body, -0.08f, 0.25f));
         }
 
         private static IEnumerator Slide(Transform t, Vector3 target, float time)
@@ -358,15 +399,108 @@ namespace CargoSort.Game
             t.position = target;
         }
 
-        private static IEnumerator Punch(Transform t, float amount)
+        /// <summary>Moves a part down and back up once (truck springs).</summary>
+        private static IEnumerator Bob(Transform t, float depth, float time)
         {
-            Vector3 baseScale = t.localScale;
-            for (float k = 0; k < 1f; k += Time.deltaTime / 0.12f)
+            for (float k = 0; k < 1f; k += Time.deltaTime / time)
             {
-                t.localScale = baseScale * (1f + Mathf.Sin(k * Mathf.PI) * amount);
+                if (t == null) yield break;
+                t.localPosition = Vector3.up * depth * Mathf.Sin(k * Mathf.PI);
                 yield return null;
             }
+            if (t != null) t.localPosition = Vector3.zero;
+        }
+
+        /// <summary>A landed crate flattens a little and springs back, pivoting on its bottom edge.</summary>
+        private static IEnumerator Squash(Transform t)
+        {
+            Vector3 baseScale = t.localScale;
+            Vector3 basePos = t.localPosition;
+            float half = CrateSize * 0.5f;
+            var parent = t.parent;
+            for (float k = 0; k < 1f; k += Time.deltaTime / 0.22f)
+            {
+                if (t == null || t.parent != parent) yield break;
+                float a = 0.18f * (1f - k);
+                t.localScale = new Vector3(baseScale.x * (1f + a), baseScale.y * (1f - a), 1f);
+                t.localPosition = basePos + Vector3.down * half * a * baseScale.y;
+                yield return null;
+            }
+            if (t == null || t.parent != parent) yield break;
             t.localScale = baseScale;
+            t.localPosition = basePos;
+        }
+
+        /// <summary>Little dust puffs that float up and fade.</summary>
+        private void Puff(Vector3 at, int count, float spread, Color? color = null)
+        {
+            var c = color ?? new Color(1, 1, 1, 0.5f);
+            for (int i = 0; i < count; i++)
+            {
+                var dot = Art.Dot(root, "Puff", at + Vector3.right * UnityEngine.Random.Range(-spread, spread) * 0.5f,
+                    UnityEngine.Random.Range(0.28f, 0.56f), c, 45);
+                StartCoroutine(PuffRoutine(dot, new Vector3(UnityEngine.Random.Range(-1.1f, 1.1f), UnityEngine.Random.Range(0.4f, 1.6f))));
+            }
+        }
+
+        private static IEnumerator PuffRoutine(SpriteRenderer dot, Vector3 velocity)
+        {
+            var t = dot.transform;
+            Vector3 size = t.localScale;
+            Color c = dot.color;
+            for (float k = 0; k < 1f; k += Time.deltaTime / 0.5f)
+            {
+                if (dot == null) yield break;
+                t.position += velocity * Time.deltaTime;
+                t.localScale = size * (1f + 0.6f * k);
+                dot.color = new Color(c.r, c.g, c.b, c.a * (1f - k));
+                yield return null;
+            }
+            if (dot != null) Destroy(dot.gameObject);
+        }
+
+        // ---------- Scenery ----------
+
+        /// <summary>Lighter sky behind the trucks, far-off cranes and containers, a water line and the road.</summary>
+        private void DrawBackdrop()
+        {
+            var bg = Art.Background;
+            float roadY = BayY - 1.05f;
+            // Sky: bands that get lighter towards the top (a cheap gradient).
+            for (int i = 0; i < 6; i++)
+                Art.Box(root, "Sky", new Vector2(0, roadY + 0.4f + i * 1.4f + 0.7f), new Vector2(40f, 1.42f), Art.Lighten(bg, 0.03f * (i + 1)), -20);
+            var far = Art.Darken(bg, 0.18f);
+            far.a = 0.85f;
+            float[,] cranes = { { -4.6f, 2.2f }, { 3.9f, 2.6f } };
+            for (int i = 0; i < 2; i++)
+            {
+                float x = cranes[i, 0], h = cranes[i, 1];
+                Art.Box(root, "FarCrane", new Vector2(x, roadY + 0.55f + h / 2f), new Vector2(0.16f, h), far, -15);
+                Art.Box(root, "FarArm", new Vector2(x + 0.55f, roadY + 0.55f + h), new Vector2(1.6f, 0.14f), far, -15);
+                Art.Box(root, "FarWeight", new Vector2(x - 0.3f, roadY + 0.45f + h), new Vector2(0.45f, 0.25f), far, -15);
+            }
+            float[,] boxes = { { -2.6f, 0 }, { -1.3f, 0 }, { -2.0f, 1 }, { 1.4f, 0 }, { 2.7f, 0 }, { 2.0f, 1 } };
+            for (int i = 0; i < boxes.GetLength(0); i++)
+                Art.Box(root, "FarContainer", new Vector2(boxes[i, 0], roadY + 0.75f + boxes[i, 1] * 0.42f), new Vector2(1.22f, 0.38f), far, -15);
+            Art.Box(root, "Water", new Vector2(0, roadY + 0.35f), new Vector2(40f, 0.22f), Art.Darken(bg, 0.28f), -14);
+            Art.Box(root, "Road", new Vector2(0, roadY + 0.02f), new Vector2(40f, 0.48f), Art.Darken(bg, 0.38f), -14);
+            for (int i = -10; i <= 10; i++)
+                Art.Box(root, "Dash", new Vector2(i, roadY + 0.02f), new Vector2(0.45f, 0.06f), new Color(1, 1, 1, 0.35f), -13);
+            // The yard gets a little darker towards the bottom.
+            for (int i = 0; i < 5; i++)
+                Art.Box(root, "Shade", new Vector2(0, roadY - 0.22f - 3.5f * i - 1.75f), new Vector2(40f, 3.5f), new Color(0, 0, 0, 0.045f * (i + 1)), -19);
+        }
+
+        /// <summary>Wooden dock with posts.</summary>
+        private void DrawDock(float width)
+        {
+            var wood = Art.Ground;
+            Art.Box(root, "DockShadow", new Vector2(0, BufferY - 0.72f), new Vector2(width, 0.18f), new Color(0, 0, 0, 0.25f), -2);
+            Art.Box(root, "Post", new Vector2(-width / 2f + 0.35f, BufferY - 0.86f), new Vector2(0.22f, 0.4f), Art.Darken(wood, 0.35f), -2);
+            Art.Box(root, "Post", new Vector2(width / 2f - 0.35f, BufferY - 0.86f), new Vector2(0.22f, 0.4f), Art.Darken(wood, 0.35f), -2);
+            Art.Box(root, "Dock", new Vector2(0, BufferY), new Vector2(width, 1.25f), wood, 0);
+            Art.Box(root, "DockEdge", new Vector2(0, BufferY + 0.56f), new Vector2(width - 0.2f, 0.06f), Art.Lighten(wood, 0.18f), 0);
+            Art.Box(root, "DockEdge", new Vector2(0, BufferY - 0.56f), new Vector2(width - 0.2f, 0.06f), Art.Darken(wood, 0.2f), 0);
         }
 
         private static float EaseOut(float t) => 1f - (1f - Mathf.Clamp01(t)) * (1f - Mathf.Clamp01(t));
