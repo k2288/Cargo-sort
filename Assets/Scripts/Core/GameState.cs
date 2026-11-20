@@ -14,6 +14,7 @@ namespace CargoSort.Core
         public EventKind Kind;
         public Place From;
         public int FromIndex;
+        public int FromRow = -1;   // column moves only: the row the crate left (-1 = top). The crane lifts from any row.
         public Place To;
         public int ToIndex;
         public int Color;
@@ -150,22 +151,123 @@ namespace CargoSort.Core
             for (int c = 0; c < Frozen.Length; c++)
                 if (c != column && Frozen[c] > 0) Frozen[c]--;
 
+            Route(color, column, -1, events);
+            UpdateStatus();
+            return events;
+        }
+
+        /// <summary>Sends a crate that left a column to its truck, or to the dock; full trucks then leave.</summary>
+        private void Route(int color, int column, int row, List<GameEvent> events)
+        {
             int bay = FindBayFor(color);
+            GameEvent move;
             if (bay >= 0)
             {
                 Bays[bay].Loaded++;
-                events.Add(GameEvent.Move(Place.Column, column, Place.Bay, bay, color));
+                move = GameEvent.Move(Place.Column, column, Place.Bay, bay, color);
             }
             else
             {
                 int slot = System.Array.IndexOf(Buffer, Empty);
                 Buffer[slot] = color;
-                events.Add(GameEvent.Move(Place.Column, column, Place.Buffer, slot, color));
+                move = GameEvent.Move(Place.Column, column, Place.Buffer, slot, color);
             }
-
+            move.FromRow = row;
+            events.Add(move);
             ResolveFullTrucks(events);
-            UpdateStatus();
+        }
+
+        // ---------- Boosters ----------
+
+        /// <summary>Crane: can the crate at this row be lifted out (even from under others or out of ice)?</summary>
+        public bool CanPluck(int column, int row)
+        {
+            if (Status != GameStatus.Playing || column < 0 || column >= Columns.Count) return false;
+            var col = Columns[column];
+            if (row < 0 || row >= col.Count) return false;
+            return IsWanted(col[row]) || FreeBufferSlots > 0;
+        }
+
+        /// <summary>Crane: lifts any crate. Does not melt ice (it is not a tap).</summary>
+        public List<GameEvent> Pluck(int column, int row)
+        {
+            var events = new List<GameEvent>();
+            PluckInto(column, row, events);
             return events;
+        }
+
+        private void PluckInto(int column, int row, List<GameEvent> events)
+        {
+            if (!CanPluck(column, row)) return;
+            int color = Columns[column][row];
+            Columns[column].RemoveAt(row);
+            Hidden[column].RemoveAt(row);
+            Route(color, column, row == Columns[column].Count ? -1 : row, events);
+            UpdateStatus();
+        }
+
+        /// <summary>Magnet target: the matching crate nearest to the top of any column. False if there is none.</summary>
+        public bool MagnetTarget(out int column, out int row)
+        {
+            column = row = -1;
+            int bestDepth = int.MaxValue;
+            for (int c = 0; c < Columns.Count; c++)
+            {
+                var col = Columns[c];
+                for (int r = col.Count - 1; r >= 0; r--)
+                {
+                    if (!IsWanted(col[r])) continue;
+                    int depth = col.Count - 1 - r;
+                    if (depth < bestDepth) { bestDepth = depth; column = c; row = r; }
+                    break;
+                }
+            }
+            return column >= 0;
+        }
+
+        public bool HasMagnetTarget => MagnetTarget(out _, out _);
+
+        /// <summary>Magnet: fills the trucks waiting now with the nearest matching crates (as many as they still need).</summary>
+        public List<GameEvent> Magnet()
+        {
+            var events = new List<GameEvent>();
+            int need = 0;
+            foreach (var t in Bays) if (t != null) need += t.Capacity - t.Loaded;
+            while (need-- > 0 && Status == GameStatus.Playing)
+            {
+                if (!MagnetTarget(out int column, out int row)) break;
+                PluckInto(column, row, events);
+            }
+            return events;
+        }
+
+        /// <summary>
+        /// Shuffle: a copy with the crates mixed between the columns (same column heights). Tries a few
+        /// mixes and keeps the first one the solver can still win. Also revives a lost game.
+        /// </summary>
+        public GameState Shuffled(int seed, int tries = 40)
+        {
+            var random = new System.Random(seed);
+            GameState pick = null;
+            for (int attempt = 0; attempt < tries; attempt++)
+            {
+                var s = Clone();
+                var all = new List<int>();
+                foreach (var col in s.Columns) all.AddRange(col);
+                for (int i = all.Count - 1; i > 0; i--)
+                {
+                    int j = random.Next(i + 1);
+                    int swap = all[i]; all[i] = all[j]; all[j] = swap;
+                }
+                int k = 0;
+                foreach (var col in s.Columns)
+                    for (int r = 0; r < col.Count; r++) col[r] = all[k++];
+                s.Status = GameStatus.Playing;
+                s.UpdateStatus();
+                pick = s;
+                if (Solver.Solve(s.Clone()) != null) break;
+            }
+            return pick;
         }
 
         /// <summary>Adds one dock slot (rewarded-ad booster). Revives a lost game.</summary>

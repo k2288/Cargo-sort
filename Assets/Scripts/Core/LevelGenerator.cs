@@ -288,6 +288,31 @@ namespace CargoSort.Core
 
         public void AddBufferSlot() => State.AddBufferSlot();
 
+        /// <summary>Crane booster: lift any crate. Undo can take it back.</summary>
+        public List<GameEvent> Pluck(int column, int row)
+        {
+            if (!State.CanPluck(column, row)) return new List<GameEvent>();
+            history.Push(State.Clone());
+            return State.Pluck(column, row);
+        }
+
+        /// <summary>Magnet booster. Undo can take it back.</summary>
+        public List<GameEvent> Magnet()
+        {
+            if (!State.HasMagnetTarget) return new List<GameEvent>();
+            history.Push(State.Clone());
+            return State.Magnet();
+        }
+
+        /// <summary>Shuffle booster. Undo can take it back.</summary>
+        public void Shuffle(int seed)
+        {
+            history.Push(State.Clone());
+            int bufferSize = State.Buffer.Length;
+            State = State.Shuffled(seed);
+            State.EnsureBufferSize(bufferSize);
+        }
+
         public int HintColumn() => Solver.PickMove(State.Clone());
     }
 }

@@ -7,27 +7,50 @@ using CargoSort.Game;
 using UnityEngine;
 
 /// <summary>
-/// The "remove_ads" purchase through Cafe Bazaar (Poolakey). Restores the purchase on start.
-/// Create an in-app product with id "remove_ads" in the Bazaar developer panel (not consumable:
-/// we never consume it, so it stays owned).
+/// In-app purchases through Cafe Bazaar (Poolakey). In the Bazaar developer panel, create in-app
+/// products with the ids in Store.ProductIds (see Economy.cs). "remove_ads" is never consumed, so it
+/// stays owned and is restored on start; every other product is consumed right after it is given,
+/// so it can be bought again.
 /// </summary>
 public sealed class BazaarStore : IStoreBackend
 {
     private Payment payment;
     private bool connected;
 
-    public async void Begin()
+    public void Begin()
     {
         try
         {
             payment = new Payment(new PaymentConfiguration(SecurityCheck.Enable(AdsConfig.BazaarRsaPublicKey)));
-            if (!await Connect()) return;
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning("[IAP] Bazaar not available: " + e.Message);
+            return;
+        }
+        Restore();
+    }
+
+    public async void Restore()
+    {
+        try
+        {
+            if (payment == null || !await Connect()) return;
 
             var owned = await payment.GetPurchases();
             if (owned.status != Status.Success || owned.data == null) return;
             foreach (var p in owned.data)
-                if (p.productId == Store.RemoveAdsProductId && p.purchaseState == PurchaseInfo.State.Purchased)
+            {
+                if (p.purchaseState != PurchaseInfo.State.Purchased) continue;
+                if (p.productId == Store.RemoveAdsProductId)
+                {
                     Store.Grant();
+                    continue;
+                }
+                // A consumable that was paid for but not given (the app closed mid-purchase): give it now.
+                var consumed = await payment.Consume(p.purchaseToken);
+                if (consumed.status == Status.Success) Store.Deliver(p.productId);
+            }
         }
         catch (Exception e)
         {
@@ -44,7 +67,7 @@ public sealed class BazaarStore : IStoreBackend
         return connected;
     }
 
-    public async void BuyRemoveAds(Action<bool> onDone)
+    public async void Buy(string productId, bool consumable, Action<bool> onDone)
     {
         try
         {
@@ -53,8 +76,19 @@ public sealed class BazaarStore : IStoreBackend
                 onDone?.Invoke(false);
                 return;
             }
-            var result = await payment.Purchase(Store.RemoveAdsProductId);
-            onDone?.Invoke(result.status == Status.Success);
+            var result = await payment.Purchase(productId);
+            if (result.status != Status.Success)
+            {
+                onDone?.Invoke(false);
+                return;
+            }
+            if (productId == Store.RemoveAdsProductId) Store.Grant();
+            if (consumable && result.data != null)
+            {
+                var consumed = await payment.Consume(result.data.purchaseToken);
+                if (consumed.status != Status.Success) Debug.LogWarning("[IAP] Bazaar consume failed: " + consumed.message);
+            }
+            onDone?.Invoke(true);
         }
         catch (Exception e)
         {

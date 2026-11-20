@@ -1,18 +1,15 @@
+using System.Collections.Generic;
 using CargoSort.Core;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
 namespace CargoSort.Game
 {
-    /// <summary>Wires input, the board view, the HUD and ads together.</summary>
+    /// <summary>Wires input, the board view, the HUD, boosters, offers, ads and purchases together.</summary>
     public sealed class GameController : MonoBehaviour
     {
-        // Monetization tuning. Change these from feedback and analytics.
-        private const int FreeUndosPerLevel = 1;
+        // Monetization tuning. Booster prices, packs and skins are in Economy.cs.
         private const int MaxBonusSlots = 2;
-        private const int UndoPrice = 30;        // coin prices; with too few coins the booster costs an ad
-        private const int SlotPrice = 60;
-        private const int HintPrice = 20;
         private const int FirstInterstitialLevel = 4;
         private const int InterstitialEveryLevels = 3;
 
@@ -28,11 +25,12 @@ namespace CargoSort.Game
         private IAdsService ads;
         private GameSession session;
         private int level;          // 0 while playing the daily challenge
-        private int freeUndos;
         private int bonusSlots;
-        private bool waitingForAd;
+        private bool waitingForAd, buying, craneMode;
         private int pendingWinReward;
         private int pendingDaily;
+        private readonly Dictionary<Booster, int> freeUses = new Dictionary<Booster, int>();
+        private IList<Item> pendingItems;
 
         /// <summary>Creates the game when Play starts, so no scene setup is needed.</summary>
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -56,36 +54,43 @@ namespace CargoSort.Game
             Feedback.Init(gameObject);
             ads = MonetizationServices.CreateAds?.Invoke(gameObject) ?? gameObject.AddComponent<DebugAds>();
             Store.AdsRemoved += OnAdsRemoved;
+            Store.Delivered += OnStoreDelivered;
 
             hud = gameObject.AddComponent<Hud>();
-            hud.Undo += OnUndo;
-            hud.AddSlot += OnAddSlot;
-            hud.Hint += OnHint;
-            hud.Restart += () => { if (!board.Busy && !waitingForAd) StartLevel(level); };
-            hud.Retry += () => StartLevel(level);
+            hud.BoosterTapped += OnBooster;
+            hud.Restart += OnRestart;
+            hud.Retry += () => { BreakStreak(); StartLevel(level); };
+            hud.LoseUndo += () => Pay(Booster.Undo, "undo", DoUndo);
+            hud.Revive += OnRevive;
+            hud.ClaimWin += OnClaimWin;
+            hud.ClaimDaily += OnClaimDaily;
+            hud.GoHome += OnGoHome;
+            hud.Play += OnPlay;
             hud.Challenge += OnChallenge;
-            hud.ToggleSound += () => { Progress.Sound = !Progress.Sound; hud.RefreshShop(); };
+            hud.OpenShop += OnOpenShop;
+            hud.OpenChest += OnOpenChest;
+            hud.OpenStarter += () => { Analytics.Offer("starter", "shown"); hud.ShowStarter(true); };
+            hud.BuyPack += OnBuyPack;
+            hud.SkinTapped += OnSkinTapped;
+            hud.ThemeTapped += OnThemeTapped;
+            hud.RewardClaimed += OnRewardClaimed;
+            hud.ToggleSound += () => { Progress.Sound = !Progress.Sound; hud.RefreshSettings(); };
             hud.ToggleVibration += () =>
             {
                 Progress.Vibration = !Progress.Vibration;
                 Feedback.Vibrate(40);
-                hud.RefreshShop();
+                hud.RefreshSettings();
             };
-            hud.Revive += OnRevive;
-            hud.ClaimWin += OnClaimWin;
-            hud.ClaimDaily += OnClaimDaily;
-            hud.OpenShop += OnOpenShop;
-            hud.OpenPort += OnOpenPort;
-            hud.BuildPortItem += OnBuildPortItem;
-            hud.ThemeTapped += OnThemeTapped;
-            hud.FreeCoins += OnFreeCoins;
-            hud.RemoveAds += OnRemoveAds;
             hud.ToggleLanguage += OnToggleLanguage;
-            BuildHud();
+            hud.RestorePurchases += OnRestorePurchases;
+            hud.Privacy += () => Application.OpenURL(Economy.PrivacyUrl);
+            hud.Build();
 
             Analytics.SessionStart();
-            StartLevel(Progress.Level);
+            ShowHome();
+            StartLevel(Progress.Level); // loads behind the home screen, ready for Play
             CheckDailyGift();
+            MaybeShowStarter();
             Reminders.Clear();
         }
 
@@ -97,23 +102,11 @@ namespace CargoSort.Game
                 return;
             }
             Reminders.Clear();
-            if (session != null && pendingDaily <= 0 && !hud.PanelOpen) CheckDailyGift();
+            // Back in the app on a new day: offer the daily gift if nothing else is open.
+            if (session != null && pendingDaily <= 0 && !hud.DailyVisible && (hud.HomeVisible || !hud.PanelOpen)) CheckDailyGift();
         }
 
         private void OnApplicationQuit() => Reminders.Schedule();
-
-        /// <summary>(Re)creates all UI texts, e.g. after switching language.</summary>
-        private void BuildHud()
-        {
-            hud.Build();
-            hud.SetRemoveAdsVisible(!Progress.AdsRemoved && MonetizationServices.PurchasesEnabled);
-            hud.SetCoins(Progress.Coins);
-            if (session != null)
-            {
-                hud.SetLevel(level, IsHard);
-                RefreshHud();
-            }
-        }
 
         private void SetupCamera()
         {
@@ -136,6 +129,50 @@ namespace CargoSort.Game
             cam.orthographicSize = Mathf.Max(9f, 5.2f / Mathf.Max(0.1f, cam.aspect));
         }
 
+        // ---------- Home and level flow ----------
+
+        private void ShowHome()
+        {
+            SetCrane(false);
+            hud.ShowHome(true);
+            int next = Progress.Level;
+            hud.SetHome(next, LevelGenerator.IsHard(next), Progress.WinStreak, Progress.ChallengeDay != Progress.Today, Economy.ChestReady);
+            hud.SetCoins(Progress.Coins);
+        }
+
+        private void ShowGame()
+        {
+            hud.ShowHome(false);
+            RefreshHud();
+            ShowTutorialStep();
+        }
+
+        private void OnPlay()
+        {
+            if (waitingForAd) return;
+            int next = Progress.Level;
+            ShowGame();
+            // Keep a level that is already being played; otherwise start it fresh.
+            bool inProgress = level == next && session != null && session.CanUndo && session.State.Status == GameStatus.Playing;
+            if (!inProgress) StartLevel(next);
+        }
+
+        private void OnGoHome()
+        {
+            if (board.Busy || waitingForAd) return;
+            if (session.State.Status == GameStatus.Lost) BreakStreak();
+            hud.ShowLose(false);
+            if (session.State.Status != GameStatus.Playing || level == 0) StartLevel(Progress.Level);
+            ShowHome();
+        }
+
+        private void OnRestart()
+        {
+            if (board.Busy || waitingForAd) return;
+            if (session.CanUndo) BreakStreak(); // giving up a started level ends the streak
+            StartLevel(level);
+        }
+
         /// <summary>Starts level n, or today's daily challenge when n is 0.</summary>
         private void StartLevel(int n)
         {
@@ -143,43 +180,71 @@ namespace CargoSort.Game
                 Analytics.LevelQuit(level, session.State.TrucksShipped, session.State.TrucksTotal);
             level = n;
             session = new GameSession(n > 0 ? LevelGenerator.Generate(n) : LevelGenerator.GenerateChallenge(Progress.Today));
-            freeUndos = FreeUndosPerLevel;
             bonusSlots = 0;
+            SetCrane(false);
+            int streak = n > 0 ? Progress.WinStreak : 0;
+            freeUses[Booster.Undo] = 1;
+            freeUses[Booster.Slot] = 0;
+            freeUses[Booster.Crane] = streak >= Economy.StreakCraneAt ? 1 : 0;
+            freeUses[Booster.Magnet] = streak >= Economy.StreakMagnetAt ? 1 : 0;
+            freeUses[Booster.Shuffle] = 0;
+
             hud.ShowWin(false);
             hud.ShowLose(false);
             hud.SetLevel(n, IsHard);
-            hud.SetChallengeButton(n == 0);
             board.Rebuild(session.State);
             board.PlayIntro();
             Analytics.LevelStart(n);
             RefreshHud();
             ShowTutorialStep();
 
+            if (hud.HomeVisible) return; // toasts only while playing
             if (n == LevelGenerator.FrozenFromLevel) hud.Toast(Loc.T("twist_frozen"), 3f);
             else if (n == LevelGenerator.HiddenFromLevel) hud.Toast(Loc.T("twist_hidden"), 3f);
+            else if (freeUses[Booster.Crane] > 0) hud.Toast(Loc.T("streak_bonus", streak), 2.4f);
             else if (IsHard) hud.Toast(Loc.T("hard_start"), 2f);
-            else if (portTipPending) hud.Toast(Loc.T("port_tip"), 2.4f);
-            portTipPending = false;
         }
 
         private bool IsHard => level > 0 && LevelGenerator.IsHard(level);
 
         private void RefreshHud()
         {
+            hud.SetLevel(level, IsHard);
             hud.SetTrucks(session.State.TrucksShipped, session.State.TrucksTotal);
-            hud.SetBoosters(freeUndos, Progress.Coins, UndoPrice, SlotPrice, HintPrice);
+            hud.SetBoosters(b => freeUses[b] + Progress.Owned(b), Progress.Coins);
             hud.SetCoins(Progress.Coins);
         }
 
         private void Update()
         {
             FitCamera();
-            if (board.Busy || waitingForAd || hud.PanelOpen) return;
+            if (board.Busy || waitingForAd || buying || hud.PanelOpen) return;
             if (session.State.Status != GameStatus.Playing) return;
             if (!TryGetTap(out var screen)) return;
 
-            int column = board.HitColumn(cam.ScreenToWorldPoint(screen));
+            Vector2 world = cam.ScreenToWorldPoint(screen);
+            int column = board.HitColumn(world);
             if (column < 0) return;
+
+            if (craneMode)
+            {
+                int row = board.HitRow(world, column);
+                if (row < 0) return;
+                if (!session.State.CanPluck(column, row))
+                {
+                    Feedback.Invalid();
+                    board.Shake(column);
+                    return;
+                }
+                Pay(Booster.Crane, "crane", () =>
+                {
+                    SetCrane(false);
+                    var lifted = session.Pluck(column, row);
+                    Feedback.TruckLeft();
+                    board.Play(lifted, session.State, AfterMove);
+                });
+                return;
+            }
 
             if (!session.State.CanTap(column))
             {
@@ -225,7 +290,7 @@ namespace CargoSort.Game
         /// <summary>Points the hand at the best column and explains where its crate will go.</summary>
         private void ShowTutorialStep()
         {
-            if (!TutorialActive || session.State.Status != GameStatus.Playing)
+            if (!TutorialActive || session.State.Status != GameStatus.Playing || hud.HomeVisible)
             {
                 hud.SetTip(null);
                 return;
@@ -248,6 +313,7 @@ namespace CargoSort.Game
                 if (level == 1) Progress.TutorialDone = true;
                 Analytics.LevelWin(level, session.State.Buffer.Length);
                 hud.SetTip(null);
+                int streak = 0, piggyAdded = 0;
                 if (level == 0)
                 {
                     Progress.ChallengeDay = Progress.Today;
@@ -258,40 +324,116 @@ namespace CargoSort.Game
                 {
                     Progress.Level = level + 1;
                     pendingWinReward = (10 + level / 2) * (IsHard ? 2 : 1);
+                    streak = ++Progress.WinStreak;
+                    piggyAdded = Mathf.Min(Economy.PiggyMax - Progress.Piggy, Economy.PiggyPerWin * (IsHard ? 2 : 1));
+                    Progress.Piggy += piggyAdded;
                 }
-                StartCoroutine(ShowWinSoon(level, pendingWinReward));
+                StartCoroutine(ShowWinSoon(level, pendingWinReward, streak, piggyAdded));
             }
             else if (session.State.Status == GameStatus.Lost)
             {
+                SetCrane(false);
                 Feedback.Lost();
-                hud.ShowLose(true);
+                hud.ShowLose(true, level > 0 ? Progress.WinStreak : 0);
                 Analytics.LevelFail(level, session.State.TrucksShipped, session.State.TrucksTotal, session.State.Buffer.Length);
             }
         }
 
         /// <summary>Lets the confetti play for a moment before the win panel covers the board.</summary>
-        private System.Collections.IEnumerator ShowWinSoon(int wonLevel, int reward)
+        private System.Collections.IEnumerator ShowWinSoon(int wonLevel, int reward, int streak, int piggyAdded)
         {
             waitingForAd = true; // blocks other buttons for the short pause
             yield return new WaitForSeconds(0.8f);
             waitingForAd = false;
-            if (level == wonLevel && pendingWinReward == reward) hud.ShowWin(true, wonLevel, reward);
+            if (level == wonLevel && pendingWinReward == reward) hud.ShowWin(true, wonLevel, reward, streak, piggyAdded);
         }
 
-        // ---------- Boosters (rewarded ads) ----------
-
-        private void OnUndo()
+        private void BreakStreak()
         {
-            if (board.Busy || waitingForAd || !session.CanUndo) return;
-            if (freeUndos > 0)
+            if (level > 0 && Progress.WinStreak > 0) Progress.WinStreak = 0;
+        }
+
+        // ---------- Boosters ----------
+
+        private void OnBooster(Booster b)
+        {
+            if (board.Busy || waitingForAd || buying || hud.HomeVisible) return;
+            if (b != Booster.Crane) SetCrane(false);
+            var status = session.State.Status;
+            switch (b)
             {
-                freeUndos--;
-                Analytics.Booster("undo", "free");
-                DoUndo();
+                case Booster.Undo:
+                    if (!session.CanUndo) return;
+                    Pay(b, "undo", DoUndo);
+                    break;
+                case Booster.Slot:
+                    if (bonusSlots >= MaxBonusSlots)
+                    {
+                        hud.Toast(Loc.T("dock_max"));
+                        return;
+                    }
+                    Pay(b, "extra_slot", AddSlotNow);
+                    break;
+                case Booster.Crane:
+                    if (status == GameStatus.Playing) SetCrane(!craneMode);
+                    break;
+                case Booster.Magnet:
+                    if (status != GameStatus.Playing) return;
+                    if (!session.State.HasMagnetTarget)
+                    {
+                        hud.Toast(Loc.T("magnet_none"));
+                        return;
+                    }
+                    Pay(b, "magnet", () =>
+                    {
+                        var events = session.Magnet();
+                        Feedback.TruckLeft();
+                        board.Play(events, session.State, AfterMove);
+                    });
+                    break;
+                case Booster.Shuffle:
+                    if (status == GameStatus.Won) return;
+                    Pay(b, "shuffle", DoShuffle);
+                    break;
+            }
+        }
+
+        /// <summary>Pays for one use: free uses first, then owned ones, then coins, then a rewarded ad.</summary>
+        private void Pay(Booster b, string placement, System.Action use)
+        {
+            string key = Economy.Key(b);
+            if (freeUses[b] > 0)
+            {
+                freeUses[b]--;
+                Analytics.Booster(key, "free");
+            }
+            else if (Progress.Owned(b) > 0)
+            {
+                Progress.AddOwned(b, -1);
+                Analytics.Booster(key, "owned");
+            }
+            else if (TrySpend(Economy.Price(b)))
+            {
+                Analytics.Booster(key, "coins");
+            }
+            else
+            {
+                WatchRewarded(placement, () =>
+                {
+                    Analytics.Booster(key, "ad");
+                    use();
+                    RefreshHud();
+                });
                 return;
             }
-            if (TrySpend(UndoPrice)) { Analytics.Booster("undo", "coins"); DoUndo(); return; }
-            WatchRewarded("undo", () => { Analytics.Booster("undo", "ad"); DoUndo(); });
+            RefreshHud();
+            use();
+        }
+
+        private void SetCrane(bool on)
+        {
+            craneMode = on;
+            hud.SetCraneMode(on);
         }
 
         private void DoUndo()
@@ -303,16 +445,14 @@ namespace CargoSort.Game
             ShowTutorialStep();
         }
 
-        private void OnAddSlot()
+        private void DoShuffle()
         {
-            if (board.Busy || waitingForAd) return;
-            if (bonusSlots >= MaxBonusSlots)
-            {
-                hud.Toast(Loc.T("dock_max"));
-                return;
-            }
-            if (TrySpend(SlotPrice)) { Analytics.Booster("slot", "coins"); AddSlotNow(); return; }
-            WatchRewarded("extra_slot", () => { Analytics.Booster("slot", "ad"); AddSlotNow(); });
+            session.Shuffle(Random.Range(1, int.MaxValue));
+            hud.ShowLose(false);
+            board.Rebuild(session.State);
+            board.PlayIntro();
+            Feedback.CrateParked();
+            AfterMove();
         }
 
         private void OnRevive()
@@ -335,20 +475,12 @@ namespace CargoSort.Game
             ShowTutorialStep();
         }
 
-        private void OnHint()
-        {
-            if (board.Busy || waitingForAd) return;
-            if (TrySpend(HintPrice)) { Analytics.Booster("hint", "coins"); board.ShowHint(session.HintColumn()); return; }
-            WatchRewarded("hint", () => { Analytics.Booster("hint", "ad"); board.ShowHint(session.HintColumn()); });
-        }
-
-        /// <summary>Pays for a booster with coins if the player has enough.</summary>
+        /// <summary>Pays with coins if the player has enough.</summary>
         private bool TrySpend(int price)
         {
             if (Progress.Coins < price) return false;
             Progress.Coins -= price;
             Feedback.Coins();
-            RefreshHud();
             return true;
         }
 
@@ -368,7 +500,7 @@ namespace CargoSort.Game
             });
         }
 
-        // ---------- Level flow and interstitials ----------
+        // ---------- Win rewards and interstitials ----------
 
         private void OnClaimWin(bool triple)
         {
@@ -387,17 +519,12 @@ namespace CargoSort.Game
             AddCoins(coins);
             pendingWinReward = 0;
             hud.ShowWin(false);
-            if (Port.CanBuildSomething(Progress.Coins) && PlayerPrefs.GetInt("port_tip_shown", 0) == 0)
-            {
-                PlayerPrefs.SetInt("port_tip_shown", 1);
-                PlayerPrefs.Save();
-                portTipPending = true;
-            }
             if (level >= AskNotificationsAfterLevel) Reminders.AskPermission();
             if (level == 0)
             {
-                // After the challenge, go back to the normal levels (no interstitial here).
+                // After the challenge, go back home (no interstitial here).
                 StartLevel(Progress.Level);
+                ShowHome();
                 return;
             }
             int next = level + 1;
@@ -421,17 +548,13 @@ namespace CargoSort.Game
 
         private void OnChallenge()
         {
-            if (board.Busy || waitingForAd) return;
-            if (level == 0)
-            {
-                StartLevel(Progress.Level);
-                return;
-            }
+            if (waitingForAd) return;
             if (Progress.ChallengeDay == Progress.Today)
             {
                 hud.Toast(Loc.T("challenge_done"), 2.2f);
                 return;
             }
+            ShowGame();
             StartLevel(0);
             hud.Toast(Loc.T("challenge_start", ChallengeReward), 2.2f);
         }
@@ -442,8 +565,6 @@ namespace CargoSort.Game
             hud.FlyCoins(amount);
             Progress.Coins += amount;
             hud.SetCoins(Progress.Coins);
-            hud.RefreshShop();
-            hud.RefreshPort();
             if (session != null) RefreshHud();
         }
 
@@ -477,6 +598,34 @@ namespace CargoSort.Game
             pendingDaily = 0;
             hud.ShowDaily(false);
             AddCoins(coins);
+            MaybeShowStarter();
+        }
+
+        // ---------- Offers: starter pack, free gift, piggy bank ----------
+
+        /// <summary>The starter pack pops up once, on the home screen, after the daily gift is closed.</summary>
+        private void MaybeShowStarter()
+        {
+            if (!hud.HomeVisible || hud.DailyVisible || Progress.StarterSeen || !Economy.StarterActive) return;
+            Progress.StarterSeen = true;
+            Analytics.Offer("starter", "shown");
+            hud.ShowStarter(true);
+        }
+
+        private void OnOpenChest()
+        {
+            if (waitingForAd || buying) return;
+            if (!Economy.ChestReady)
+            {
+                hud.Toast(Loc.T("chest_tomorrow"));
+                return;
+            }
+            WatchRewarded("free_gift", () =>
+            {
+                Progress.ChestDay = Progress.Today;
+                Analytics.Offer("chest", "opened");
+                GiveItems(new[] { Economy.RollChest() }, "chest");
+            });
         }
 
         // ---------- Shop ----------
@@ -484,52 +633,107 @@ namespace CargoSort.Game
         private void OnOpenShop()
         {
             if (board.Busy || waitingForAd) return;
-            hud.RefreshShop();
+            SetCrane(false);
             hud.ShowShop(true);
         }
 
-        // ---------- Port building ----------
-
-        private void OnOpenPort()
+        private void OnBuyPack(Pack pack)
         {
-            if (board.Busy || waitingForAd) return;
-            Analytics.PortOpened(Port.Index, Port.BuiltCount);
-            hud.ShowPort(true);
+            if (waitingForAd || buying) return;
+            buying = true;
+            Store.Buy(pack, ok =>
+            {
+                buying = false;
+                Analytics.Purchase(pack.ProductId, ok);
+                if (!ok)
+                {
+                    hud.Toast(Loc.T("purchase_failed"));
+                    return;
+                }
+                Deliver(pack);
+            });
         }
 
-        private void OnBuildPortItem(int item)
+        /// <summary>A purchase the store finished outside of Buy (interrupted earlier): give it now.</summary>
+        private void OnStoreDelivered(string productId)
         {
-            if (portCompleting || Port.IsBuilt(item)) return;
-            int cost = Port.Cost(item);
-            if (!TrySpend(cost))
+            foreach (var pack in Economy.AllPacks)
+                if (pack.ProductId == productId) Deliver(pack);
+        }
+
+        private void Deliver(Pack pack)
+        {
+            Analytics.Offer(pack.ProductId, "bought");
+            if (pack == Economy.Starter)
             {
-                hud.Toast(Loc.T("not_enough"));
+                Progress.StarterBought = true;
+                hud.ShowStarter(false);
+            }
+            if (pack == Economy.Piggy)
+            {
+                int coins = Progress.Piggy;
+                Progress.Piggy = 0;
+                GiveItems(new[] { Item.Coins(coins) }, "purchased");
                 return;
             }
-            Port.Build(item);
-            Analytics.PortBuild(Port.Index, Port.ItemKeys[item], cost);
-            Feedback.TruckLeft();
-            hud.RefreshPort();
-            hud.AnimatePortItem(item);
-            if (Port.Complete) StartCoroutine(CompletePort());
+            GiveItems(pack.Items, "purchased");
         }
 
-        private bool portCompleting, portTipPending;
-
-        /// <summary>Plays the finished port for a moment, pays the bonus, then opens the next port.</summary>
-        private System.Collections.IEnumerator CompletePort()
+        /// <summary>Shows the reward popup; the items are added when the player taps Claim.</summary>
+        private void GiveItems(IList<Item> items, string titleKey)
         {
-            portCompleting = true;
-            yield return new WaitForSecondsRealtime(0.7f);
-            int reward = Port.CompletionReward;
-            Analytics.PortComplete(Port.Index);
-            Feedback.Won();
-            hud.Toast(Loc.T("port_done", reward), 2.2f);
-            yield return new WaitForSecondsRealtime(2.2f);
-            Port.NextPort();
-            AddCoins(reward);
-            hud.Toast(Loc.T("port_next", Port.RawName), 2f);
-            portCompleting = false;
+            if (pendingItems != null) Grant(pendingItems); // never lose an earlier reward
+            pendingItems = items;
+            hud.ShowReward(titleKey, items);
+        }
+
+        private void OnRewardClaimed()
+        {
+            if (pendingItems == null) return;
+            var items = pendingItems;
+            pendingItems = null;
+            Grant(items);
+        }
+
+        private void Grant(IList<Item> items)
+        {
+            int coins = 0;
+            foreach (var item in items)
+            {
+                if (item.Kind == ItemKind.Coins) coins += item.Amount;
+                else if (item.Kind == ItemKind.NoAds) Store.Grant();
+                else Progress.AddOwned(item.AsBooster, item.Amount);
+            }
+            if (coins > 0) AddCoins(coins);
+            RefreshAll();
+        }
+
+        private void RefreshAll()
+        {
+            if (session != null) RefreshHud();
+            hud.SetCoins(Progress.Coins);
+            hud.RefreshShop();
+            if (hud.HomeVisible) ShowHome();
+        }
+
+        private void OnSkinTapped(string kind, Skin skin)
+        {
+            bool truck = kind == "truck";
+            if ((truck ? Progress.TruckSkin : Progress.CrateSkin) == skin.Key) return;
+            if (!Progress.OwnsSkin(kind, skin))
+            {
+                if (!TrySpend(skin.Price))
+                {
+                    hud.Toast(Loc.T("not_enough"));
+                    return;
+                }
+                Progress.UnlockSkin(kind, skin);
+                Analytics.SkinBought(kind, skin.Key, skin.Price);
+            }
+            if (truck) Progress.TruckSkin = skin.Key;
+            else Progress.CrateSkin = skin.Key;
+            board.Rebuild(session.State);
+            RefreshAll();
         }
 
         private void OnThemeTapped(int index)
@@ -537,57 +741,51 @@ namespace CargoSort.Game
             if (index == Progress.Theme) return;
             if (!Progress.OwnsTheme(index))
             {
-                int price = Themes.All[index].Price;
-                if (Progress.Coins < price)
+                if (!TrySpend(Themes.All[index].Price))
                 {
                     hud.Toast(Loc.T("not_enough"));
                     return;
                 }
-                Progress.Coins -= price;
                 Progress.UnlockTheme(index);
             }
             Progress.Theme = index;
             cam.backgroundColor = Art.Background;
             board.Rebuild(session.State);
-            RefreshHud();
-            hud.RefreshShop();
+            RefreshAll();
         }
 
-        private void OnFreeCoins()
+        private void OnRestorePurchases()
         {
-            if (waitingForAd) return;
-            WatchRewarded("shop_coins", () => AddCoins(Hud.FreeCoinsAmount));
+            var backend = MonetizationServices.StoreBackend;
+            if (backend != null) backend.Restore();
+            hud.Toast(Loc.T("restore_done"));
         }
+
+        // ---------- Language ----------
 
         private void OnToggleLanguage()
         {
             Progress.Language = Loc.Persian ? "en" : "fa";
-            bool dailyOpen = pendingDaily > 0;
+            bool home = hud.HomeVisible;
             bool winOpen = pendingWinReward > 0;
             bool lost = session.State.Status == GameStatus.Lost;
-            BuildHud();
-            hud.SetChallengeButton(level == 0);
-            ShowTutorialStep();
-            hud.RefreshShop();
-            hud.ShowShop(true);
-            if (dailyOpen) hud.ShowDaily(true, Progress.DailyStreak, pendingDaily);
-            if (winOpen) hud.ShowWin(true, level, pendingWinReward);
-            if (lost) hud.ShowLose(true);
+            hud.Build();
+            board.Rebuild(session.State); // the "Next" label is drawn in the world
+            if (home) ShowHome();
+            else ShowGame();
+            hud.ShowSettings();
+            if (pendingDaily > 0) hud.ShowDaily(true, Progress.DailyStreak, pendingDaily);
+            if (winOpen) hud.ShowWin(true, level, pendingWinReward, level > 0 ? Progress.WinStreak : 0);
+            if (lost) hud.ShowLose(true, level > 0 ? Progress.WinStreak : 0);
+            if (pendingItems != null) hud.ShowReward("purchased", pendingItems);
         }
 
-        private void OnRemoveAds()
+        private void OnAdsRemoved() => hud.RefreshShop();
+
+        private void OnDestroy()
         {
-            if (waitingForAd) return;
-            Store.BuyRemoveAds(ok =>
-            {
-                Analytics.Purchase(Store.RemoveAdsProductId, ok);
-                if (ok) hud.Toast(Loc.T("ads_removed"));
-                else hud.Toast(Loc.T("purchase_failed"));
-            });
+            Store.AdsRemoved -= OnAdsRemoved;
+            Store.Delivered -= OnStoreDelivered;
         }
-
-        private void OnAdsRemoved() => hud.SetRemoveAdsVisible(false);
-
-        private void OnDestroy() => Store.AdsRemoved -= OnAdsRemoved;
     }
 }

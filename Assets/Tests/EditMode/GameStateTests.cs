@@ -79,5 +79,78 @@ namespace CargoSort.Tests
             }
             Assert.AreEqual(LevelGenerator.Generate(9).TruckColors, LevelGenerator.Generate(9).TruckColors);
         }
+
+        [Test]
+        public void CraneLiftsACrateFromUnderOthers()
+        {
+            var s = new GameState(Simple());
+            // Column 0 is red (bottom), blue (top). Lift the red one from under the blue crate.
+            Assert.IsTrue(s.CanPluck(0, 0));
+            var events = s.Pluck(0, 0);
+            Assert.AreEqual(Place.Bay, events[0].To);
+            Assert.AreEqual(0, events[0].FromRow);
+            Assert.AreEqual(1, s.Columns[0].Count);
+            Assert.AreEqual(1, s.Columns[0][0]);
+            Assert.AreEqual(1, s.Bays[0].Loaded);
+        }
+
+        [Test]
+        public void CraneWorksOnFrozenColumns()
+        {
+            var data = Simple();
+            data.Frozen = new List<int> { 3, 0 };
+            var s = new GameState(data);
+            Assert.IsFalse(s.CanTap(0));
+            Assert.IsTrue(s.CanPluck(0, 1));
+            s.Pluck(0, 1);
+            Assert.AreEqual(3, s.Frozen[0]); // lifting is not a tap, so the ice does not melt
+        }
+
+        [Test]
+        public void MagnetFillsTheWaitingTruck()
+        {
+            var s = new GameState(Simple());
+            Assert.IsTrue(s.HasMagnetTarget);
+            s.Magnet(); // the red truck needs 2: both reds are pulled, the truck leaves, blue arrives
+            Assert.AreEqual(1, s.TrucksShipped);
+            Assert.AreEqual(1, s.Bays[0].Color);
+            Assert.AreEqual(0, s.Bays[0].Loaded);
+        }
+
+        [Test]
+        public void ShuffleKeepsTheCratesAndColumnHeights()
+        {
+            var level = LevelGenerator.Generate(12);
+            var s = new GameState(level);
+            var mixed = s.Shuffled(7);
+            Assert.AreEqual(s.Columns.Count, mixed.Columns.Count);
+            var before = new List<int>();
+            var after = new List<int>();
+            for (int c = 0; c < s.Columns.Count; c++)
+            {
+                Assert.AreEqual(s.Columns[c].Count, mixed.Columns[c].Count);
+                before.AddRange(s.Columns[c]);
+                after.AddRange(mixed.Columns[c]);
+            }
+            before.Sort();
+            after.Sort();
+            Assert.AreEqual(before, after);
+            Assert.AreEqual(GameStatus.Playing, mixed.Status);
+        }
+
+        [Test]
+        public void BoostersCanBeUndone()
+        {
+            var session = new GameSession(Simple());
+            session.Pluck(0, 0);
+            Assert.IsTrue(session.Undo());
+            Assert.AreEqual(2, session.State.Columns[0].Count);
+            session.Magnet();
+            Assert.IsTrue(session.Undo());
+            Assert.AreEqual(0, session.State.TrucksShipped);
+            session.Shuffle(3);
+            Assert.IsTrue(session.Undo());
+            Assert.AreEqual(0, session.State.Columns[0][0]);
+        }
     }
 }

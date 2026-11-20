@@ -48,11 +48,16 @@ namespace CargoSort.Game
         }
     }
 
-    /// <summary>A real store (Unity IAP). Registered from Assets/Scripts/Monetization when the package is installed.</summary>
+    /// <summary>A real store (Unity IAP or Cafe Bazaar). Registered from Assets/Scripts/Monetization when the SDK is installed.</summary>
     public interface IStoreBackend
     {
         void Begin();
-        void BuyRemoveAds(Action<bool> onDone);
+
+        /// <summary>Buys a product. Consumables (coins, packs) are consumed right away so they can be bought again.</summary>
+        void Buy(string productId, bool consumable, Action<bool> onDone);
+
+        /// <summary>Asks the store again for owned purchases (Remove Ads) and unfinished ones.</summary>
+        void Restore();
     }
 
     /// <summary>
@@ -69,7 +74,7 @@ namespace CargoSort.Game
         public static bool PurchasesEnabled = true;
     }
 
-    /// <summary>Remove-ads purchase. Uses Unity IAP when installed, otherwise a local test unlock.</summary>
+    /// <summary>In-app purchases. Uses the store SDK when installed, otherwise a local test purchase.</summary>
     public static class Store
     {
         public const string RemoveAdsProductId = "remove_ads";
@@ -77,22 +82,38 @@ namespace CargoSort.Game
         /// <summary>Raised when remove-ads is bought or restored.</summary>
         public static event Action AdsRemoved;
 
-        public static void BuyRemoveAds(Action<bool> onDone)
+        /// <summary>Product ids the store backends register (all shop packs).</summary>
+        public static string[] ProductIds
+        {
+            get
+            {
+                var packs = Economy.AllPacks;
+                var ids = new string[packs.Length];
+                for (int i = 0; i < packs.Length; i++) ids[i] = packs[i].ProductId;
+                return ids;
+            }
+        }
+
+        public static bool IsConsumable(string productId) => productId != RemoveAdsProductId;
+
+        /// <summary>Buys a pack. The caller gives the items when onDone(true) is called.</summary>
+        public static void Buy(Pack pack, Action<bool> onDone)
         {
             var backend = MonetizationServices.StoreBackend;
             if (backend == null)
             {
-                Debug.Log("[IAP] Purchasing " + RemoveAdsProductId + " (test unlock, no store installed)");
-                Grant();
+                Debug.Log("[IAP] Purchasing " + pack.ProductId + " (test purchase, no store installed)");
                 onDone?.Invoke(true);
                 return;
             }
-            backend.BuyRemoveAds(ok =>
-            {
-                if (ok) Grant();
-                onDone?.Invoke(ok);
-            });
+            backend.Buy(pack.ProductId, pack.Consumable, onDone);
         }
+
+        /// <summary>Raised when the store hands over a purchase outside of Buy (one that was interrupted earlier).</summary>
+        public static event Action<string> Delivered;
+
+        /// <summary>Called by a store backend for a paid but not yet given purchase (for example the app closed mid-purchase).</summary>
+        public static void Deliver(string productId) => Delivered?.Invoke(productId);
 
         /// <summary>Called by the store on purchase or restore.</summary>
         public static void Grant()
@@ -191,6 +212,77 @@ namespace CargoSort.Game
         {
             get => PlayerPrefs.GetInt(AdsRemovedKey, 0) == 1;
             set { PlayerPrefs.SetInt(AdsRemovedKey, value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
+        // ----- Boosters you own (from packs, chests and the starter pack) -----
+
+        public static int Owned(Booster b) => PlayerPrefs.GetInt("inv_" + Economy.Key(b), 0);
+
+        public static void AddOwned(Booster b, int amount)
+        {
+            PlayerPrefs.SetInt("inv_" + Economy.Key(b), Mathf.Max(0, Owned(b) + amount));
+            PlayerPrefs.Save();
+        }
+
+        // ----- Win streak, piggy bank, offers -----
+
+        public static int WinStreak
+        {
+            get => PlayerPrefs.GetInt("win_streak", 0);
+            set { PlayerPrefs.SetInt("win_streak", Mathf.Max(0, value)); PlayerPrefs.Save(); }
+        }
+
+        public static int Piggy
+        {
+            get => PlayerPrefs.GetInt("piggy", 0);
+            set { PlayerPrefs.SetInt("piggy", Mathf.Clamp(value, 0, Economy.PiggyMax)); PlayerPrefs.Save(); }
+        }
+
+        public static DateTime StarterStart
+        {
+            get => long.TryParse(PlayerPrefs.GetString("starter_start", ""), out var ticks) ? new DateTime(ticks, DateTimeKind.Utc) : DateTime.MinValue;
+            set { PlayerPrefs.SetString("starter_start", value.Ticks.ToString()); PlayerPrefs.Save(); }
+        }
+
+        public static bool StarterBought
+        {
+            get => PlayerPrefs.GetInt("starter_bought", 0) == 1;
+            set { PlayerPrefs.SetInt("starter_bought", value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
+        public static bool StarterSeen
+        {
+            get => PlayerPrefs.GetInt("starter_seen", 0) == 1;
+            set { PlayerPrefs.SetInt("starter_seen", value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
+        /// <summary>Day number the free chest was last opened.</summary>
+        public static int ChestDay
+        {
+            get => PlayerPrefs.GetInt("chest_day", -1);
+            set { PlayerPrefs.SetInt("chest_day", value); PlayerPrefs.Save(); }
+        }
+
+        // ----- Skins -----
+
+        public static string CrateSkin
+        {
+            get => PlayerPrefs.GetString("crate_skin", "wood");
+            set { PlayerPrefs.SetString("crate_skin", value); PlayerPrefs.Save(); }
+        }
+
+        public static string TruckSkin
+        {
+            get => PlayerPrefs.GetString("truck_skin", "classic");
+            set { PlayerPrefs.SetString("truck_skin", value); PlayerPrefs.Save(); }
+        }
+
+        public static bool OwnsSkin(string kind, Skin skin) => skin.Price == 0 || PlayerPrefs.GetInt("skin_" + kind + "_" + skin.Key, 0) == 1;
+
+        public static void UnlockSkin(string kind, Skin skin)
+        {
+            PlayerPrefs.SetInt("skin_" + kind + "_" + skin.Key, 1);
+            PlayerPrefs.Save();
         }
     }
 }

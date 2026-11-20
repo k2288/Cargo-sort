@@ -95,7 +95,7 @@ namespace CargoSort.Game
             });
         }
 
-        /// <summary>type: undo, slot, hint, revive. paidWith: free, coins, ad.</summary>
+        /// <summary>type: undo, slot, crane, magnet, shuffle, revive. paidWith: free, owned, coins, ad.</summary>
         public static void Booster(string type, string paidWith)
         {
             boostersUsed++;
@@ -113,14 +113,12 @@ namespace CargoSort.Game
         public static void DailyGift(int streak, bool doubled) =>
             Send("daily_gift", new Dictionary<string, object> { { "streak", streak }, { "doubled", doubled } });
 
-        public static void PortOpened(int port, int built) =>
-            Send("port_open", new Dictionary<string, object> { { "port", port + 1 }, { "built", built }, { "level", LevelId(level) } });
+        /// <summary>offer: starter, piggy, chest, coins_1000, ...; action: shown, bought, opened.</summary>
+        public static void Offer(string offer, string action) =>
+            Send("offer", new Dictionary<string, object> { { "offer", offer }, { "action", action }, { "level", LevelId(level) } });
 
-        public static void PortBuild(int port, string item, int cost) =>
-            Send("port_build", new Dictionary<string, object> { { "port", port + 1 }, { "item", item }, { "cost", cost }, { "level", LevelId(level) } });
-
-        public static void PortComplete(int port) =>
-            Send("port_complete", new Dictionary<string, object> { { "port", port + 1 }, { "level", LevelId(level) } });
+        public static void SkinBought(string kind, string key, int price) =>
+            Send("skin", new Dictionary<string, object> { { "kind", kind }, { "key", key }, { "price", price } });
 
         public static void Coins(string source, int amount) =>
             Send("coins", new Dictionary<string, object> { { "source", source }, { "amount", amount }, { "balance", Progress.Coins } });

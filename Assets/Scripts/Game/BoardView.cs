@@ -16,7 +16,6 @@ namespace CargoSort.Game
         private const float BufferY = 2.6f;
         private const float BayY = 5.5f;
         private const float BaySpacing = 4.7f;
-        private const float SlotSpacing = 0.95f;
         private const float OffscreenX = 9f;
         private const float NextY = 3.9f;
         private const int NextShown = 2;
@@ -61,8 +60,7 @@ namespace CargoSort.Game
         private Vector3 BayPos(int bay) =>
             new Vector3((bay - (state.Bays.Length - 1) / 2f) * BaySpacing, BayY, 0f);
 
-        private static Vector3 TruckSlotLocal(int slot, int capacity) =>
-            new Vector3((slot - (capacity - 1) / 2f) * SlotSpacing - 0.45f, 0.12f, 0f);
+        private static Vector3 TruckSlotLocal(int slot, int capacity) => Art.TruckSlotLocal(slot, capacity);
 
         /// <summary>Which column a world point is over, or -1.</summary>
         public int HitColumn(Vector2 world)
@@ -72,6 +70,15 @@ namespace CargoSort.Game
             for (int c = 0; c < state.Columns.Count; c++)
                 if (Mathf.Abs(world.x - ColumnPos(c, 0).x) <= ColumnSpacing / 2f) return c;
             return -1;
+        }
+
+        /// <summary>Which crate row of a column a world point is over (for the crane), clamped to the stack.</summary>
+        public int HitRow(Vector2 world, int column)
+        {
+            if (state == null || column < 0 || column >= state.Columns.Count) return -1;
+            int count = state.Columns[column].Count;
+            if (count == 0) return -1;
+            return Mathf.Clamp(Mathf.RoundToInt((world.y - ColumnBaseY) / RowSpacing), 0, count - 1);
         }
 
         // ---------- Build ----------
@@ -227,35 +234,7 @@ namespace CargoSort.Game
             view.Root.SetParent(root, false);
             view.Body = new GameObject("Body").transform;
             view.Body.SetParent(view.Root, false);
-            var body = view.Body;
-            var c = Art.CrateColor(color);
-            float bedWidth = capacity * SlotSpacing + 0.2f;
-            float bedLeft = TruckSlotLocal(0, capacity).x - SlotSpacing / 2f - 0.1f;
-            float bedCenter = bedLeft + bedWidth / 2f;
-            float cabX = bedLeft + bedWidth + 0.5f;
-
-            float length = cabX + 0.45f - bedLeft + 0.3f;
-            Art.Box(view.Root, "Shadow", new Vector2((bedLeft + cabX + 0.45f) / 2f + 0.1f, -0.86f), new Vector2(length, 0.2f), new Color(0, 0, 0, 0.25f), 0);
-            Art.DrawWheel(view.Root, new Vector2(bedLeft + 0.55f, -0.62f), 0.52f, 1);
-            Art.DrawWheel(view.Root, new Vector2(bedLeft + bedWidth - 0.4f, -0.62f), 0.52f, 1);
-            Art.DrawWheel(view.Root, new Vector2(cabX + 0.05f, -0.62f), 0.52f, 1);
-
-            Art.Box(body, "Chassis", new Vector2(bedCenter, -0.52f), new Vector2(bedWidth + 0.1f, 0.16f), new Color32(0x2A, 0x2F, 0x37, 0xFF), 4);
-            Art.Box(body, "Bed", new Vector2(bedCenter, 0.05f), new Vector2(bedWidth, 1.15f), Art.TruckBed, 4);
-            Art.Box(body, "TopRail", new Vector2(bedCenter, 0.58f), new Vector2(bedWidth, 0.08f), Art.Lighten(Art.TruckBed, 0.25f), 5);
-            Art.Box(body, "SideRail", new Vector2(bedCenter, -0.44f), new Vector2(bedWidth, 0.22f), c, 5);
-            Art.Box(body, "RailShine", new Vector2(bedCenter, -0.37f), new Vector2(bedWidth, 0.05f), Art.Lighten(c, 0.35f), 6);
-            for (int i = 0; i < capacity; i++)
-                Art.Box(body, "SlotMark", TruckSlotLocal(i, capacity), new Vector2(CrateSize, CrateSize), Art.Darken(Art.TruckBed, 0.25f), 5);
-
-            Art.Box(body, "Cab", new Vector2(cabX, -0.05f), new Vector2(0.9f, 1.0f), c, 4);
-            Art.Box(body, "Roof", new Vector2(cabX, 0.4f), new Vector2(0.9f, 0.1f), Art.Lighten(c, 0.3f), 5);
-            Art.Box(body, "Trim", new Vector2(cabX - 0.05f, -0.32f), new Vector2(0.8f, 0.07f), Art.Darken(c, 0.25f), 5);
-            Art.Box(body, "Window", new Vector2(cabX + 0.12f, 0.15f), new Vector2(0.5f, 0.48f), Art.Window, 5);
-            Art.Box(body, "Glare", new Vector2(cabX + 0.02f, 0.26f), new Vector2(0.14f, 0.2f), new Color(1, 1, 1, 0.75f), 6);
-            Art.Box(body, "RoofLight", new Vector2(cabX - 0.02f, 0.53f), new Vector2(0.3f, 0.1f), new Color32(0xFF, 0xB7, 0x2B, 0xFF), 5);
-            Art.Box(body, "Headlight", new Vector2(cabX + 0.48f, -0.22f), new Vector2(0.12f, 0.16f), new Color32(0xFF, 0xF3, 0xB0, 0xFF), 5);
-            Art.Box(body, "Bumper", new Vector2(cabX + 0.45f, -0.48f), new Vector2(0.16f, 0.12f), new Color32(0x7B, 0x87, 0x94, 0xFF), 5);
+            Art.BuildSprites(view.Root, Art.TruckShapes(color, capacity, Progress.TruckSkin), view.Body);
             return view;
         }
 
@@ -301,10 +280,14 @@ namespace CargoSort.Game
             if (e.From == Place.Column)
             {
                 var list = columnCrates[e.FromIndex];
-                crate = list[list.Count - 1];
-                list.RemoveAt(list.Count - 1);
+                int row = e.FromRow >= 0 && e.FromRow < list.Count ? e.FromRow : list.Count - 1;
+                crate = list[row];
+                list.RemoveAt(row);
                 var hidden = shownHidden[e.FromIndex];
-                if (hidden.Count > 0) hidden.RemoveAt(hidden.Count - 1);
+                if (row < hidden.Count) hidden.RemoveAt(row);
+                // Crane lifted a crate from inside the stack: the crates above it drop down.
+                for (int r = row; r < list.Count; r++)
+                    if (list[r] != null) StartCoroutine(Slide(list[r], ColumnPos(e.FromIndex, r), MoveTime));
             }
             else
             {
@@ -390,13 +373,15 @@ namespace CargoSort.Game
 
         private static IEnumerator Slide(Transform t, Vector3 target, float time)
         {
+            if (t == null) yield break;
             Vector3 start = t.position;
             for (float k = 0; k < 1f; k += Time.deltaTime / time)
             {
+                if (t == null) yield break;
                 t.position = Vector3.Lerp(start, target, EaseOut(k));
                 yield return null;
             }
-            t.position = target;
+            if (t != null) t.position = target;
         }
 
         /// <summary>Moves a part down and back up once (truck springs).</summary>
