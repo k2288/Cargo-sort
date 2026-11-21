@@ -69,6 +69,8 @@ namespace CargoSort.Game
             { "home", ("Home", "خانه") },
             { "belt_intro", ("New: conveyor belt! Crates ride around and jump onto their truck", "جدید: نوار نقاله! جعبه‌ها می‌چرخند و روی کامیون همرنگ می‌پرند") },
             { "tape_intro", ("New: taped crates move together as a pair", "جدید: جعبه‌های چسب‌خورده با هم جابه‌جا می‌شوند") },
+            { "rush_online_note", ("Real players. Empty seats are computer rivals (CPU).", "بازیکن‌های واقعی. جاهای خالی رقیب کامپیوتری هستند.") },
+            { "cpu", ("CPU", "کامپیوتر") },
             { "rush_week", ("Rush Week", "هفته شتاب") },
             { "rush_points", ("points", "امتیاز") },
             { "rush_how", ("Win levels: 1 point per truck, x2 on a 3+ win streak", "مرحله ببر: هر کامیون ۱ امتیاز، با ۳ برد پشت سر هم ۲ برابر") },

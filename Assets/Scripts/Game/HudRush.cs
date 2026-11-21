@@ -157,25 +157,57 @@ namespace CargoSort.Game
             // The group
             RushTitle(Loc.T("rush_group"));
             RushNote(Loc.T("rush_prizes"));
-            var rows = RushWeek.Standings(Rush.Week, points, Rush.WeekFraction);
-            for (int i = 0; i < rows.Count; i++) RushStanding(i + 1, rows[i]);
-            RushNote(Loc.T("rush_rivals_note")).rectTransform.parent.GetComponent<LayoutElement>().preferredHeight = 110;
+            if (RushOnline.HasGroup(Rush.Week))
+            {
+                // Online group: real players, with computer rivals in the empty seats.
+                var online = RushOnline.Current.rows;
+                for (int i = 0; i < online.Length; i++)
+                    RushStanding(i + 1, online[i].me, online[i].me ? Loc.T("you") : ShapeName(online[i].name), online[i].points, online[i].bot);
+                RushNote(Loc.T("rush_online_note")).rectTransform.parent.GetComponent<LayoutElement>().preferredHeight = 110;
+            }
+            else
+            {
+                var rows = RushWeek.Standings(Rush.Week, points, Rush.WeekFraction);
+                for (int i = 0; i < rows.Count; i++)
+                {
+                    var row = rows[i];
+                    string name = row.IsPlayer ? Loc.T("you") : Loc.Persian ? PersianShaper.Fix(RushWeek.Names[row.Name, 1]) : RushWeek.Names[row.Name, 0];
+                    RushStanding(i + 1, row.IsPlayer, name, row.Points, false);
+                }
+                RushNote(Loc.T("rush_rivals_note")).rectTransform.parent.GetComponent<LayoutElement>().preferredHeight = 110;
+            }
         }
 
-        private void RushStanding(int rank, RushWeek.Row row)
+        /// <summary>Names from the server may be Persian even in the English UI: shape any Arabic-script name.</summary>
+        private static string ShapeName(string name)
+        {
+            foreach (char ch in name) if (ch >= '\u0600' && ch <= '\u06FF') return PersianShaper.Fix(name);
+            return name;
+        }
+
+        private void RushStanding(int rank, bool isPlayer, string name, int points, bool bot)
         {
             var r = RushRow(96);
-            var bg = Img(r, Art.Rounded, row.IsPlayer ? (Color)Blue : new Color(1, 1, 1, 0.05f), 26);
+            var bg = Img(r, Art.Rounded, isPlayer ? (Color)Blue : new Color(1, 1, 1, 0.05f), 26);
             Stretch(bg.rectTransform);
             var rk = MakeText(bg.rectTransform, Economy.Number(rank), 42, TextAnchor.MiddleCenter, Art.DisplayFont);
-            rk.color = row.IsPlayer ? Color.white : rank <= 3 ? Gold : Muted;
+            rk.color = isPlayer ? Color.white : rank <= 3 ? Gold : Muted;
             Anchor(rk.rectTransform, new Vector2(0, 0.5f), new Vector2(60, 0), new Vector2(100, 80));
-            string name = row.IsPlayer ? Loc.T("you") : Loc.Persian ? PersianShaper.Fix(RushWeek.Names[row.Name, 1]) : RushWeek.Names[row.Name, 0];
             var nameText = MakeText(bg.rectTransform, name, 38, TextAnchor.MiddleLeft);
             nameText.rectTransform.anchorMin = nameText.rectTransform.anchorMax = new Vector2(0, 0.5f);
             nameText.rectTransform.pivot = new Vector2(0, 0.5f);
             nameText.rectTransform.anchoredPosition = new Vector2(130, 0);
             nameText.rectTransform.sizeDelta = new Vector2(360, 80);
+            if (bot)
+            {
+                // Computer rival in an online group: a small "CPU" tag after the name.
+                var tag = MakeText(bg.rectTransform, Loc.T("cpu"), 24, TextAnchor.MiddleLeft);
+                tag.color = Muted;
+                tag.rectTransform.anchorMin = tag.rectTransform.anchorMax = new Vector2(0, 0.5f);
+                tag.rectTransform.pivot = new Vector2(0, 0.5f);
+                tag.rectTransform.anchoredPosition = new Vector2(140 + Mathf.Min(300, nameText.preferredWidth), -2);
+                tag.rectTransform.sizeDelta = new Vector2(120, 50);
+            }
             int prize = RushWeek.Prize(rank);
             if (prize > 0)
             {
@@ -188,7 +220,7 @@ namespace CargoSort.Game
                 p.rectTransform.anchoredPosition = new Vector2(566, 0);
                 p.rectTransform.sizeDelta = new Vector2(120, 60);
             }
-            var pts = MakeText(bg.rectTransform, Economy.Number(row.Points), 42, TextAnchor.MiddleRight, Art.DisplayFont);
+            var pts = MakeText(bg.rectTransform, Economy.Number(points), 42, TextAnchor.MiddleRight, Art.DisplayFont);
             Anchor(pts.rectTransform, new Vector2(1, 0.5f), new Vector2(-110, 0), new Vector2(180, 80));
         }
 

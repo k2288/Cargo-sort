@@ -277,6 +277,26 @@ namespace CargoSort.Game
             set { PlayerPrefs.SetInt("rush_result_prize", value); PlayerPrefs.Save(); }
         }
 
+        /// <summary>Last week the player synced with the Rush server (-1 = never).</summary>
+        public static int RushOnlineWeek
+        {
+            get => PlayerPrefs.GetInt("rush_online_week", -1);
+            set { PlayerPrefs.SetInt("rush_online_week", value); PlayerPrefs.Save(); }
+        }
+
+        /// <summary>A finished week whose rank must still be asked from the server (-1 = none), and its points.</summary>
+        public static int RushResultPending
+        {
+            get => PlayerPrefs.GetInt("rush_result_pending", -1);
+            set { PlayerPrefs.SetInt("rush_result_pending", value); PlayerPrefs.Save(); }
+        }
+
+        public static int RushResultPoints
+        {
+            get => PlayerPrefs.GetInt("rush_result_points", 0);
+            set { PlayerPrefs.SetInt("rush_result_points", value); PlayerPrefs.Save(); }
+        }
+
         public static bool RushSeen
         {
             get => PlayerPrefs.GetInt("rush_seen", 0) == 1;

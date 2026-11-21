@@ -70,6 +70,7 @@ namespace CargoSort.Game
             hud.OpenShop += OnOpenShop;
             hud.OpenTour += OnOpenTour;
             hud.OpenRush += OnOpenRush;
+            RushOnline.Changed += () => { hud.RefreshRush(); };
             hud.ClaimRush += OnClaimRush;
             hud.BuildLandmark += OnBuildLandmark;
             hud.OpenChest += OnOpenChest;
@@ -371,6 +372,7 @@ namespace CargoSort.Game
                     {
                         rushAdded = RushWeek.PointsForWin(session.State.TrucksTotal, streak);
                         Progress.RushPoints += rushAdded;
+                        StartCoroutine(RushOnline.Sync(Rush.Week, Progress.RushPoints));
                     }
                 }
                 StartCoroutine(ShowWinSoon(level, pendingWinReward, streak, piggyAdded, starsAdded, rushAdded));
@@ -692,6 +694,8 @@ namespace CargoSort.Game
             }
             SetCrane(false);
             hud.ShowRush(true);
+            Rush.Rollover();
+            StartCoroutine(RushOnline.Sync(Rush.Week, Progress.RushPoints)); // the screen refreshes when it answers
         }
 
         private void OnClaimRush(int step)
@@ -705,9 +709,26 @@ namespace CargoSort.Game
         }
 
         /// <summary>Last week's rank (and prize, top 10) once a new week has started.</summary>
+        private bool fetchingRushResult;
+
         private void ShowRushResult()
         {
             Rush.Rollover();
+            if (Progress.RushResultPending >= 0)
+            {
+                // Played online last week: ask the server for the final rank first.
+                if (!fetchingRushResult)
+                {
+                    fetchingRushResult = true;
+                    StartCoroutine(RushOnline.FetchResult(Progress.RushResultPending, serverRank =>
+                    {
+                        fetchingRushResult = false;
+                        Rush.ResolvePending(serverRank);
+                        if (hud.HomeVisible) ShowRushResult();
+                    }));
+                }
+                return;
+            }
             int rank = Progress.RushResultRank, prize = Progress.RushResultPrize;
             if (rank <= 0 || hud.DailyVisible) return;
             Progress.RushResultRank = 0;

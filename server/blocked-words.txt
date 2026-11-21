@@ -1,0 +1,4 @@
+# Words players can't use in names (one per line, matched anywhere in the name, any case).
+# Add the Persian and English words you want to block.
+admin
+moderator

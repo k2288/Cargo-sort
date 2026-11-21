@@ -1,0 +1,12 @@
+{
+  "name": "cargo-sort-server",
+  "version": "1.0.0",
+  "description": "Rush Week groups and leaderboard for Cargo Sort",
+  "private": true,
+  "type": "commonjs",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
+  }
+}

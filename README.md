@@ -61,6 +61,12 @@ claimed on the Rush screen). The player is ranked in a group of 30; the top 10 g
 coins when the next week starts. Without a server the other 29 are computer rivals (labelled as such)
 whose scores grow through the week. Rules: `Core/RushWeek.cs`; device state and rewards: `Game/Rush.cs`.
 
+**Online groups (optional):** the small server in `server/` (Node.js + SQLite, Dockerfile included; see
+`server/README.md`) puts real players into groups of 30 and fills empty seats with computer rivals marked
+"CPU". Set `RushOnline.ServerUrl` in `Game/RushOnline.cs` to turn it on. When the server can't be
+reached, the game uses its own computer rivals, and last week's prize uses the server's final rank when
+it answers.
+
 **Developer panel:** in the editor and in development builds, Settings has a **DEV** button to jump
 to any level and add coins. It is not in release builds.
 

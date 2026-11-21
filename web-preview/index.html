@@ -1142,6 +1142,7 @@ const STR = {
   rush_ends: ["Ends in {0}", "پایان تا {0}"], days_hours: ["{0}d {1}h", "{0} روز {1} ساعت"], you: ["You", "تو"],
   rush_prizes: ["Top 10 win prizes at the end of the week", "۱۰ نفر اول در پایان هفته جایزه می‌گیرند"], rush_win: ["+{0} rush", "{0}+ شتاب"],
   rush_intro: ["New: Rush Week! Win levels for points and prizes", "جدید: هفته شتاب! مرحله ببر و امتیاز و جایزه بگیر"],
+  rush_online_note: ["Real players. Empty seats are computer rivals (CPU).", "بازیکن‌های واقعی. جاهای خالی رقیب کامپیوتری هستند."], cpu: ["CPU", "کامپیوتر"],
   rush_result: ["Last week you finished #{0}!", "هفته پیش نفر {0} شدی!"], rush_locked: ["Rush Week opens at level {0}", "هفته شتاب از مرحله {0} باز می‌شود"],
   world_tour: ["World Tour", "تور جهانی"], tour_short: ["Tour", "تور"], landmarks: ["Landmarks", "بناهای دیدنی"], cities: ["Cities", "شهرها"],
   city_n: ["City {0} of {1}", "شهر {0} از {1}"], build: ["Build", "بساز"], built: ["Built", "ساخته شد"], need_stars: ["Win levels to earn stars", "با بردن مراحل ستاره بگیر"],
@@ -1397,13 +1398,32 @@ function standings(w, myPts, f) {
   rows.sort((a, b) => b.pts - a.pts || (a.me ? -1 : b.me ? 1 : 0)); // ties: the player first
   return rows;
 }
+// Online groups (the server in /server). Open the preview with ?server=https://your.server to use one.
+// Without a server, or when it can't be reached, the computer rivals above are used.
+const RUSH_SERVER = (() => { const q = new URLSearchParams(location.search).get("server"); if (q !== null) store.set("rushServer", q.replace(/\/+$/, "")); return store.get("rushServer", ""); })();
+let rushGroup = null, rushSyncing = false;
+async function rushApi(method, path, body) {
+  const res = await fetch(RUSH_SERVER + path, { method, headers: { "Content-Type": "application/json" }, body: body && JSON.stringify(body) });
+  return { status: res.status, body: await res.json().catch(() => ({})) };
+}
+async function rushSync() {
+  if (!RUSH_SERVER || rushSyncing) return; rushSyncing = true;
+  try {
+    if (!store.get("rushToken", "")) { const j = await rushApi("POST", "/v1/join", { name: "", lang: fa() ? "fa" : "en" }); if (j.status !== 200) return; store.set("rushToken", j.body.token); }
+    const r = await rushApi("POST", "/v1/score", { token: store.get("rushToken", ""), week: rushWeek(), points: rushPts(), lang: fa() ? "fa" : "en" });
+    if (r.status === 200 && r.body.week === rushWeek()) { rushGroup = r.body; store.set("rushOnlineWeek", rushWeek()); }
+    else if (r.status === 401) store.set("rushToken", "");
+  } catch { /* offline: keep the computer rivals */ }
+  finally { rushSyncing = false; if (!$("rush").hidden) { const y = $("rushBody").scrollTop; renderRush(); $("rushBody").scrollTop = y; } }
+}
+const rushOnlineRows = () => rushGroup && rushGroup.week === rushWeek() ? rushGroup.rows : null;
 // Called on start and on the home screen: a new week resets points and pays last week's rank prize.
 function rushRollover() {
   const w = rushWeek(), saved = store.get("rushWeek", -1);
   if (saved === w) return;
   if (saved >= 0 && store.get("rushPts", 0) > 0) {
-    const rank = standings(saved, store.get("rushPts", 0), 1).findIndex(x => x.me) + 1, prize = rushPrize(rank);
-    store.set("rushResult", { rank, prize });
+    if (RUSH_SERVER && store.get("rushOnlineWeek", -1) === saved) store.set("rushPending", { week: saved, pts: store.get("rushPts", 0) });
+    else { const rank = standings(saved, store.get("rushPts", 0), 1).findIndex(x => x.me) + 1; store.set("rushResult", { rank, prize: rushPrize(rank) }); }
   }
   store.set("rushWeek", w); store.set("rushPts", 0); store.set("rushClaimed", 0);
 }
@@ -1421,19 +1441,28 @@ function renderRush() {
       : got ? `<button class="small green" data-claim="${i}">${t("claim")}</button>` : `<button class="small quiet" disabled>${num(need - pts)}</button>`;
     return `<div class="ms${got ? " got" : ""}${done ? " done" : ""}"><div class="need">${num(need)}</div><div class="items">${items.map(itemHTML).join("")}</div>${btn}</div>`;
   }).join("") + `</div>`;
-  const rows = standings(rushWeek(), pts, f);
+  const online = rushOnlineRows(), rows = online ? online.map(r => ({ ...r, name: r.me ? t("you") : r.name, pts: r.points })) : standings(rushWeek(), pts, f);
+  const esc = v => String(v).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
   h += `<div class="sect">${t("rush_group")}</div><p class="note">${t("rush_prizes")}</p><div class="board-list">` + rows.map((row, i) =>
-    `<div class="lrow${row.me ? " me" : ""}${i < 3 ? " top" : ""}"><span class="rk">${num(i + 1)}</span><span>${row.name}${rushPrize(i + 1) ? ` <span class="coin" style="width:14px;height:14px;vertical-align:-2px"></span><small style="color:var(--gold)">${num(rushPrize(i + 1))}</small>` : ""}</span><span class="pts">${num(row.pts)}</span></div>`).join("") + `</div>`;
-  h += `<p class="note">${t("rush_rivals_note")}</p>`;
+    `<div class="lrow${row.me ? " me" : ""}${i < 3 ? " top" : ""}"><span class="rk">${num(i + 1)}</span><span>${esc(row.name)}${row.bot ? ` <small style="color:var(--muted)">${t("cpu")}</small>` : ""}${rushPrize(i + 1) ? ` <span class="coin" style="width:14px;height:14px;vertical-align:-2px"></span><small style="color:var(--gold)">${num(rushPrize(i + 1))}</small>` : ""}</span><span class="pts">${num(row.pts)}</span></div>`).join("") + `</div>`;
+  h += `<p class="note">${t(online ? "rush_online_note" : "rush_rivals_note")}</p>`;
   $("rushBody").innerHTML = h;
 }
-function openRush() { if (busy) return; if (!rushOpen()) return toast(t("rush_locked", RUSH_FROM)); renderRush(); $("rush").hidden = false; }
+function openRush() { if (busy) return; if (!rushOpen()) return toast(t("rush_locked", RUSH_FROM)); renderRush(); $("rush").hidden = false; rushSync(); }
 function claimRush(i) {
   const claimed = store.get("rushClaimed", 0); if (claimed >> i & 1 || rushPts() < RUSH_TRACK[i][0]) return;
   store.set("rushClaimed", claimed | (1 << i)); showReward("rush_week", RUSH_TRACK[i][1], () => { renderRush(); renderHome(); });
 }
 // Last week's prize, shown once on the home screen.
-function maybeRushResult() {
+let rushFetching = false;
+async function maybeRushResult() {
+  const pend = store.get("rushPending", null);
+  if (pend && !rushFetching) { // played online last week: the server knows the final rank
+    rushFetching = true; let rank = 0;
+    try { const r = await rushApi("GET", `/v1/result?token=${encodeURIComponent(store.get("rushToken", ""))}&week=${pend.week}`); if (r.status === 200) rank = r.body.rank; } catch { }
+    if (!(rank > 0)) rank = standings(pend.week, pend.pts, 1).findIndex(x => x.me) + 1;
+    store.set("rushPending", null); store.set("rushResult", { rank, prize: rushPrize(rank) }); rushFetching = false;
+  }
   const res = store.get("rushResult", null); if (!res || screen !== "home" || !$("daily").hidden) return;
   store.set("rushResult", null);
   if (res.prize > 0) { showReward("rush_result", [["coins", res.prize]], () => renderHome()); $("rewardTitle").textContent = t("rush_result", res.rank); }
@@ -1628,7 +1657,7 @@ function afterMove() {
       wstreak++; store.set("wstreak", wstreak);
       const gotStars = winStars(level); store.set("stars", stars() + gotStars); $("winStars").lastChild.textContent = t("win_stars", gotStars);
       rushRollover(); const gotRush = level >= RUSH_FROM ? rushPointsForWin(game.queue.length, wstreak) : 0;
-      if (gotRush) store.set("rushPts", rushPts() + gotRush); $("winRush").hidden = !gotRush; $("winRush").lastChild.textContent = t("rush_win", gotRush);
+      if (gotRush) { store.set("rushPts", rushPts() + gotRush); rushSync(); } $("winRush").hidden = !gotRush; $("winRush").lastChild.textContent = t("rush_win", gotRush);
       const add = Math.min(PIGGY_MAX - piggy(), isHard(level) ? 40 : 20); store.set("piggy", piggy() + add);
       $("winPiggy").lastChild.textContent = t("piggy_add", add); $("winPiggy").hidden = add <= 0; $("winStreak").lastChild.textContent = t("win_streak", wstreak); }
     $("winStreak").hidden = $("winStars").hidden = level === 0; if (level === 0) $("winRush").hidden = true; if (level === 0) $("winPiggy").hidden = true;

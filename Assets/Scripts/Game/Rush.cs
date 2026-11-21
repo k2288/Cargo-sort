@@ -54,13 +54,32 @@ namespace CargoSort.Game
             if (saved == week) return;
             if (saved >= 0 && Progress.RushPoints > 0)
             {
-                int rank = RushWeek.RankOf(RushWeek.Standings(saved, Progress.RushPoints, 1));
-                Progress.RushResultRank = rank;
-                Progress.RushResultPrize = RushWeek.Prize(rank);
+                if (RushOnline.Enabled && Progress.RushOnlineWeek == saved)
+                {
+                    // Played in an online group: ask the server for the final rank (see ResolvePending).
+                    Progress.RushResultPending = saved;
+                    Progress.RushResultPoints = Progress.RushPoints;
+                }
+                else SetResult(RushWeek.RankOf(RushWeek.Standings(saved, Progress.RushPoints, 1)));
             }
             Progress.RushWeek = week;
             Progress.RushPoints = 0;
             Progress.RushClaimed = 0;
+        }
+
+        private static void SetResult(int rank)
+        {
+            Progress.RushResultRank = rank;
+            Progress.RushResultPrize = RushWeek.Prize(rank);
+        }
+
+        /// <summary>Server rank for a pending week; if the server can't answer, the offline rivals decide.</summary>
+        public static void ResolvePending(int serverRank)
+        {
+            int week = Progress.RushResultPending;
+            if (week < 0) return;
+            Progress.RushResultPending = -1;
+            SetResult(serverRank > 0 ? serverRank : RushWeek.RankOf(RushWeek.Standings(week, Progress.RushResultPoints, 1)));
         }
 
         public static bool Claimable => Open && RushWeek.AnyClaimable(Progress.RushPoints, Progress.RushClaimed);
