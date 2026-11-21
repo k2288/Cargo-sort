@@ -128,6 +128,7 @@ namespace CargoSort.Game
             { "restore_done", ("Purchases restored", "خریدها بازیابی شد") },
             { "privacy", ("Privacy", "حریم خصوصی") },
             { "play_hard", ("HARD LEVEL", "مرحله سخت") },
+            { "tap_start", ("Tap to start", "برای شروع بزنید") },
             { "chest", ("Free gift", "هدیه رایگان") },
             { "chest_sub", ("Open one gift every day", "هر روز یک هدیه باز کن") },
             { "chest_tomorrow", ("Tomorrow", "فردا") },

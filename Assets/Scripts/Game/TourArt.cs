@@ -60,6 +60,15 @@ namespace CargoSort.Game
             }, false);
         }
 
+        /// <summary>The splash screen's landmarks: bigger than on the home screen (scale 2.1, horizon at y = 470, 360 x 230 units).</summary>
+        public static Sprite SplashBackdrop(int city, int mask)
+        {
+            return Get($"splash{city}_{mask}", 0, 240, 360, 230, 720, 460, city, c =>
+            {
+                for (int i = 0; i < WorldTour.MarksPerCity; i++) c.Landmark(WorldTour.Cities[city].Marks[i], 48 + i * 88, 470, 2.1f, WorldTour.IsBuilt(mask, i));
+            }, false);
+        }
+
         private static Sprite Get(string key, float vx, float vy, float vw, float vh, int w, int h, int city, System.Action<Canvas> draw, bool sky = true)
         {
             if (cache.TryGetValue(key, out var sprite) && sprite != null) return sprite;

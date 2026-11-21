@@ -92,6 +92,7 @@ namespace CargoSort.Game
             hud.DevGoToLevel += OnDevGoToLevel;
             hud.DevAddCoins += () => AddCoins(1000);
             hud.Build();
+            hud.ShowSplash();
 
             Analytics.SessionStart();
             ShowHome();

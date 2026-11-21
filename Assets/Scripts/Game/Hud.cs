@@ -52,7 +52,7 @@ namespace CargoSort.Game
 
         public bool PanelOpen =>
             winPanel.activeSelf || losePanel.activeSelf || dailyPanel.activeSelf || settingsPanel.activeSelf || rewardPanel.activeSelf || devPanel.activeSelf ||
-            shopPanel.activeSelf || TourOpen || RushOpen || starterPanel.activeSelf || homePanel.activeSelf;
+            shopPanel.activeSelf || TourOpen || RushOpen || starterPanel.activeSelf || homePanel.activeSelf || SplashVisible;
 
         public bool HomeVisible => homePanel != null && homePanel.activeSelf;
 
@@ -91,6 +91,7 @@ namespace CargoSort.Game
             BuildRewardPanel(safe);
             BuildDevPanel(safe);
             BuildToast(safe);
+            BuildSplash(safe);      // on top of everything; only shown by ShowSplash at start-up
         }
 
         // ---------- Top bar and boosters ----------
@@ -222,6 +223,7 @@ namespace CargoSort.Game
             UpdateHome();
             UpdateShopTimers();
             UpdateRush();
+            UpdateSplash();
         }
 
         // ---------- Win, lose, daily ----------

@@ -337,6 +337,28 @@ body[data-skin="saga"] .tag { background: linear-gradient(#ffe86a, #ffb21f); col
 body[data-skin="saga"] .starpill, body[data-skin="saga"] .screen .coinpill { background: linear-gradient(#5a2eb8, #34196f); border: 3px solid #2b1170; }
 body[data-skin="saga"] .devrow input { background: #2b1170; }
 
+
+/* ---- Splash / title screen ---- */
+#splash { position: fixed; inset: 0; z-index: 30; overflow: hidden; cursor: pointer; transition: opacity .45s, transform .45s; }
+#splash.gone { opacity: 0; transform: scale(1.06); pointer-events: none; }
+#splash svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#splash .land { animation: rise .9s cubic-bezier(.2,.9,.3,1) both; transform-origin: 50% 100%; }
+@keyframes rise { from { transform: translateY(60px) scale(.9); opacity: 0; } }
+#splash .cloud { animation: drift 24s linear infinite; }
+@keyframes drift { from { transform: translateX(-60px); } to { transform: translateX(60px); } }
+.splogo { position: absolute; left: 0; right: 0; top: 13%; text-align: center; font-family: "Lilita One", "Arial Rounded MT Bold", sans-serif; line-height: .86; direction: ltr; animation: dropin .8s cubic-bezier(.2,1.5,.4,1) .1s both; }
+.splogo span { display: block; font-size: clamp(56px, 19vw, 96px); color: #ffd23a; -webkit-text-stroke: 7px #7a3d00; paint-order: stroke fill; text-shadow: 0 8px 0 #7a3d00, 0 18px 20px rgba(0,0,0,.35); transform: rotate(-3deg); }
+.splogo span + span { color: #fff; font-size: clamp(48px, 16vw, 82px); -webkit-text-stroke-color: #1b4aa3; text-shadow: 0 8px 0 #1b4aa3, 0 18px 20px rgba(0,0,0,.35); }
+@keyframes dropin { from { transform: translateY(-80px) scale(.7); opacity: 0; } }
+.spcity { position: absolute; left: 0; right: 0; top: calc(13% + 150px); text-align: center; font: 800 15px var(--body); color: #fff; letter-spacing: 3px; text-transform: uppercase; text-shadow: 0 2px 6px rgba(0,0,0,.4); animation: dropin .8s .4s both; }
+.spbottom { position: absolute; left: 0; right: 0; bottom: max(36px, env(safe-area-inset-bottom, 0px)); display: grid; justify-items: center; gap: 14px; }
+.sploading { width: min(240px, 60%); height: 16px; border-radius: 9px; background: rgba(43,17,112,.55); border: 3px solid #fff; box-sizing: border-box; overflow: hidden; }
+.sploading i { display: block; height: 100%; width: 0; background: linear-gradient(#ffe86a, #ffa21f); border-radius: 6px; animation: fill 1.7s ease-out forwards; }
+@keyframes fill { to { width: 100%; } }
+.sptap { font-family: var(--display); font-size: 24px; color: #fff; -webkit-text-stroke: 5px #2b1170; paint-order: stroke fill; opacity: 0; animation: tapin .3s 1.7s forwards, blink 1.1s 2s ease-in-out infinite; }
+@keyframes tapin { to { opacity: 1; } }
+@keyframes blink { 50% { transform: scale(1.1); } }
+.spver { font: 700 11px var(--body); color: rgba(255,255,255,.75); }
 </style>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -397,6 +419,8 @@ body[data-skin="saga"] .devrow input { background: #2b1170; }
   <div class="bar" id="bar" hidden></div>
 </div>
 
+<div id="splash" hidden><div id="splashArt"></div><div class="splogo"><span>CARGO</span><span>SORT</span></div><div class="spcity" id="spCity"></div>
+  <div class="spbottom"><div class="sploading"><i></i></div><div class="sptap" id="spTap">Tap to start</div><div class="spver">v1.0</div></div></div>
 <div class="overlay" id="win" hidden><div class="card"><h2 id="winTitle">Level complete!</h2><p class="reward"><span class="coin big"></span><span id="winReward">+10</span></p>
   <div class="winrow"><span class="chip" id="winStreak"><svg class="ic"><use href="#i-flame"/></svg><span></span></span><span class="chip pig" id="winPiggy"><svg class="ic"><use href="#i-piggy"/></svg><span></span></span><span class="chip stars" id="winStars"><svg class="ic"><use href="#i-star"/></svg><span></span></span><span class="chip" id="winRush" hidden><svg class="ic"><use href="#i-bolt"/></svg><span></span></span></div>
   <button class="ad" id="claim3"><span data-t="claim_x3">Claim x3</span><small data-t="watch_ad">WATCH AD</small></button>
@@ -1933,4 +1957,26 @@ applyLanguage();
 checkDaily();
 setScreen("home");
 loop();
+// Splash: the current World Tour city with the logo, shown when the game opens. Tap (after the bar fills) to go to the map.
+function showSplash() {
+  if (/[?&]nosplash/.test(location.search)) return;
+  const ci = Math.min(tourCity(), TOUR.length - 1), city = TOUR[ci], mask = tourCity() < TOUR.length ? tourBuilt() : 15, HZ = 470;
+  const cloud = (x, y, k, d) => `<g class="cloud" style="animation-delay:${d}s"><g transform="translate(${x} ${y}) scale(${k})" fill="#fff" opacity=".8"><ellipse cx="0" cy="0" rx="34" ry="13"/><ellipse cx="-16" cy="-9" rx="18" ry="13"/><ellipse cx="10" cy="-13" rx="22" ry="16"/></g></g>`;
+  const gTop = shade(city.sky[0], 0.5), gBot = shade(city.sky[0], 0.72);
+  $("splashArt").innerHTML = `<svg viewBox="0 0 360 640" preserveAspectRatio="xMidYMid slice"><defs>
+    <linearGradient id="spSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${city.sky[1]}"/><stop offset=".7" stop-color="${city.sky[0]}"/></linearGradient>
+    <linearGradient id="spGr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${gTop}"/><stop offset="1" stop-color="${gBot}"/></linearGradient></defs>
+    <rect width="360" height="640" fill="url(#spSky)"/>
+    <circle cx="180" cy="${HZ - 70}" r="120" fill="rgba(255,255,255,.18)"/><circle cx="180" cy="${HZ - 70}" r="74" fill="rgba(255,255,255,.5)"/>
+    ${cloud(60, 330, 1, 0)}${cloud(310, 400, .7, -8)}${cloud(40, 240, .6, -14)}
+    <g class="land">${city.marks.map(([type, color], i) => landmarkSVG(type, color, 48 + i * 88, HZ, 2.1, isBuilt(mask, i))).join("")}</g>
+    <rect y="${HZ}" width="360" height="${640 - HZ}" fill="url(#spGr)"/><rect y="${HZ}" width="360" height="5" fill="rgba(255,255,255,.35)"/></svg>`;
+  $("spCity").textContent = t("c_" + city.key);
+  $("spTap").textContent = fa() ? "برای شروع بزنید" : "Tap to start";
+  const sp = $("splash"); sp.hidden = false;
+  let ready = false; setTimeout(() => ready = true, 1700);
+  const go = () => { if (!ready && !/[?&]skipwait/.test(location.search)) return; sp.classList.add("gone"); setTimeout(() => sp.hidden = true, 500); try { sfx.coins(); } catch (e) {} };
+  sp.onclick = go;
+}
+showSplash();
 </script>

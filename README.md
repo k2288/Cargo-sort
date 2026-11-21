@@ -22,6 +22,7 @@ Everything (board, trucks, UI) is built from code at runtime, so there are no pr
 | Level generator, solver, undo | `Assets/Scripts/Core/LevelGenerator.cs` |
 | Drawing and animations | `Assets/Scripts/Game/BoardView.cs` |
 | Top bar, boosters and popups | `Assets/Scripts/Game/Hud.cs` |
+| Title (splash) screen | `Assets/Scripts/Game/HudSplash.cs` |
 | Home screen | `Assets/Scripts/Game/HudHome.cs` |
 | Shop | `Assets/Scripts/Game/HudShop.cs` |
 | Booster prices, packs, skins, offers | `Assets/Scripts/Game/Economy.cs` |
