@@ -16,6 +16,8 @@ namespace CargoSort.Core
         public List<List<bool>> Hidden = new List<List<bool>>(); // same shape as Columns
         public List<int> Frozen = new List<int>();               // ice taps per column
         public List<List<bool>> Taped = new List<List<bool>>();  // [c][r]: crate r is taped to the crate above
+        public List<List<int>> Locks = new List<List<int>>();    // [c][r]: lock id on this crate (0 = none)
+        public List<List<int>> Keys = new List<List<int>>();     // [c][r]: id of the lock this crate's key opens (0 = none)
         public List<int> TruckCapacities = new List<int>();      // per truck in TruckColors (big trucks hold more)
         public List<int> TruckSecondColors = new List<int>();    // per truck: second color of a two-color truck, or -1
         public bool Hard;
@@ -37,6 +39,7 @@ namespace CargoSort.Core
         public int TapedPairs;
         public int BigTrucks;
         public int TwoColorTrucks;
+        public int Locks;
         public bool Hard;
     }
 
@@ -80,8 +83,12 @@ namespace CargoSort.Core
             if (level >= TapedFromLevel) d.TapedPairs = Math.Min(1 + (level - TapedFromLevel) / 8, 3);
             if (level >= BigTrucksFromLevel) d.BigTrucks = Math.Min(1 + (level - BigTrucksFromLevel) / 10, 3);
             if (level >= TwoColorFromLevel) d.TwoColorTrucks = Math.Min(1 + (level - TwoColorFromLevel) / 10, 3);
+            if (level >= LocksFromLevel) d.Locks = Math.Min(1 + (level - LocksFromLevel) / 10, 3);
             return d;
         }
+
+        /// <summary>Locked crates (opened by moving their key crate) start here.</summary>
+        public const int LocksFromLevel = 48;
 
         /// <summary>Big trucks (4 crates) start here; two-color trucks (2 + 2) a bit later.</summary>
         public const int BigTrucksFromLevel = 36;
@@ -262,8 +269,32 @@ namespace CargoSort.Core
                 data.Hidden[c][row + 1] = false;
                 k++;
             }
+
+            // Locks and keys: a lock and its key are in different stacks. Never on taped or hidden crates.
+            foreach (var col in data.Columns)
+            {
+                data.Locks.Add(new List<int>(new int[col.Count]));
+                data.Keys.Add(new List<int>(new int[col.Count]));
+            }
+            for (int id = 1, tries = 0; id <= d.Locks && tries < 60; tries++)
+            {
+                int c1 = rng.Next(columns), c2 = rng.Next(columns);
+                if (c1 == c2) continue;
+                int n1 = data.Columns[c1].Count, n2 = data.Columns[c2].Count;
+                if (n1 < 2 || n2 == 0) continue;
+                int r1 = rng.Next(n1), r2 = rng.Next(n2);
+                if (!FreeForLock(data, c1, r1) || !FreeForLock(data, c2, r2)) continue;
+                data.Locks[c1][r1] = id;
+                data.Keys[c2][r2] = id;
+                data.Hidden[c1][r1] = false;
+                data.Hidden[c2][r2] = false;
+                id++;
+            }
             return data;
         }
+
+        private static bool FreeForLock(LevelData data, int c, int row) =>
+            !data.Taped[c][row] && !(row > 0 && data.Taped[c][row - 1]) && data.Locks[c][row] == 0 && data.Keys[c][row] == 0;
 
         private static int PickPlainTruck(LevelData data, int capacity, Random rng)
         {

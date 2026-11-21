@@ -281,6 +281,8 @@ namespace CargoSort.Game
                     var crate = isHidden ? Art.HiddenCrate(root, CrateSize) : Art.Crate(root, state.Columns[c][r], CrateSize);
                     crate.position = ColumnPos(c, r);
                     if (r > 0 && state.Taped[c][r - 1]) AddTape(list[r - 1]);
+                    if (state.Locks[c][r] > 0) AddLock(crate, state.Locks[c][r]);
+                    if (state.Keys[c][r] > 0) AddKey(crate, state.Keys[c][r]);
                     list.Add(crate);
                     hidden.Add(isHidden);
                 }
@@ -302,6 +304,36 @@ namespace CargoSort.Game
                 for (int i = 0; i < truck.Loaded2; i++) AddCrateToTruck(trucks[b], Art.Crate(root, truck.Color2, CrateSize), truck.Need1 + i);
             }
             DrawNextTrucks();
+        }
+
+        // Each lock and its key share a color: gold, silver, copper.
+        private static readonly Color32[] LockColors = { new Color32(0xFF, 0xC8, 0x3A, 0xFF), new Color32(0xD5, 0xDC, 0xE5, 0xFF), new Color32(0xE0, 0x8A, 0x4A, 0xFF) };
+        private static Color LockColor(int id) => LockColors[(id - 1) % LockColors.Length];
+
+        /// <summary>A padlock on a locked crate (the crate is dimmed).</summary>
+        private static void AddLock(Transform crate, int id)
+        {
+            var c = LockColor(id);
+            var dark = new Color32(0x3A, 0x2A, 0x10, 0xFF);
+            Art.Box(crate, "LockShade", Vector2.zero, new Vector2(CrateSize, CrateSize), new Color(0.04f, 0.06f, 0.1f, 0.45f), 15);
+            Art.Box(crate, "Shackle", new Vector2(-0.13f, 0.16f), new Vector2(0.07f, 0.24f), c, 16);
+            Art.Box(crate, "Shackle", new Vector2(0.13f, 0.16f), new Vector2(0.07f, 0.24f), c, 16);
+            Art.Box(crate, "Shackle", new Vector2(0, 0.27f), new Vector2(0.33f, 0.07f), c, 16);
+            Art.Box(crate, "LockBody", new Vector2(0, -0.06f), new Vector2(0.48f, 0.38f), c, 17);
+            Art.Dot(crate, "Keyhole", new Vector2(0, -0.03f), 0.1f, dark, 18);
+            Art.Box(crate, "Keyhole", new Vector2(0, -0.12f), new Vector2(0.05f, 0.1f), dark, 18);
+        }
+
+        /// <summary>A key on a key crate, in the color of the lock it opens.</summary>
+        private static void AddKey(Transform crate, int id)
+        {
+            var c = LockColor(id);
+            Art.Dot(crate, "KeyShadow", new Vector2(-0.18f, 0.01f), 0.3f, new Color(0, 0, 0, 0.35f), 15);
+            Art.Dot(crate, "KeyRing", new Vector2(-0.18f, 0.02f), 0.26f, c, 16);
+            Art.Dot(crate, "KeyHole", new Vector2(-0.18f, 0.02f), 0.1f, new Color(0, 0, 0, 0.45f), 17);
+            Art.Box(crate, "KeyShaft", new Vector2(0.07f, 0.02f), new Vector2(0.36f, 0.08f), c, 16);
+            Art.Box(crate, "KeyTooth", new Vector2(0.2f, -0.06f), new Vector2(0.06f, 0.12f), c, 16);
+            Art.Box(crate, "KeyTooth", new Vector2(0.09f, -0.06f), new Vector2(0.06f, 0.1f), c, 16);
         }
 
         /// <summary>Tape from a crate up across the crate above it (the pair moves together).</summary>

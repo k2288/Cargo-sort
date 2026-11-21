@@ -290,7 +290,7 @@ button.switch[aria-checked="true"]::after { inset-inline-start: 34px; }
       <button class="small purple" type="submit" data-t="go">Go</button></div>
     <div class="devrow">
       <button class="small quiet" type="button" data-lv="11">11 ?</button><button class="small quiet" type="button" data-lv="15">15</button>
-      <button class="small quiet" type="button" data-lv="18">18</button><button class="small quiet" type="button" data-lv="21">21</button><button class="small quiet" type="button" data-lv="28">28</button><button class="small quiet" type="button" data-lv="36">36</button><button class="small quiet" type="button" data-lv="40">40</button>
+      <button class="small quiet" type="button" data-lv="18">18</button><button class="small quiet" type="button" data-lv="21">21</button><button class="small quiet" type="button" data-lv="28">28</button><button class="small quiet" type="button" data-lv="36">36</button><button class="small quiet" type="button" data-lv="40">40</button><button class="small quiet" type="button" data-lv="48">48</button>
       <button class="small quiet" type="button" id="devCoins">+1000</button></div>
   </form>
 </div></div>
@@ -327,6 +327,8 @@ const isBelt = level => level >= BELT_FROM && level % 3 === 0;
 const TAPE_FROM = 28;
 // Big trucks (4 crates) from level 36; two-color trucks (2 + 2) from level 40.
 const BIG_FROM = 36, TWO_FROM = 40, BIG_CAP = 4;
+// Locked crates from level 48: a lock opens when its key crate (in another stack) leaves its stack.
+const LOCK_FROM = 48, LOCK_COLORS = ["#ffc83a", "#d5dce5", "#e08a4a"];
 // A truck: color (first color), color2 (-1 = one color), need1 = spots for the first color.
 function makeTruck(color, capacity, color2 = -1) { return { color, color2, capacity, need1: color2 >= 0 ? capacity / 2 : capacity, loaded: 0, loaded1: 0, loaded2: 0 }; }
 const accepts = (t, c) => !!t && ((c === t.color && t.loaded1 < t.need1) || (c === t.color2 && t.loaded2 < t.capacity - t.need1));
@@ -348,6 +350,7 @@ function difficulty(level) {
   if (level >= TAPE_FROM) d.tapedPairs = Math.min(1 + Math.floor((level - TAPE_FROM) / 8), 3);
   if (level >= BIG_FROM) d.bigTrucks = Math.min(1 + Math.floor((level - BIG_FROM) / 10), 3);
   if (level >= TWO_FROM) d.twoColorTrucks = Math.min(1 + Math.floor((level - TWO_FROM) / 10), 3);
+  if (level >= LOCK_FROM) d.locks = Math.min(1 + Math.floor((level - LOCK_FROM) / 10), 3);
   if (level >= FROZEN_FROM) { d.frozenCols = level >= 41 ? 2 : 1; d.frozenTaps = 3 + (level % 3); }
   return d;
 }
@@ -386,6 +389,16 @@ function build(level, d, r) {
     const row = Math.floor(r() * (col.length - 1)), tp = data.taped[c];
     if (tp[row] || (row > 0 && tp[row - 1]) || tp[row + 1]) continue;
     tp[row] = true; data.hidden[c][row] = false; data.hidden[c][row + 1] = false; k++;
+  }
+  // Locks and keys: locks[c][r] / keys[c][r] hold the lock id (0 = none). Never on taped or hidden crates.
+  data.locks = data.columns.map(col => col.map(() => 0)); data.keys = data.columns.map(col => col.map(() => 0));
+  const freeCell = (c, row) => !data.taped[c][row] && !(row > 0 && data.taped[c][row - 1]) && !data.locks[c][row] && !data.keys[c][row];
+  for (let id = 1, tries = 0; id <= (d.locks || 0) && tries < 60; tries++) {
+    const c1 = Math.floor(r() * cols), c2 = Math.floor(r() * cols); if (c1 === c2) continue;
+    const l1 = data.columns[c1].length, l2 = data.columns[c2].length; if (l1 < 2 || !l2) continue;
+    const r1 = Math.floor(r() * l1), r2 = Math.floor(r() * l2);
+    if (!freeCell(c1, r1) || !freeCell(c2, r2)) continue;
+    data.locks[c1][r1] = id; data.keys[c2][r2] = id; data.hidden[c1][r1] = false; data.hidden[c2][r2] = false; id++;
   }
   return data;
 }
@@ -445,6 +458,8 @@ class Game {
     this.hidden = (data.hidden || data.columns.map(c => c.map(() => false))).map(h => h.slice());
     this.frozen = (data.frozen || data.columns.map(() => 0)).slice();
     this.taped = (data.taped || data.columns.map(c => c.map(() => false))).map(t => t.slice());
+    this.locks = (data.locks || data.columns.map(c => c.map(() => 0))).map(t => t.slice());
+    this.keys = (data.keys || data.columns.map(c => c.map(() => 0))).map(t => t.slice());
     this.buffer = new Array(data.buffer).fill(EMPTY);
     this.bays = new Array(data.bays).fill(null);
     this.queue = data.trucks.slice(); this.next = 0; this.capacity = data.capacity; this.shipped = 0; this.status = "playing";
@@ -453,7 +468,10 @@ class Game {
     const ev = []; for (let b = 0; b < this.bays.length; b++) this.arrive(b, ev);
     this.update();
   }
-  clone() { const g = new Game(); Object.assign(g, this, { columns: this.columns.map(c => c.slice()), hidden: this.hidden.map(h => h.slice()), frozen: this.frozen.slice(), taped: this.taped.map(t => t.slice()), buffer: this.buffer.slice(), bays: this.bays.map(t => t && { ...t }) }); return g; }
+  clone() { const g = new Game(); Object.assign(g, this, { columns: this.columns.map(c => c.slice()), hidden: this.hidden.map(h => h.slice()), frozen: this.frozen.slice(), taped: this.taped.map(t => t.slice()), locks: this.locks.map(t => t.slice()), keys: this.keys.map(t => t.slice()), buffer: this.buffer.slice(), bays: this.bays.map(t => t && { ...t }) }); return g; }
+  isLocked(c, r) { return this.locks[c][r] > 0; }
+  // A key crate left its stack: its lock opens.
+  unlock(id) { if (id > 0) this.locks.forEach(col => col.forEach((v, r) => { if (v === id) col[r] = 0; })); }
   top(c) { const col = this.columns[c]; return col.length ? col[col.length - 1] : EMPTY; }
   free() { return this.buffer.filter(x => x === EMPTY).length; }
   bayFor(color) { return this.bays.findIndex(t => accepts(t, color)); }
@@ -463,13 +481,15 @@ class Game {
   tapedTop(c) { const n = this.columns[c].length; return n >= 2 && this.taped[c][n - 2]; }
   canTap(c) {
     if (this.status !== "playing" || this.frozen[c] > 0) return false; const t = this.top(c); if (t === EMPTY) return false;
+    if (this.isLocked(c, this.columns[c].length - 1)) return false;
     if (!(this.bayFor(t) >= 0 || this.free() > 0)) return false;
     if (!this.tapedTop(c)) return true;
     // A pair needs room for the second crate too (after the first one moved).
     const s = this.clone(); s.slotPicker = null; s.popTop(c); s.route(t, { from: "col", fi: c }, []);
     const b = s.top(c); return s.bayFor(b) >= 0 || s.free() > 0;
   }
-  popTop(c) { const color = this.columns[c].pop(); this.hidden[c].pop(); this.taped[c].pop(); const n = this.taped[c].length; if (n) this.taped[c][n - 1] = false; return color; }
+  popTop(c) { const color = this.columns[c].pop(); this.hidden[c].pop(); this.taped[c].pop(); const n = this.taped[c].length; if (n) this.taped[c][n - 1] = false;
+    this.locks[c].pop(); this.unlock(this.keys[c].pop()); return color; }
   tap(c) {
     const ev = []; if (!this.canTap(c)) return ev;
     const pair = this.tapedTop(c);
@@ -492,17 +512,18 @@ class Game {
         if (t && t.loaded >= t.capacity) { ev.push({ k: "depart", bay: i }); this.bays[i] = null; this.shipped++; this.arrive(i, ev); changed = true; } } }
   }
   // Crane: lift any crate (even under others or in ice).
-  canPluck(c, r) { const col = this.columns[c]; if (this.status !== "playing" || !col || r < 0 || r >= col.length) return false; return this.bayFor(col[r]) >= 0 || this.free() > 0; }
+  canPluck(c, r) { const col = this.columns[c]; if (this.status !== "playing" || !col || r < 0 || r >= col.length || this.isLocked(c, r)) return false; return this.bayFor(col[r]) >= 0 || this.free() > 0; }
   pluck(c, r, ev = []) {
     if (!this.canPluck(c, r)) return ev;
     const color = this.columns[c].splice(r, 1)[0]; this.hidden[c].splice(r, 1);
     this.taped[c].splice(r, 1); if (r > 0) this.taped[c][r - 1] = false; // the crane cuts the tape
+    this.locks[c].splice(r, 1); this.unlock(this.keys[c].splice(r, 1)[0]);
     this.route(color, { from: "col", fi: c, fr: r }, ev); this.update(); return ev;
   }
   // Magnet: fills the trucks that are waiting now with the nearest matching crates from anywhere.
   magnetTarget() {
     let best = null;
-    this.columns.forEach((col, c) => { for (let r = col.length - 1; r >= 0; r--) if (this.bayFor(col[r]) >= 0) { const d = col.length - 1 - r; if (!best || d < best.d) best = { c, r, d }; break; } });
+    this.columns.forEach((col, c) => { for (let r = col.length - 1; r >= 0; r--) if (this.bayFor(col[r]) >= 0 && !this.isLocked(c, r)) { const d = col.length - 1 - r; if (!best || d < best.d) best = { c, r, d }; break; } });
     return best;
   }
   magnet() {
@@ -847,6 +868,15 @@ function draw() {
       if (sc < 0.999) { ctx.save(); ctx.translate(sx(px), sy(py)); ctx.scale(sc, sc); ctx.translate(-sx(px), -sy(py)); }
       if (view.hidden[c][r] && r < col.length - 1) hiddenCrate(px + shake, py); else crate(px + shake, py, color);
       if (sc < 0.999) ctx.restore(); });
+    // Locks (padlock, dimmed crate) and keys (a key on the crate), colored per lock.
+    col.forEach((_, r) => { const [lx, ly] = colPos(c, r), lock = view.locks[c][r], key = view.keys[c][r];
+      if (lock) { const lc = LOCK_COLORS[(lock - 1) % 3];
+        rr(lx, ly, CRATE, CRATE, 0.14, "rgba(10,16,26,.45)");
+        ctx.lineWidth = 0.09 * scale; ctx.strokeStyle = lc; ctx.beginPath(); ctx.arc(sx(lx), sy(ly + 0.1), 0.17 * scale, Math.PI, 0); ctx.stroke();
+        rr(lx, ly - 0.06, 0.48, 0.38, 0.08, lc); dot(lx, ly - 0.03, 0.1, "#3a2a10"); rr(lx, ly - 0.12, 0.05, 0.1, 0.02, "#3a2a10"); }
+      if (key) { const kc = LOCK_COLORS[(key - 1) % 3];
+        dot(lx - 0.18, ly + 0.02, 0.3, "rgba(0,0,0,.35)"); dot(lx - 0.18, ly + 0.02, 0.26, kc); dot(lx - 0.18, ly + 0.02, 0.1, "rgba(0,0,0,.45)");
+        rr(lx + 0.07, ly + 0.02, 0.36, 0.08, 0.03, kc); rr(lx + 0.2, ly - 0.06, 0.06, 0.12, 0.02, kc); rr(lx + 0.09, ly - 0.06, 0.06, 0.1, 0.02, kc); } });
     // Tape: a strip across the two crates of each taped pair.
     view.taped[c].forEach((tp, r) => { if (!tp || r + 1 >= col.length) return;
       const [tx, ty] = colPos(c, r), my = ty + ROWSP / 2;
@@ -904,7 +934,7 @@ function tutorialStep() {
   if (active) { const top = game.top(tutCol); $("tip").textContent = t(top !== EMPTY && game.bayFor(top) >= 0 ? "tut_truck" : "tut_dock"); }
 }
 
-function cloneView(g) { return { columns: g.columns.map(c => c.slice()), hidden: g.hidden.map(h => h.slice()), taped: g.taped.map(t => t.slice()), frozen: g.frozen.slice(), buffer: g.buffer.slice(), bays: g.bays.map(t => t && { ...t, off: 0 }) }; }
+function cloneView(g) { return { columns: g.columns.map(c => c.slice()), hidden: g.hidden.map(h => h.slice()), taped: g.taped.map(t => t.slice()), locks: g.locks.map(t => t.slice()), keys: g.keys.map(t => t.slice()), frozen: g.frozen.slice(), buffer: g.buffer.slice(), bays: g.bays.map(t => t && { ...t, off: 0 }) }; }
 
 function tween(time, step) { return new Promise(res => { if (reduce) { step(1); return res(); } const t0 = performance.now();
   (function f(now) { const k = Math.min(1, (now - t0) / (time * 1000)); step(1 - (1 - k) * (1 - k)); if (k < 1) requestAnimationFrame(f); else res(); })(t0); }); }
@@ -913,7 +943,7 @@ async function play(events) {
   busy = true; hintCol = -1;
   for (const e of events) {
     if (e.k === "move") {
-      let from; if (e.from === "col") { const col = view.columns[e.fi], r = e.fr ?? col.length - 1; from = colPos(e.fi, r); col.splice(r, 1); view.hidden[e.fi].splice(r, 1); view.taped[e.fi].splice(r, 1); } else { from = bufPos(e.fi); view.buffer[e.fi] = EMPTY; }
+      let from; if (e.from === "col") { const col = view.columns[e.fi], r = e.fr ?? col.length - 1; from = colPos(e.fi, r); col.splice(r, 1); view.hidden[e.fi].splice(r, 1); view.taped[e.fi].splice(r, 1); view.locks[e.fi].splice(r, 1); view.keys[e.fi].splice(r, 1); } else { from = bufPos(e.fi); view.buffer[e.fi] = EMPTY; }
       let to; if (e.to === "bay") { const t = view.bays[e.ti]; const [bx, by] = bayPos(e.ti); const [lx, ly] = slotLocal(e.slot ?? t.loaded, t.capacity); to = [bx + lx, by + ly]; } else to = bufPos(e.ti);
       const f = { x: from[0], y: from[1], color: e.color }; flying.push(f);
       const arc = 0.6 + Math.hypot(to[0] - from[0], to[1] - from[1]) * 0.06;
@@ -988,6 +1018,7 @@ const STR = {
   tut_truck: ["Tap this column: its top crate\njumps onto the matching truck", "روی این ستون بزن: جعبه بالایی\nروی کامیون هم‌رنگ می‌پرد"],
   tut_dock: ["No truck for this color? It waits on the dock.\nDon't let the dock fill up!", "کامیون هم‌رنگ نیست؟ جعبه روی اسکله می‌ماند.\nنگذار اسکله پر شود!"], coins_price: ["{0} coins", "{0} سکه"], next_short: ["Next", "بعدی"],
   hard_level: ["Level {0} - HARD", "مرحله {0} - سخت"], hard_start: ["Hard level! Double coins", "مرحله سخت! سکه دو برابر"],
+  lock_intro: ["New: locked crates open when their key crate leaves its stack", "جدید: جعبه قفل با برداشتن جعبه کلیددار باز می‌شود"],
   big_intro: ["New: big trucks hold 4 crates", "جدید: کامیون بزرگ ۴ جعبه جا دارد"],
   two_intro: ["New: two-color trucks take 2 of each color", "جدید: کامیون دورنگ از هر رنگ ۲ جعبه می‌برد"],
   tape_intro: ["New: taped crates move together as a pair", "جدید: جعبه‌های چسب‌خورده با هم جابه‌جا می‌شوند"],
@@ -1251,6 +1282,7 @@ function start(n) {
   else if (n === TAPE_FROM) toast(t("tape_intro"), 4200);
   else if (n === BIG_FROM) toast(t("big_intro"), 4200);
   else if (n === TWO_FROM) toast(t("two_intro"), 4200);
+  else if (n === LOCK_FROM) toast(t("lock_intro"), 4200);
   else if (free.crane) toast(t("streak_bonus", wstreak), 2400); else if (n > 0 && isHard(n)) toast(t("hard_start"));
 }
 function afterMove() {

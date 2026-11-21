@@ -79,6 +79,8 @@ namespace CargoSort.Core
         public List<List<int>> Columns;
         public List<List<bool>> Hidden;   // same shape as Columns
         public List<List<bool>> Taped;    // same shape: crate r is taped to the crate above it (they move together)
+        public List<List<int>> Locks;     // same shape: lock id on a crate (0 = none); it can't move while locked
+        public List<List<int>> Keys;      // same shape: a key crate opens the lock with this id when it leaves its stack
         public int[] Frozen;              // taps left until each column thaws (0 = free)
         public int[] Buffer;
         public Truck[] Bays;
@@ -116,6 +118,8 @@ namespace CargoSort.Core
                     t.Add(data.Taped != null && c < data.Taped.Count && r < data.Taped[c].Count && data.Taped[c][r]);
                 Taped.Add(t);
             }
+            Locks = CopyIds(data.Locks);
+            Keys = CopyIds(data.Keys);
             Frozen = new int[Columns.Count];
             if (data.Frozen != null)
                 for (int c = 0; c < Frozen.Length && c < data.Frozen.Count; c++) Frozen[c] = data.Frozen[c];
@@ -196,6 +200,7 @@ namespace CargoSort.Core
             if (Frozen[column] > 0) return false;
             int top = Top(column);
             if (top == Empty) return false;
+            if (IsLocked(column, Columns[column].Count - 1)) return false;
             if (!IsWanted(top) && FreeBufferSlots == 0) return false;
             if (!IsTapedTop(column)) return true;
 
@@ -206,6 +211,30 @@ namespace CargoSort.Core
             s.Route(top, column, -1, new List<GameEvent>());
             int second = s.Top(column);
             return s.IsWanted(second) || s.FreeBufferSlots > 0;
+        }
+
+        private List<List<int>> CopyIds(List<List<int>> source)
+        {
+            var result = new List<List<int>>();
+            for (int c = 0; c < Columns.Count; c++)
+            {
+                var ids = new List<int>();
+                for (int r = 0; r < Columns[c].Count; r++)
+                    ids.Add(source != null && c < source.Count && r < source[c].Count ? source[c][r] : 0);
+                result.Add(ids);
+            }
+            return result;
+        }
+
+        public bool IsLocked(int column, int row) => Locks[column][row] > 0;
+
+        /// <summary>A key crate left its stack: every crate with that lock opens.</summary>
+        private void Unlock(int id)
+        {
+            if (id <= 0) return;
+            foreach (var col in Locks)
+                for (int r = 0; r < col.Count; r++)
+                    if (col[r] == id) col[r] = 0;
         }
 
         /// <summary>The top crate is the upper half of a taped pair, so tapping moves both.</summary>
@@ -224,6 +253,10 @@ namespace CargoSort.Core
             var taped = Taped[column];
             taped.RemoveAt(taped.Count - 1);
             if (taped.Count > 0) taped[taped.Count - 1] = false; // the new top has nothing above to be taped to
+            Locks[column].RemoveAt(Locks[column].Count - 1);
+            int key = Keys[column][Keys[column].Count - 1];
+            Keys[column].RemoveAt(Keys[column].Count - 1);
+            Unlock(key);
             return color;
         }
 
@@ -322,7 +355,7 @@ namespace CargoSort.Core
         {
             if (Status != GameStatus.Playing || column < 0 || column >= Columns.Count) return false;
             var col = Columns[column];
-            if (row < 0 || row >= col.Count) return false;
+            if (row < 0 || row >= col.Count || IsLocked(column, row)) return false;
             return IsWanted(col[row]) || FreeBufferSlots > 0;
         }
 
@@ -342,6 +375,10 @@ namespace CargoSort.Core
             Hidden[column].RemoveAt(row);
             Taped[column].RemoveAt(row);
             if (row > 0) Taped[column][row - 1] = false; // the crane cuts the tape
+            Locks[column].RemoveAt(row);
+            int key = Keys[column][row];
+            Keys[column].RemoveAt(row);
+            Unlock(key);
             Route(color, column, row == Columns[column].Count ? -1 : row, events);
             UpdateStatus();
         }
@@ -356,7 +393,7 @@ namespace CargoSort.Core
                 var col = Columns[c];
                 for (int r = col.Count - 1; r >= 0; r--)
                 {
-                    if (!IsWanted(col[r])) continue;
+                    if (!IsWanted(col[r]) || IsLocked(c, r)) continue;
                     int depth = col.Count - 1 - r;
                     if (depth < bestDepth) { bestDepth = depth; column = c; row = r; }
                     break;
@@ -499,6 +536,8 @@ namespace CargoSort.Core
                 Columns = new List<List<int>>(),
                 Hidden = new List<List<bool>>(),
                 Taped = new List<List<bool>>(),
+                Locks = new List<List<int>>(),
+                Keys = new List<List<int>>(),
                 Frozen = (int[])Frozen.Clone(),
                 Buffer = (int[])Buffer.Clone(),
                 Bays = new Truck[Bays.Length],
@@ -515,6 +554,8 @@ namespace CargoSort.Core
             foreach (var c in Columns) s.Columns.Add(new List<int>(c));
             foreach (var h in Hidden) s.Hidden.Add(new List<bool>(h));
             foreach (var t in Taped) s.Taped.Add(new List<bool>(t));
+            foreach (var l in Locks) s.Locks.Add(new List<int>(l));
+            foreach (var k in Keys) s.Keys.Add(new List<int>(k));
             for (int b = 0; b < Bays.Length; b++) s.Bays[b] = Bays[b]?.Clone();
             return s;
         }

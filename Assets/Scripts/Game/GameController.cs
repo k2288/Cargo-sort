@@ -208,6 +208,7 @@ namespace CargoSort.Game
             else if (n == LevelGenerator.TapedFromLevel) hud.Toast(Loc.T("tape_intro"), 4f);
             else if (n == LevelGenerator.BigTrucksFromLevel) hud.Toast(Loc.T("big_intro"), 4f);
             else if (n == LevelGenerator.TwoColorFromLevel) hud.Toast(Loc.T("two_intro"), 4f);
+            else if (n == LevelGenerator.LocksFromLevel) hud.Toast(Loc.T("lock_intro"), 4f);
             else if (freeUses[Booster.Crane] > 0) hud.Toast(Loc.T("streak_bonus", streak), 2.4f);
             else if (IsHard) hud.Toast(Loc.T("hard_start"), 2f);
         }

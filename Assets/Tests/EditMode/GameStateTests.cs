@@ -274,6 +274,48 @@ namespace CargoSort.Tests
                 Assert.IsTrue(Solver.CanSolve(LevelGenerator.Generate(n)), "level " + n);
         }
 
+        // Lock test level: red truck (2 crates), column 0 = red (top, locked by id 1), column 1 = red with the key.
+        private static LevelData LockLevel() => new LevelData
+        {
+            TruckCapacity = 2, BufferSize = 1, BayCount = 1, ColorCount = 1,
+            TruckColors = new List<int> { 0 },
+            Columns = new List<List<int>> { new List<int> { 0 }, new List<int> { 0 } },
+            Locks = new List<List<int>> { new List<int> { 1 }, new List<int> { 0 } },
+            Keys = new List<List<int>> { new List<int> { 0 }, new List<int> { 1 } },
+        };
+
+        [Test]
+        public void LockedCrateWaitsForItsKey()
+        {
+            var s = new GameState(LockLevel());
+            Assert.IsFalse(s.CanTap(0));       // locked
+            Assert.IsFalse(s.CanPluck(0, 0));  // the crane can't lift it either
+            s.Tap(1);                          // the key crate leaves its stack
+            Assert.IsFalse(s.IsLocked(0, 0));
+            Assert.IsTrue(s.CanTap(0));
+            s.Tap(0);
+            Assert.AreEqual(GameStatus.Won, s.Status);
+        }
+
+        [Test]
+        public void MagnetSkipsLockedCrates()
+        {
+            var s = new GameState(LockLevel());
+            Assert.IsTrue(s.MagnetTarget(out int column, out _));
+            Assert.AreEqual(1, column);        // not the locked crate in column 0
+        }
+
+        [Test]
+        public void LocksStartAtLevel48()
+        {
+            int Count(LevelData d) { int n = 0; foreach (var col in d.Locks) foreach (int id in col) if (id > 0) n++; return n; }
+            Assert.AreEqual(0, Count(LevelGenerator.Generate(47)));
+            Assert.AreEqual(1, Count(LevelGenerator.Generate(48)));
+            Assert.AreEqual(3, Count(LevelGenerator.Generate(68)));
+            for (int n = 48; n <= 80; n += 4)
+                Assert.IsTrue(Solver.CanSolve(LevelGenerator.Generate(n)), "level " + n);
+        }
+
         [Test]
         public void CraneLiftsACrateFromUnderOthers()
         {
