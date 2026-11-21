@@ -69,6 +69,8 @@ namespace CargoSort.Game
             { "home", ("Home", "خانه") },
             { "belt_intro", ("New: conveyor belt! Crates ride around and jump onto their truck", "جدید: نوار نقاله! جعبه‌ها می‌چرخند و روی کامیون همرنگ می‌پرند") },
             { "tape_intro", ("New: taped crates move together as a pair", "جدید: جعبه‌های چسب‌خورده با هم جابه‌جا می‌شوند") },
+            { "big_intro", ("New: big trucks hold 4 crates", "جدید: کامیون بزرگ ۴ جعبه جا دارد") },
+            { "two_intro", ("New: two-color trucks take 2 of each color", "جدید: کامیون دورنگ از هر رنگ ۲ جعبه می‌برد") },
             { "dev_title", ("Developer", "توسعه‌دهنده") },
             { "dev_go", ("Go to level {0}", "برو به مرحله {0}") },
             { "dev_note", ("Only in the editor and development builds", "فقط در ادیتور و نسخه‌های توسعه") },

@@ -296,9 +296,10 @@ namespace CargoSort.Game
                 Art.Box(root, "BayMark", BayPos(b) + new Vector3(0, -0.95f), new Vector2(BaySpacing - 0.4f, 0.06f), new Color(1, 1, 1, 0.18f), -1);
                 var truck = state.Bays[b];
                 if (truck == null) continue;
-                trucks[b] = CreateTruck(truck.Color, truck.Capacity);
+                trucks[b] = CreateTruck(truck.Color, truck.Capacity, truck.Color2);
                 trucks[b].Root.position = BayPos(b);
-                for (int i = 0; i < truck.Loaded; i++) AddCrateToTruck(trucks[b], Art.Crate(root, truck.Color, CrateSize));
+                for (int i = 0; i < truck.Loaded1; i++) AddCrateToTruck(trucks[b], Art.Crate(root, truck.Color, CrateSize), i);
+                for (int i = 0; i < truck.Loaded2; i++) AddCrateToTruck(trucks[b], Art.Crate(root, truck.Color2, CrateSize), truck.Need1 + i);
             }
             DrawNextTrucks();
         }
@@ -319,20 +320,29 @@ namespace CargoSort.Game
             if (nextRoot != null) Destroy(nextRoot.gameObject);
             nextRoot = new GameObject("NextTrucks").transform;
             nextRoot.SetParent(root, false);
-            var next = state.UpcomingTrucks(NextShown);
+            var next = state.UpcomingTruckInfo(NextShown);
             if (next.Count == 0) return;
 
             float ny = IsBelt ? BeltNextY : NextY;
             Art.Label(nextRoot, Loc.T("next_short"), new Vector2(-2.1f, ny), 0.42f, new Color(1, 1, 1, 0.7f), 5);
             for (int i = 0; i < next.Count; i++)
             {
-                var c = Art.CrateColor(next[i]);
+                var info = next[i];
+                var c = Art.CrateColor(info.Color);
+                bool big = info.Capacity >= LevelGenerator.BigTruckCapacity;
                 float x = -0.6f + i * 1.5f;
+                float bedWidth = big ? 0.98f : 0.78f, bedX = big ? x - 0.1f : x;
                 float alpha = i == 0 ? 1f : 0.6f;
                 Color A(Color col) => new Color(col.r, col.g, col.b, col.a * alpha);
-                Art.Box(nextRoot, "MiniShadow", new Vector2(x + 0.05f, ny - 0.3f), new Vector2(1.05f, 0.12f), A(new Color(0, 0, 0, 0.2f)), 4);
-                Art.Box(nextRoot, "MiniBed", new Vector2(x, ny + 0.02f), new Vector2(0.78f, 0.42f), A(c), 5);
-                Art.Box(nextRoot, "MiniStripe", new Vector2(x, ny - 0.15f), new Vector2(0.78f, 0.07f), A(Art.Darken(c, 0.25f)), 6);
+                Art.Box(nextRoot, "MiniShadow", new Vector2(x + 0.05f, ny - 0.3f), new Vector2(big ? 1.25f : 1.05f, 0.12f), A(new Color(0, 0, 0, 0.2f)), 4);
+                if (info.TwoColor)
+                {
+                    Art.Box(nextRoot, "MiniBed", new Vector2(bedX - bedWidth / 4f, ny + 0.02f), new Vector2(bedWidth / 2f, 0.42f), A(c), 5);
+                    Art.Box(nextRoot, "MiniBed2", new Vector2(bedX + bedWidth / 4f, ny + 0.02f), new Vector2(bedWidth / 2f, 0.42f), A(Art.CrateColor(info.Color2)), 5);
+                }
+                else Art.Box(nextRoot, "MiniBed", new Vector2(bedX, ny + 0.02f), new Vector2(bedWidth, 0.42f), A(c), 5);
+                if (big) Art.Label(nextRoot, info.Capacity.ToString(), new Vector2(bedX, ny + 0.04f), 0.3f, A(Color.white), 7);
+                Art.Box(nextRoot, "MiniStripe", new Vector2(bedX, ny - 0.15f), new Vector2(bedWidth, 0.07f), A(Art.Darken(c, 0.25f)), 6);
                 Art.Box(nextRoot, "MiniCab", new Vector2(x + 0.55f, ny - 0.02f), new Vector2(0.3f, 0.34f), A(Art.Darken(c, 0.15f)), 5);
                 Art.Box(nextRoot, "MiniWindow", new Vector2(x + 0.6f, ny + 0.06f), new Vector2(0.14f, 0.12f), A(Art.Window), 6);
                 Art.DrawWheel(nextRoot, new Vector2(x - 0.2f, ny - 0.24f), 0.2f, 7);
@@ -386,21 +396,21 @@ namespace CargoSort.Game
         }
 
         /// <summary>Flatbed truck: side rails, cab with window, headlight and roof light, and hubcap wheels.</summary>
-        private TruckView CreateTruck(int color, int capacity)
+        private TruckView CreateTruck(int color, int capacity, int color2 = -1)
         {
             var view = new TruckView { Capacity = capacity, Root = new GameObject("Truck").transform };
             view.Root.SetParent(root, false);
             view.Body = new GameObject("Body").transform;
             view.Body.SetParent(view.Root, false);
-            Art.BuildSprites(view.Root, Art.TruckShapes(color, capacity, Progress.TruckSkin), view.Body);
+            Art.BuildSprites(view.Root, Art.TruckShapes(color, capacity, Progress.TruckSkin, color2), view.Body);
             return view;
         }
 
-        private void AddCrateToTruck(TruckView truck, Transform crate)
+        private void AddCrateToTruck(TruckView truck, Transform crate, int spot)
         {
             crate.SetParent(truck.Body, true);
             crate.localRotation = Quaternion.identity;
-            crate.localPosition = TruckSlotLocal(truck.Crates.Count, truck.Capacity);
+            crate.localPosition = TruckSlotLocal(spot, truck.Capacity);
             crate.localScale = Vector3.one * 0.95f;
             truck.Crates.Add(crate);
         }
@@ -423,7 +433,7 @@ namespace CargoSort.Game
                 {
                     case EventKind.MoveCrate: yield return MoveCrate(e); break;
                     case EventKind.TruckDepart: yield return Depart(e.Bay); break;
-                    case EventKind.TruckArrive: yield return Arrive(e.Bay, e.Color, s.TruckCapacity); break;
+                    case EventKind.TruckArrive: yield return Arrive(e.Bay, e.Color, e.Capacity > 0 ? e.Capacity : s.TruckCapacity, e.Color2); break;
                 }
             }
             state = s;
@@ -456,11 +466,13 @@ namespace CargoSort.Game
 
             Vector3 target;
             TruckView truck = null;
+            int spot = 0;
             if (e.To == Place.Bay)
             {
                 truck = trucks[e.ToIndex];
                 if (truck == null) yield break;
-                target = truck.Body.TransformPoint(TruckSlotLocal(truck.Crates.Count, truck.Capacity));
+                spot = e.ToSlot >= 0 ? e.ToSlot : truck.Crates.Count;
+                target = truck.Body.TransformPoint(TruckSlotLocal(spot, truck.Capacity));
             }
             else
             {
@@ -490,7 +502,7 @@ namespace CargoSort.Game
 
             if (truck != null)
             {
-                AddCrateToTruck(truck, crate);
+                AddCrateToTruck(truck, crate, spot);
                 Feedback.CrateLoaded(truck.Crates.Count - 1);
                 Puff(target + Vector3.down * 0.4f, 4, 0.5f);
                 StartCoroutine(Squash(crate));
@@ -523,9 +535,9 @@ namespace CargoSort.Game
             Destroy(truck.Root.gameObject);
         }
 
-        private IEnumerator Arrive(int bay, int color, int capacity)
+        private IEnumerator Arrive(int bay, int color, int capacity, int color2)
         {
-            var truck = CreateTruck(color, capacity);
+            var truck = CreateTruck(color, capacity, color2);
             trucks[bay] = truck;
             truck.Root.position = BayPos(bay) + Vector3.left * OffscreenX;
             yield return Slide(truck.Root, BayPos(bay), TruckTime * 1.25f);

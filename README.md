@@ -36,8 +36,9 @@ colors, more trucks and a smaller dock; every 5th level is a hard level with one
 Tune it in `LevelGenerator.ForLevel`.
 
 Twists come in over time: "?" crates from level 11, the **conveyor belt** from level 15 (then every
-3rd level), ice from level 21, and **taped crates** from level 28 (two crates taped together move as
-a pair and need room for both; Crane and Magnet cut the tape). On belt levels the dock becomes a moving belt with 2 more spots;
+3rd level), ice from level 21, **taped crates** from level 28 (two crates taped together move as
+a pair and need room for both; Crane and Magnet cut the tape), **big trucks** (4 crates) from level 36,
+and **two-color trucks** (2 crates of each of two colors) from level 40. On belt levels the dock becomes a moving belt with 2 more spots;
 crates ride around and jump onto a truck of their color as they pass under it. Belt levels are
 checked with dock rules, because on the belt a player can always wait for a crate to come around.
 

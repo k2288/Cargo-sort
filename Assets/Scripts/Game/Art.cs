@@ -237,17 +237,22 @@ namespace CargoSort.Game
 
         public const float SlotSpacing = 0.95f;
 
+        /// <summary>Big trucks pack their spots a little tighter so two still fit side by side.</summary>
+        public static float SlotSpacingFor(int capacity) => capacity >= 4 ? 0.88f : SlotSpacing;
+
         public static Vector3 TruckSlotLocal(int slot, int capacity) =>
-            new Vector3((slot - (capacity - 1) / 2f) * SlotSpacing - 0.45f, 0.12f, 0f);
+            new Vector3((slot - (capacity - 1) / 2f) * SlotSpacingFor(capacity) - 0.45f, 0.12f, 0f);
 
         /// <summary>Flatbed truck: side rails, cab with window, headlight and roof light, hubcap wheels, plus the skin's extras.</summary>
-        public static List<Shape> TruckShapes(int color, int capacity, string skin)
+        /// <param name="color2">Second color of a two-color truck (-1 = one color): its half of the rail and its spots are tinted.</param>
+        public static List<Shape> TruckShapes(int color, int capacity, string skin, int color2 = -1)
         {
             var list = new ShapeList();
 
             var c = CrateColor(color);
-            float bedWidth = capacity * SlotSpacing + 0.2f;
-            float bedLeft = TruckSlotLocal(0, capacity).x - SlotSpacing / 2f - 0.1f;
+            float spacing = SlotSpacingFor(capacity);
+            float bedWidth = capacity * spacing + 0.2f;
+            float bedLeft = TruckSlotLocal(0, capacity).x - spacing / 2f - 0.1f;
             float bedCenter = bedLeft + bedWidth / 2f;
             float cabX = bedLeft + bedWidth + 0.5f;
             float length = cabX + 0.45f - bedLeft + 0.3f;
@@ -260,10 +265,21 @@ namespace CargoSort.Game
             list.Box(true, new Vector2(bedCenter, -0.52f), new Vector2(bedWidth + 0.1f, 0.16f), new Color32(0x2A, 0x2F, 0x37, 0xFF), 4);
             list.Box(true, new Vector2(bedCenter, 0.05f), new Vector2(bedWidth, 1.15f), TruckBed, 4);
             list.Box(true, new Vector2(bedCenter, 0.58f), new Vector2(bedWidth, 0.08f), Lighten(TruckBed, 0.25f), 5);
-            list.Box(true, new Vector2(bedCenter, -0.44f), new Vector2(bedWidth, 0.22f), c, 5);
+            if (color2 >= 0)
+            {
+                list.Box(true, new Vector2(bedLeft + bedWidth * 0.25f, -0.44f), new Vector2(bedWidth / 2f, 0.22f), c, 5);
+                list.Box(true, new Vector2(bedLeft + bedWidth * 0.75f, -0.44f), new Vector2(bedWidth / 2f, 0.22f), CrateColor(color2), 5);
+            }
+            else list.Box(true, new Vector2(bedCenter, -0.44f), new Vector2(bedWidth, 0.22f), c, 5);
             list.Box(true, new Vector2(bedCenter, -0.37f), new Vector2(bedWidth, 0.05f), Lighten(c, 0.35f), 6);
             for (int i = 0; i < capacity; i++)
+            {
                 list.Box(true, TruckSlotLocal(i, capacity), new Vector2(0.86f, 0.86f), Darken(TruckBed, 0.25f), 5);
+                if (color2 < 0) continue;
+                // Two-color truck: tint each spot with the color it takes (first half: color, second half: color2).
+                var tintColor = CrateColor(i < capacity / 2 ? color : color2);
+                list.Box(true, TruckSlotLocal(i, capacity), new Vector2(0.62f, 0.62f), new Color(tintColor.r, tintColor.g, tintColor.b, 0.45f), 6);
+            }
 
             list.Box(true, new Vector2(cabX, -0.05f), new Vector2(0.9f, 1.0f), c, 4);
             list.Box(true, new Vector2(cabX, 0.4f), new Vector2(0.9f, 0.1f), Lighten(c, 0.3f), 5);

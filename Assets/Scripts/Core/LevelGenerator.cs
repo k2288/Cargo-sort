@@ -16,6 +16,8 @@ namespace CargoSort.Core
         public List<List<bool>> Hidden = new List<List<bool>>(); // same shape as Columns
         public List<int> Frozen = new List<int>();               // ice taps per column
         public List<List<bool>> Taped = new List<List<bool>>();  // [c][r]: crate r is taped to the crate above
+        public List<int> TruckCapacities = new List<int>();      // per truck in TruckColors (big trucks hold more)
+        public List<int> TruckSecondColors = new List<int>();    // per truck: second color of a two-color truck, or -1
         public bool Hard;
         public bool Belt;   // conveyor belt instead of the dock (see GameState.Belt)
     }
@@ -33,6 +35,8 @@ namespace CargoSort.Core
         public int FrozenColumns;
         public int FrozenTaps;
         public int TapedPairs;
+        public int BigTrucks;
+        public int TwoColorTrucks;
         public bool Hard;
     }
 
@@ -74,8 +78,15 @@ namespace CargoSort.Core
                 d.FrozenTaps = 3 + (level % 3);
             }
             if (level >= TapedFromLevel) d.TapedPairs = Math.Min(1 + (level - TapedFromLevel) / 8, 3);
+            if (level >= BigTrucksFromLevel) d.BigTrucks = Math.Min(1 + (level - BigTrucksFromLevel) / 10, 3);
+            if (level >= TwoColorFromLevel) d.TwoColorTrucks = Math.Min(1 + (level - TwoColorFromLevel) / 10, 3);
             return d;
         }
+
+        /// <summary>Big trucks (4 crates) start here; two-color trucks (2 + 2) a bit later.</summary>
+        public const int BigTrucksFromLevel = 36;
+        public const int TwoColorFromLevel = 40;
+        public const int BigTruckCapacity = 4;
 
         /// <summary>Taped crates (pairs that move together) start here.</summary>
         public const int TapedFromLevel = 28;
@@ -180,9 +191,31 @@ namespace CargoSort.Core
             for (int i = 0; i < d.Trucks; i++) data.TruckColors.Add(i % d.Colors);
             Shuffle(data.TruckColors, rng);
 
+            // Special trucks (random numbers only drawn when a level has them, so earlier levels stay the same).
+            foreach (var _ in data.TruckColors)
+            {
+                data.TruckCapacities.Add(d.Capacity);
+                data.TruckSecondColors.Add(-1);
+            }
+            for (int k = 0; k < d.BigTrucks; k++)
+            {
+                int i = PickPlainTruck(data, d.Capacity, rng);
+                if (i >= 0) data.TruckCapacities[i] = BigTruckCapacity;
+            }
+            for (int k = 0; k < d.TwoColorTrucks && d.Colors >= 2; k++)
+            {
+                int i = PickPlainTruck(data, d.Capacity, rng);
+                if (i < 0) continue;
+                data.TruckCapacities[i] = BigTruckCapacity;
+                data.TruckSecondColors[i] = (data.TruckColors[i] + 1 + rng.Next(d.Colors - 1)) % d.Colors;
+            }
+
             var crates = new List<int>();
-            foreach (var color in data.TruckColors)
-                for (int k = 0; k < d.Capacity; k++) crates.Add(color);
+            for (int t = 0; t < data.TruckColors.Count; t++)
+            {
+                int cap = data.TruckCapacities[t], second = data.TruckSecondColors[t];
+                for (int k = 0; k < cap; k++) crates.Add(second >= 0 && k >= cap / 2 ? second : data.TruckColors[t]);
+            }
             Shuffle(crates, rng);
 
             int columns = Math.Max(d.Columns, (crates.Count + d.MaxHeight - 1) / d.MaxHeight);
@@ -230,6 +263,16 @@ namespace CargoSort.Core
                 k++;
             }
             return data;
+        }
+
+        private static int PickPlainTruck(LevelData data, int capacity, Random rng)
+        {
+            for (int tries = 0; tries < 30; tries++)
+            {
+                int i = rng.Next(data.TruckColors.Count);
+                if (data.TruckCapacities[i] == capacity) return i;
+            }
+            return -1;
         }
 
         private static void Shuffle<T>(IList<T> list, Random rng)

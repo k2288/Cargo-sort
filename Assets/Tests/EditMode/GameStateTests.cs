@@ -75,7 +75,9 @@ namespace CargoSort.Tests
                 Assert.IsTrue(Solver.CanSolve(data), "level " + level);
                 int crates = 0;
                 foreach (var c in data.Columns) crates += c.Count;
-                Assert.AreEqual(data.TruckColors.Count * data.TruckCapacity, crates, "level " + level);
+                int spots = 0;
+                foreach (int cap in data.TruckCapacities) spots += cap; // big and two-color trucks hold more
+                Assert.AreEqual(spots, crates, "level " + level);
             }
             Assert.AreEqual(LevelGenerator.Generate(9).TruckColors, LevelGenerator.Generate(9).TruckColors);
         }
@@ -215,6 +217,61 @@ namespace CargoSort.Tests
             Assert.AreEqual(3, Count(LevelGenerator.Generate(44)));
             for (int level = 28; level <= 60; level += 4)
                 Assert.IsTrue(Solver.CanSolve(LevelGenerator.Generate(level)), "level " + level);
+        }
+
+        [Test]
+        public void BigTruckHoldsFourCrates()
+        {
+            var s = new GameState(new LevelData
+            {
+                TruckCapacity = 3, BufferSize = 2, BayCount = 1, ColorCount = 1,
+                TruckColors = new List<int> { 0 }, TruckCapacities = new List<int> { 4 }, TruckSecondColors = new List<int> { -1 },
+                Columns = new List<List<int>> { new List<int> { 0, 0 }, new List<int> { 0, 0 } },
+            });
+            Assert.AreEqual(4, s.Bays[0].Capacity);
+            s.Tap(0); s.Tap(0); s.Tap(1);
+            Assert.AreEqual(3, s.Bays[0].Loaded);       // still waiting for the 4th
+            s.Tap(1);
+            Assert.AreEqual(GameStatus.Won, s.Status);
+        }
+
+        [Test]
+        public void TwoColorTruckTakesTwoOfEach()
+        {
+            var s = new GameState(new LevelData
+            {
+                TruckCapacity = 3, BufferSize = 3, BayCount = 1, ColorCount = 2,
+                TruckColors = new List<int> { 0 }, TruckCapacities = new List<int> { 4 }, TruckSecondColors = new List<int> { 1 },
+                Columns = new List<List<int>> { new List<int> { 1, 1, 0 }, new List<int> { 0 } },
+            });
+            var truck = s.Bays[0];
+            var first = s.Tap(0);                       // red -> spot 0
+            Assert.AreEqual(0, first[0].ToSlot);
+            s.Tap(1);                                   // red -> spot 1 (red half now full)
+            Assert.IsFalse(truck.Accepts(0));
+            Assert.IsTrue(truck.Accepts(1));
+            var blue = s.Tap(0);                        // blue -> spot 2
+            Assert.AreEqual(2, blue[0].ToSlot);
+            s.Tap(0);
+            Assert.AreEqual(GameStatus.Won, s.Status);
+        }
+
+        [Test]
+        public void SpecialTrucksStartAt36And40()
+        {
+            int Big(LevelData d) { int n = 0; for (int i = 0; i < d.TruckCapacities.Count; i++) if (d.TruckCapacities[i] == 4 && d.TruckSecondColors[i] < 0) n++; return n; }
+            int Two(LevelData d) { int n = 0; foreach (int c in d.TruckSecondColors) if (c >= 0) n++; return n; }
+            Assert.AreEqual(0, Big(LevelGenerator.Generate(35)));
+            Assert.AreEqual(1, Big(LevelGenerator.Generate(36)));
+            Assert.AreEqual(0, Two(LevelGenerator.Generate(39)));
+            Assert.AreEqual(1, Two(LevelGenerator.Generate(40)));
+            var level = LevelGenerator.Generate(50);
+            int crates = 0, spots = 0;
+            foreach (var col in level.Columns) crates += col.Count;
+            foreach (int cap in level.TruckCapacities) spots += cap;
+            Assert.AreEqual(spots, crates);             // every crate has a spot on some truck
+            for (int n = 36; n <= 70; n += 3)
+                Assert.IsTrue(Solver.CanSolve(LevelGenerator.Generate(n)), "level " + n);
         }
 
         [Test]

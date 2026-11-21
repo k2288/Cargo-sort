@@ -290,7 +290,7 @@ button.switch[aria-checked="true"]::after { inset-inline-start: 34px; }
       <button class="small purple" type="submit" data-t="go">Go</button></div>
     <div class="devrow">
       <button class="small quiet" type="button" data-lv="11">11 ?</button><button class="small quiet" type="button" data-lv="15">15</button>
-      <button class="small quiet" type="button" data-lv="18">18</button><button class="small quiet" type="button" data-lv="21">21</button><button class="small quiet" type="button" data-lv="28">28</button>
+      <button class="small quiet" type="button" data-lv="18">18</button><button class="small quiet" type="button" data-lv="21">21</button><button class="small quiet" type="button" data-lv="28">28</button><button class="small quiet" type="button" data-lv="36">36</button><button class="small quiet" type="button" data-lv="40">40</button>
       <button class="small quiet" type="button" id="devCoins">+1000</button></div>
   </form>
 </div></div>
@@ -325,6 +325,13 @@ const HIDDEN_FROM = 11, FROZEN_FROM = 21, BELT_FROM = 15;
 const isBelt = level => level >= BELT_FROM && level % 3 === 0;
 // Taped crates: from level 28, two crates in a stack taped together move as a pair.
 const TAPE_FROM = 28;
+// Big trucks (4 crates) from level 36; two-color trucks (2 + 2) from level 40.
+const BIG_FROM = 36, TWO_FROM = 40, BIG_CAP = 4;
+// A truck: color (first color), color2 (-1 = one color), need1 = spots for the first color.
+function makeTruck(color, capacity, color2 = -1) { return { color, color2, capacity, need1: color2 >= 0 ? capacity / 2 : capacity, loaded: 0, loaded1: 0, loaded2: 0 }; }
+const accepts = (t, c) => !!t && ((c === t.color && t.loaded1 < t.need1) || (c === t.color2 && t.loaded2 < t.capacity - t.need1));
+// Loads one crate and returns the spot it goes to (first-color spots come first).
+function loadTruck(t, c) { t.loaded++; if (c === t.color && t.loaded1 < t.need1) return t.loaded1++; return t.need1 + t.loaded2++; }
 const BELT_EXTRA = 2;
 const isHard = level => level >= 5 && level % 5 === 0;
 function difficulty(level) {
@@ -339,6 +346,8 @@ function difficulty(level) {
   d.hard = isHard(level);
   if (level >= HIDDEN_FROM) d.hiddenPct = Math.min(20 + Math.floor((level - HIDDEN_FROM) / 2), 30);
   if (level >= TAPE_FROM) d.tapedPairs = Math.min(1 + Math.floor((level - TAPE_FROM) / 8), 3);
+  if (level >= BIG_FROM) d.bigTrucks = Math.min(1 + Math.floor((level - BIG_FROM) / 10), 3);
+  if (level >= TWO_FROM) d.twoColorTrucks = Math.min(1 + Math.floor((level - TWO_FROM) / 10), 3);
   if (level >= FROZEN_FROM) { d.frozenCols = level >= 41 ? 2 : 1; d.frozenTaps = 3 + (level % 3); }
   return d;
 }
@@ -347,8 +356,15 @@ function build(level, d, r) {
   const data = { level, capacity: d.capacity, buffer: d.buffer, bays: d.bays, columns: [], trucks: [] };
   for (let i = 0; i < d.trucks; i++) data.trucks.push(i % d.colors);
   shuffle(data.trucks, r);
+  // Special trucks (random numbers only drawn when the level has them, so earlier levels stay the same).
+  data.truckCaps = data.trucks.map(() => d.capacity); data.truckColor2 = data.trucks.map(() => -1);
+  const pick = () => { for (let tries = 0; tries < 30; tries++) { const i = Math.floor(r() * data.trucks.length); if (data.truckCaps[i] === d.capacity) return i; } return -1; };
+  for (let k = 0; k < (d.bigTrucks || 0); k++) { const i = pick(); if (i >= 0) data.truckCaps[i] = BIG_CAP; }
+  for (let k = 0; k < (d.twoColorTrucks || 0) && d.colors >= 2; k++) { const i = pick(); if (i < 0) continue;
+    const c2 = (data.trucks[i] + 1 + Math.floor(r() * (d.colors - 1))) % d.colors; data.truckCaps[i] = BIG_CAP; data.truckColor2[i] = c2; }
   const crates = [];
-  for (const c of data.trucks) for (let k = 0; k < d.capacity; k++) crates.push(c);
+  data.trucks.forEach((c, i) => { const cap = data.truckCaps[i], c2 = data.truckColor2[i];
+    for (let k = 0; k < cap; k++) crates.push(c2 >= 0 && k >= cap / 2 ? c2 : c); });
   shuffle(crates, r);
   const cols = Math.max(d.columns, Math.ceil(crates.length / d.maxHeight));
   for (let c = 0; c < cols; c++) data.columns.push([]);
@@ -432,6 +448,7 @@ class Game {
     this.buffer = new Array(data.buffer).fill(EMPTY);
     this.bays = new Array(data.bays).fill(null);
     this.queue = data.trucks.slice(); this.next = 0; this.capacity = data.capacity; this.shipped = 0; this.status = "playing";
+    this.caps = (data.truckCaps || data.trucks.map(() => data.capacity)).slice(); this.color2 = (data.truckColor2 || data.trucks.map(() => -1)).slice();
     this.belt = !!data.belt; // belt crates load only when they pass their truck (the view moves the belt)
     const ev = []; for (let b = 0; b < this.bays.length; b++) this.arrive(b, ev);
     this.update();
@@ -439,9 +456,9 @@ class Game {
   clone() { const g = new Game(); Object.assign(g, this, { columns: this.columns.map(c => c.slice()), hidden: this.hidden.map(h => h.slice()), frozen: this.frozen.slice(), taped: this.taped.map(t => t.slice()), buffer: this.buffer.slice(), bays: this.bays.map(t => t && { ...t }) }); return g; }
   top(c) { const col = this.columns[c]; return col.length ? col[col.length - 1] : EMPTY; }
   free() { return this.buffer.filter(x => x === EMPTY).length; }
-  bayFor(color) { return this.bays.findIndex(t => t && t.loaded < t.capacity && t.color === color); }
+  bayFor(color) { return this.bays.findIndex(t => accepts(t, color)); }
   isHidden(c, r) { return this.hidden[c][r] && r < this.columns[c].length - 1; }
-  upcoming(n) { return this.queue.slice(this.next, this.next + n); }
+  upcoming(n) { const out = []; for (let i = this.next; i < Math.min(this.queue.length, this.next + n); i++) out.push(makeTruck(this.queue[i], this.caps[i], this.color2[i])); return out; }
   // The top crate is the upper half of a taped pair (both move together).
   tapedTop(c) { const n = this.columns[c].length; return n >= 2 && this.taped[c][n - 2]; }
   canTap(c) {
@@ -464,7 +481,7 @@ class Game {
   // Sends a crate to its truck, or to the dock; then trucks that are full leave and new ones arrive.
   route(color, src, ev) {
     const b = this.bayFor(color);
-    if (b >= 0) { this.bays[b].loaded++; ev.push({ k: "move", ...src, to: "bay", ti: b, color }); }
+    if (b >= 0) { const slot = loadTruck(this.bays[b], color); ev.push({ k: "move", ...src, to: "bay", ti: b, color, slot }); }
     else { const s = this.slotPicker ? this.slotPicker(src, this.buffer) : this.buffer.indexOf(EMPTY); this.buffer[s] = color; ev.push({ k: "move", ...src, to: "buf", ti: s, color }); }
     this.resolveFull(ev);
   }
@@ -506,8 +523,8 @@ class Game {
   // Belt: a crate passing under a truck of its color jumps on.
   beltLoad(slot, b) {
     const ev = [], t = this.bays[b], c = this.buffer[slot];
-    if (this.status !== "playing" || !t || c === EMPTY || t.color !== c || t.loaded >= t.capacity) return ev;
-    this.buffer[slot] = EMPTY; t.loaded++; ev.push({ k: "move", from: "buf", fi: slot, to: "bay", ti: b, color: c });
+    if (this.status !== "playing" || c === EMPTY || !accepts(t, c)) return ev;
+    this.buffer[slot] = EMPTY; const spot = loadTruck(t, c); ev.push({ k: "move", from: "buf", fi: slot, to: "bay", ti: b, color: c, slot: spot });
     this.resolveFull(ev); this.update(); return ev;
   }
   // Loads every belt crate that has a truck (as if the player waited one loop). Used by the solver.
@@ -518,10 +535,11 @@ class Game {
   }
   arrive(b, ev) {
     if (this.next >= this.queue.length) return;
-    const t = { color: this.queue[this.next++], capacity: this.capacity, loaded: 0 }; this.bays[b] = t; ev.push({ k: "arrive", bay: b, color: t.color });
+    const i0 = this.next++, t = makeTruck(this.queue[i0], this.caps[i0], this.color2[i0]); this.bays[b] = t;
+    ev.push({ k: "arrive", bay: b, color: t.color, truck: { ...t } });
     if (this.belt) return; // belt crates board as they pass
     for (let i = 0; i < this.buffer.length && t.loaded < t.capacity; i++)
-      if (this.buffer[i] === t.color) { this.buffer[i] = EMPTY; t.loaded++; ev.push({ k: "move", from: "buf", fi: i, to: "bay", ti: b, color: t.color }); }
+      if (this.buffer[i] !== EMPTY && accepts(t, this.buffer[i])) { const c = this.buffer[i]; this.buffer[i] = EMPTY; const slot = loadTruck(t, c); ev.push({ k: "move", from: "buf", fi: i, to: "bay", ti: b, color: c, slot }); }
   }
   addSlot() { this.buffer.push(EMPTY); if (this.status === "lost") this.status = "playing"; this.update(); }
   update() {
@@ -610,7 +628,7 @@ function beltTick() {
     const c = game.buffer[i]; if (c === EMPTY) continue;
     const s = slotParam(i);
     for (let b = 0; b < game.bays.length; b++) {
-      const t = game.bays[b]; if (!t || t.color !== c || t.loaded >= t.capacity) continue;
+      const t = game.bays[b]; if (!accepts(t, c)) continue;
       const d = s - bayParam(b);
       if (d >= -0.1 && d < 2.2) { const ev = game.beltLoad(i, b); if (ev.length) { play(ev); return; } }
     }
@@ -636,7 +654,8 @@ function drawBelt() {
   view.buffer.forEach((c, i) => { const [x, y] = bufPos(i); rr(x, y, CRATE + 0.06, CRATE + 0.06, 0.14, "rgba(255,255,255,.1)"); if (c !== EMPTY) crate(x, y, c); });
 }
 function bayPos(b) { return [(b - (view.bays.length - 1) / 2) * BAYSP, BAYY]; }
-function slotLocal(i, cap) { return [(i - (cap - 1) / 2) * SLOTSP - 0.45, 0.12]; }
+const slotSp = cap => cap >= 4 ? 0.88 : SLOTSP; // big trucks pack spots a bit tighter so two fit side by side
+function slotLocal(i, cap) { return [(i - (cap - 1) / 2) * slotSp(cap) - 0.45, 0.12]; }
 
 function rr(x, y, w, h, r, fill) { // world-space rounded rect centered at x,y
   const X = sx(x - w / 2), Y = sy(y + h / 2), Wp = w * scale, Hp = h * scale, R = Math.min(r * scale, Wp / 2, Hp / 2);
@@ -714,16 +733,21 @@ function label(text, x, y, size, fill, align = "center") {
   ctx.fillText(text, sx(x), sy(y) + size * scale * 0.06);
 }
 function wheel(x, y, d) { dot(x, y, d, "#15181e"); dot(x, y, d * 0.45, "#9aa3ad"); dot(x, y, d * 0.16, "#15181e"); }
-function miniTruck(x, y, color, alpha) {
-  ctx.globalAlpha = alpha; const c = COLORS[color];
-  rr(x + 0.05, y - 0.3, 1.05, 0.12, 0.06, "rgba(0,0,0,.2)");
-  rr(x, y + 0.02, 0.78, 0.42, 0.08, c); rr(x, y - 0.15, 0.78, 0.07, 0.03, shade(c, 0.25));
+function miniTruck(x, y, tk, alpha) {
+  ctx.globalAlpha = alpha; const c = COLORS[tk.color], big = tk.capacity >= BIG_CAP, bw = big ? 0.98 : 0.78, bx = big ? x - 0.1 : x;
+  rr(x + 0.05, y - 0.3, 1.05 + (big ? 0.2 : 0), 0.12, 0.06, "rgba(0,0,0,.2)");
+  if (tk.color2 >= 0) { rr(bx - bw / 4, y + 0.02, bw / 2, 0.42, 0.06, c); rr(bx + bw / 4, y + 0.02, bw / 2, 0.42, 0.06, COLORS[tk.color2]); }
+  else rr(bx, y + 0.02, bw, 0.42, 0.08, c);
+  rr(bx, y - 0.15, bw, 0.07, 0.03, shade(c, 0.25));
+  if (big) label("4", bx, y + 0.04, 0.3, "#fff");
   rr(x + 0.55, y - 0.02, 0.3, 0.34, 0.07, shade(c, 0.15)); rr(x + 0.6, y + 0.06, 0.14, 0.12, 0.03, "#cfeaff");
   wheel(x - 0.2, y - 0.24, 0.2); wheel(x + 0.5, y - 0.24, 0.2); ctx.globalAlpha = 1;
 }
 // Flatbed truck with side rails, a cab with window, headlight and roof light, and hubcap wheels.
-function truck(x, y, color, loaded, cap, bounce = 0) {
-  const c = COLORS[color], bedW = cap * SLOTSP + 0.2, bedL = slotLocal(0, cap)[0] - SLOTSP / 2 - 0.1, bedC = bedL + bedW / 2, cabX = bedL + bedW + 0.5;
+// tk: { color, color2, capacity, need1, loaded1, loaded2 } (two-color trucks show which spots take which color).
+function truck(x, y, tk, bounce = 0) {
+  const color = tk.color, cap = tk.capacity, two = tk.color2 >= 0;
+  const c = COLORS[color], bedW = cap * slotSp(cap) + 0.2, bedL = slotLocal(0, cap)[0] - SLOTSP / 2 - 0.1, bedC = bedL + bedW / 2, cabX = bedL + bedW + 0.5;
   const wheels = [bedL + 0.55, bedL + bedW - 0.4, cabX + 0.05];
   rr(x + (bedL + cabX + 0.45) / 2 + 0.1, y - 0.86, cabX + 0.45 - bedL + 0.3, 0.2, 0.1, "rgba(0,0,0,.25)");
   for (const wx of wheels) wheel(x + wx, y - 0.62, 0.52);
@@ -731,8 +755,11 @@ function truck(x, y, color, loaded, cap, bounce = 0) {
   rr(x + bedC, y - 0.52, bedW + 0.1, 0.16, 0.05, "#2a2f37");
   rr(x + bedC, y + 0.05, bedW, 1.15, 0.18, theme().bed);
   rr(x + bedC, y + 0.58, bedW, 0.08, 0.04, tint(theme().bed, 0.25));
-  rr(x + bedC, y - 0.44, bedW, 0.22, 0.06, c); rr(x + bedC, y - 0.37, bedW, 0.05, 0.02, tint(c, 0.35));
-  for (let i = 0; i < cap; i++) { const [lx, ly] = slotLocal(i, cap); rr(x + lx, y + ly, CRATE, CRATE, 0.14, shade(theme().bed, 0.25)); }
+  if (two) { const c2 = COLORS[tk.color2]; rr(x + bedL + bedW / 4, y - 0.44, bedW / 2, 0.22, 0.06, c); rr(x + bedL + bedW * 0.75, y - 0.44, bedW / 2, 0.22, 0.06, c2); }
+  else rr(x + bedC, y - 0.44, bedW, 0.22, 0.06, c);
+  rr(x + bedC, y - 0.37, bedW, 0.05, 0.02, tint(c, 0.35));
+  for (let i = 0; i < cap; i++) { const [lx, ly] = slotLocal(i, cap); rr(x + lx, y + ly, CRATE, CRATE, 0.14, shade(theme().bed, 0.25));
+    if (two) { ctx.globalAlpha = 0.45; rr(x + lx, y + ly, CRATE - 0.24, CRATE - 0.24, 0.1, COLORS[i < tk.need1 ? color : tk.color2]); ctx.globalAlpha = 1; } }
   rr(x + cabX, y - 0.05, 0.9, 1.0, 0.22, c);
   rr(x + cabX, y + 0.4, 0.9, 0.1, 0.05, tint(c, 0.3));
   rr(x + cabX - 0.05, y - 0.32, 0.8, 0.07, 0.03, shade(c, 0.25));
@@ -741,7 +768,11 @@ function truck(x, y, color, loaded, cap, bounce = 0) {
   rr(x + cabX + 0.48, y - 0.22, 0.12, 0.16, 0.04, "#fff3b0");
   rr(x + cabX + 0.45, y - 0.48, 0.16, 0.12, 0.03, "#7b8794");
   truckDeco(x, y, c, cabX, bedL, bedW);
-  for (let i = 0; i < loaded; i++) { const [lx, ly] = slotLocal(i, cap); const sq = i === loaded - 1 ? squash : 0; crateSquash(x + lx, y + ly, color, 0.95, sq); }
+  const l1 = tk.loaded1 ?? tk.loaded, l2 = tk.loaded2 || 0;
+  for (let i = 0; i < cap; i++) {
+    const first = i < tk.need1, filled = first ? i < l1 : i - tk.need1 < l2; if (!filled) continue;
+    const [lx, ly] = slotLocal(i, cap); crateSquash(x + lx, y + ly, first ? color : tk.color2, 0.95, i === tk.last ? squash : 0);
+  }
 }
 // A crate that squashes a little when it lands (k: 1 just landed -> 0 settled).
 function crateSquash(x, y, color, s, k) {
@@ -795,7 +826,7 @@ function draw() {
   if (!view) return;
   backdrop();
   // trucks
-  view.bays.forEach((t, b) => { const [x, y] = bayPos(b); rr(x, y - 0.95, BAYSP - 0.4, 0.06, 0.03, "rgba(255,255,255,.18)"); if (t) truck(x + (t.off || 0), y, t.color, t.loaded, t.capacity, t.bounce || 0); });
+  view.bays.forEach((t, b) => { const [x, y] = bayPos(b); rr(x, y - 0.95, BAYSP - 0.4, 0.06, 0.03, "rgba(255,255,255,.18)"); if (t) truck(x + (t.off || 0), y, t, t.bounce || 0); });
   // next trucks in line
   const next = game ? game.upcoming(2) : [];
   const ny = game && game.belt ? 4.2 : NEXTY;
@@ -883,7 +914,7 @@ async function play(events) {
   for (const e of events) {
     if (e.k === "move") {
       let from; if (e.from === "col") { const col = view.columns[e.fi], r = e.fr ?? col.length - 1; from = colPos(e.fi, r); col.splice(r, 1); view.hidden[e.fi].splice(r, 1); view.taped[e.fi].splice(r, 1); } else { from = bufPos(e.fi); view.buffer[e.fi] = EMPTY; }
-      let to; if (e.to === "bay") { const t = view.bays[e.ti]; const [bx, by] = bayPos(e.ti); const [lx, ly] = slotLocal(t.loaded, t.capacity); to = [bx + lx, by + ly]; } else to = bufPos(e.ti);
+      let to; if (e.to === "bay") { const t = view.bays[e.ti]; const [bx, by] = bayPos(e.ti); const [lx, ly] = slotLocal(e.slot ?? t.loaded, t.capacity); to = [bx + lx, by + ly]; } else to = bufPos(e.ti);
       const f = { x: from[0], y: from[1], color: e.color }; flying.push(f);
       const arc = 0.6 + Math.hypot(to[0] - from[0], to[1] - from[1]) * 0.06;
       const spin = (to[0] > from[0] ? -1 : 1) * 0.35;
@@ -891,7 +922,7 @@ async function play(events) {
       await tween(0.17, k => { if (live) to = bufPos(e.ti); f.x = from[0] + (to[0] - from[0]) * k; f.y = from[1] + (to[1] - from[1]) * k + Math.sin(k * Math.PI) * arc; f.a = Math.sin(k * Math.PI) * spin; });
       flying = flying.filter(x => x !== f);
       if (e.to === "bay") {
-        const tr = view.bays[e.ti]; tr.loaded++; sfx.pop(tr.loaded - 1); puff(to[0], to[1] - 0.4, 4, "rgba(255,255,255,.5)", 0.5);
+        const tr = view.bays[e.ti]; loadTruck(tr, e.color); tr.last = e.slot; sfx.pop(tr.loaded - 1); puff(to[0], to[1] - 0.4, 4, "rgba(255,255,255,.5)", 0.5);
         squash = 1; tween(0.22, k => { squash = 1 - k; tr.bounce = -0.09 * Math.sin(k * Math.PI); });
       } else { view.buffer[e.ti] = e.color; sfx.thud(); buzz(12); puff(to[0], to[1] - 0.45, 5, "rgba(255,255,255,.4)", 0.7); }
     } else if (e.k === "depart") {
@@ -899,7 +930,7 @@ async function play(events) {
       puff(bx - 1.6, by - 0.6, 6, "rgba(200,200,200,.6)", 0.3);
       await tween(0.32, k => { const e2 = Math.pow(k, 1.6); t.off = e2 * 10; t.bounce = 0.05 * Math.sin(k * 9) * (1 - k); }); view.bays[e.bay] = null;
     } else if (e.k === "arrive") {
-      const t = { color: e.color, capacity: game.capacity, loaded: 0, off: -9, bounce: 0 }; view.bays[e.bay] = t;
+      const t = { ...(e.truck || makeTruck(e.color, game.capacity)), loaded: 0, loaded1: 0, loaded2: 0, off: -9, bounce: 0 }; view.bays[e.bay] = t;
       await tween(0.3, k => t.off = -9 + 9 * k); tween(0.25, k => t.bounce = -0.08 * Math.sin(k * Math.PI) * (1 - k * 0.5));
     }
   }
@@ -957,6 +988,8 @@ const STR = {
   tut_truck: ["Tap this column: its top crate\njumps onto the matching truck", "روی این ستون بزن: جعبه بالایی\nروی کامیون هم‌رنگ می‌پرد"],
   tut_dock: ["No truck for this color? It waits on the dock.\nDon't let the dock fill up!", "کامیون هم‌رنگ نیست؟ جعبه روی اسکله می‌ماند.\nنگذار اسکله پر شود!"], coins_price: ["{0} coins", "{0} سکه"], next_short: ["Next", "بعدی"],
   hard_level: ["Level {0} - HARD", "مرحله {0} - سخت"], hard_start: ["Hard level! Double coins", "مرحله سخت! سکه دو برابر"],
+  big_intro: ["New: big trucks hold 4 crates", "جدید: کامیون بزرگ ۴ جعبه جا دارد"],
+  two_intro: ["New: two-color trucks take 2 of each color", "جدید: کامیون دورنگ از هر رنگ ۲ جعبه می‌برد"],
   tape_intro: ["New: taped crates move together as a pair", "جدید: جعبه‌های چسب‌خورده با هم جابه‌جا می‌شوند"],
   twist_hidden: ["New: ? crates show their color on top", "جدید: رنگ جعبه ؟ بالای ستون معلوم می‌شود"],
   twist_frozen: ["New: ice melts as you tap other columns", "جدید: یخ با ضربه به ستون‌های دیگر آب می‌شود"],
@@ -1116,7 +1149,7 @@ function renderShop() {
   parts.push(`<div class="sect">${t("themes")}</div>` + THEMES.map((th, i) => cosmeticRow("theme", String(i), th.price, th.key)).join(""));
   $("shopBody").innerHTML = parts.join("");
   $("shopBody").querySelectorAll("canvas[data-crate]").forEach(cnv => thumb(cnv, 1.25, () => { skinPreview = { crate: cnv.dataset.crate }; crate(0, 0, 1); skinPreview = {}; }));
-  $("shopBody").querySelectorAll("canvas[data-truck]").forEach(cnv => thumb(cnv, 4.5, () => { skinPreview = { truck: cnv.dataset.truck }; truck(-0.05, -0.1, 3, 2, 3); skinPreview = {}; }));
+  $("shopBody").querySelectorAll("canvas[data-truck]").forEach(cnv => thumb(cnv, 4.5, () => { skinPreview = { truck: cnv.dataset.truck }; truck(-0.05, -0.1, { ...makeTruck(3, 3), loaded: 2, loaded1: 2 }); skinPreview = {}; }));
 }
 $("shopBody").onclick = ev => {
   const el = ev.target.closest("[data-act]"); if (!el) return;
@@ -1216,6 +1249,8 @@ function start(n) {
   if (n === FROZEN_FROM) toast(t("twist_frozen"), 3000); else if (n === HIDDEN_FROM) toast(t("twist_hidden"), 3000);
   else if (n === BELT_FROM) toast(t("belt_intro"), 4200);
   else if (n === TAPE_FROM) toast(t("tape_intro"), 4200);
+  else if (n === BIG_FROM) toast(t("big_intro"), 4200);
+  else if (n === TWO_FROM) toast(t("two_intro"), 4200);
   else if (free.crane) toast(t("streak_bonus", wstreak), 2400); else if (n > 0 && isHard(n)) toast(t("hard_start"));
 }
 function afterMove() {

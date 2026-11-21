@@ -19,6 +19,9 @@ namespace CargoSort.Core
         public int ToIndex;
         public int Color;
         public int Bay;
+        public int ToSlot = -1;    // moves into a truck: which spot (two-color trucks fill each color's spots)
+        public int Capacity;       // arrivals: the truck's size
+        public int Color2 = -1;    // arrivals: second color of a two-color truck
 
         public static GameEvent Move(Place from, int fromIndex, Place to, int toIndex, int color) =>
             new GameEvent { Kind = EventKind.MoveCrate, From = from, FromIndex = fromIndex, To = to, ToIndex = toIndex, Color = color };
@@ -28,14 +31,34 @@ namespace CargoSort.Core
         public static GameEvent Arrive(int bay, int color) => new GameEvent { Kind = EventKind.TruckArrive, Bay = bay, Color = color };
     }
 
+    /// <summary>
+    /// A truck in a bay. Big trucks just have a larger capacity. Two-color trucks take half of each
+    /// color: the first Need1 spots are for Color, the rest for Color2.
+    /// </summary>
     public sealed class Truck
     {
         public int Color;
+        public int Color2 = -1;
         public int Capacity;
         public int Loaded;
+        public int Loaded1;   // crates of Color
+        public int Loaded2;   // crates of Color2
         public bool Full => Loaded >= Capacity;
+        public bool TwoColor => Color2 >= 0;
+        public int Need1 => TwoColor ? Capacity / 2 : Capacity;
 
-        public Truck Clone() => new Truck { Color = Color, Capacity = Capacity, Loaded = Loaded };
+        public bool Accepts(int color) =>
+            !Full && ((color == Color && Loaded1 < Need1) || (TwoColor && color == Color2 && Loaded2 < Capacity - Need1));
+
+        /// <summary>Loads one crate (call Accepts first) and returns the spot it goes to.</summary>
+        public int Load(int color)
+        {
+            Loaded++;
+            if (color == Color && Loaded1 < Need1) return Loaded1++;
+            return Need1 + Loaded2++;
+        }
+
+        public Truck Clone() => new Truck { Color = Color, Color2 = Color2, Capacity = Capacity, Loaded = Loaded, Loaded1 = Loaded1, Loaded2 = Loaded2 };
     }
 
     /// <summary>
@@ -60,6 +83,8 @@ namespace CargoSort.Core
         public int[] Buffer;
         public Truck[] Bays;
         public List<int> TruckQueue;
+        public List<int> TruckCapacities;   // per queued truck (big trucks); null = all TruckCapacity
+        public List<int> TruckSecondColors; // per queued truck (two-color trucks); null = none
         public int NextTruck;
         public int TruckCapacity;
         public int TrucksShipped;
@@ -99,6 +124,8 @@ namespace CargoSort.Core
             Bays = new Truck[data.BayCount];
             TruckQueue = new List<int>(data.TruckColors);
             TruckCapacity = data.TruckCapacity;
+            TruckCapacities = data.TruckCapacities != null && data.TruckCapacities.Count == TruckQueue.Count ? new List<int>(data.TruckCapacities) : null;
+            TruckSecondColors = data.TruckSecondColors != null && data.TruckSecondColors.Count == TruckQueue.Count ? new List<int>(data.TruckSecondColors) : null;
             Belt = data.Belt;
             var ignored = new List<GameEvent>();
             for (int b = 0; b < Bays.Length; b++) ArriveNext(b, ignored);
@@ -137,10 +164,26 @@ namespace CargoSort.Core
             return list;
         }
 
+        /// <summary>The queued truck at this index, as it will arrive (empty).</summary>
+        public Truck QueuedTruck(int index) => new Truck
+        {
+            Color = TruckQueue[index],
+            Capacity = TruckCapacities != null ? TruckCapacities[index] : TruckCapacity,
+            Color2 = TruckSecondColors != null ? TruckSecondColors[index] : -1,
+        };
+
+        /// <summary>Upcoming trucks with their size and colors (for the "Next" row).</summary>
+        public List<Truck> UpcomingTruckInfo(int count)
+        {
+            var list = new List<Truck>();
+            for (int i = NextTruck; i < TruckQueue.Count && list.Count < count; i++) list.Add(QueuedTruck(i));
+            return list;
+        }
+
         public int FindBayFor(int color)
         {
             for (int b = 0; b < Bays.Length; b++)
-                if (Bays[b] != null && !Bays[b].Full && Bays[b].Color == color) return b;
+                if (Bays[b] != null && Bays[b].Accepts(color)) return b;
             return -1;
         }
 
@@ -206,8 +249,9 @@ namespace CargoSort.Core
             GameEvent move;
             if (bay >= 0)
             {
-                Bays[bay].Loaded++;
+                int spot = Bays[bay].Load(color);
                 move = GameEvent.Move(Place.Column, column, Place.Bay, bay, color);
+                move.ToSlot = spot;
             }
             else
             {
@@ -230,10 +274,11 @@ namespace CargoSort.Core
             if (Status != GameStatus.Playing || slot < 0 || slot >= Buffer.Length || bay < 0 || bay >= Bays.Length) return events;
             var truck = Bays[bay];
             int color = Buffer[slot];
-            if (truck == null || color == Empty || truck.Color != color || truck.Full) return events;
+            if (truck == null || color == Empty || !truck.Accepts(color)) return events;
             Buffer[slot] = Empty;
-            truck.Loaded++;
-            events.Add(GameEvent.Move(Place.Buffer, slot, Place.Bay, bay, color));
+            var move = GameEvent.Move(Place.Buffer, slot, Place.Bay, bay, color);
+            move.ToSlot = truck.Load(color);
+            events.Add(move);
             ResolveFullTrucks(events);
             UpdateStatus();
             return events;
@@ -405,18 +450,22 @@ namespace CargoSort.Core
         private void ArriveNext(int bay, List<GameEvent> events)
         {
             if (NextTruck >= TruckQueue.Count) return;
-            int color = TruckQueue[NextTruck++];
-            var truck = new Truck { Color = color, Capacity = TruckCapacity };
+            var truck = QueuedTruck(NextTruck++);
             Bays[bay] = truck;
-            events.Add(GameEvent.Arrive(bay, color));
+            var arrive = GameEvent.Arrive(bay, truck.Color);
+            arrive.Capacity = truck.Capacity;
+            arrive.Color2 = truck.Color2;
+            events.Add(arrive);
             if (Belt) return; // riding crates board when they pass the truck
 
             for (int i = 0; i < Buffer.Length && !truck.Full; i++)
             {
-                if (Buffer[i] != color) continue;
+                int color = Buffer[i];
+                if (color == Empty || !truck.Accepts(color)) continue;
                 Buffer[i] = Empty;
-                truck.Loaded++;
-                events.Add(GameEvent.Move(Place.Buffer, i, Place.Bay, bay, color));
+                var move = GameEvent.Move(Place.Buffer, i, Place.Bay, bay, color);
+                move.ToSlot = truck.Load(color);
+                events.Add(move);
             }
         }
 
@@ -454,6 +503,8 @@ namespace CargoSort.Core
                 Buffer = (int[])Buffer.Clone(),
                 Bays = new Truck[Bays.Length],
                 TruckQueue = TruckQueue,
+                TruckCapacities = TruckCapacities,
+                TruckSecondColors = TruckSecondColors,
                 NextTruck = NextTruck,
                 TruckCapacity = TruckCapacity,
                 TrucksShipped = TrucksShipped,
