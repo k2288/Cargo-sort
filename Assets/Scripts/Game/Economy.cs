@@ -24,7 +24,7 @@ namespace CargoSort.Game
     {
         public string ProductId;     // same id in Google Play Console / Cafe Bazaar panel
         public bool Consumable = true;
-        public string PriceEn, PriceFa; // sample prices for the test build; set them to your store prices
+        public string PriceEn, PriceFa; // Google Play (USD) and Cafe Bazaar (toman) prices shown in the shop
         public string OldPriceEn, OldPriceFa;
         public string TagKey;        // ribbon like "+25% BONUS"
         public Item[] Items;
@@ -77,21 +77,21 @@ namespace CargoSort.Game
         public const int StarterFromLevel = 3;
         public static readonly TimeSpan StarterDuration = TimeSpan.FromHours(24);
 
-        // ----- Real-money packs (prices are samples: the stores show the real ones) -----
+        // ----- Real-money packs. Toman prices match the Cafe Bazaar panel; keep them in sync when you change them there. -----
         public static readonly Pack Starter = new Pack
         {
-            ProductId = "starter_pack", PriceEn = "$1.99", PriceFa = "59 هزار تومان", OldPriceEn = "$9.99", OldPriceFa = "299 هزار تومان", TagKey = "tag_off",
+            ProductId = "starter_pack", PriceEn = "$1.99", PriceFa = "49 هزار تومان", OldPriceEn = "$9.99", OldPriceFa = "249 هزار تومان", TagKey = "tag_off",
             Items = new[] { Item.Coins(1500), Item.Of(Booster.Crane, 3), Item.Of(Booster.Magnet, 3), Item.Of(Booster.Shuffle, 3) },
         };
 
-        public static readonly Pack Piggy = new Pack { ProductId = "piggy_bank", PriceEn = "$2.99", PriceFa = "89 هزار تومان" };
+        public static readonly Pack Piggy = new Pack { ProductId = "piggy_bank", PriceEn = "$2.99", PriceFa = "69 هزار تومان" };
 
         public static readonly Pack[] CoinPacks =
         {
             new Pack { ProductId = "coins_1000", PriceEn = "$0.99", PriceFa = "29 هزار تومان", Items = new[] { Item.Coins(1000) } },
             new Pack { ProductId = "coins_2500", PriceEn = "$1.99", PriceFa = "59 هزار تومان", TagKey = "tag_bonus", Items = new[] { Item.Coins(2500) } },
             new Pack { ProductId = "coins_6000", PriceEn = "$3.99", PriceFa = "119 هزار تومان", TagKey = "tag_popular", Items = new[] { Item.Coins(6000) } },
-            new Pack { ProductId = "coins_15000", PriceEn = "$7.99", PriceFa = "239 هزار تومان", TagKey = "tag_best", Items = new[] { Item.Coins(15000) } },
+            new Pack { ProductId = "coins_15000", PriceEn = "$9.99", PriceFa = "249 هزار تومان", TagKey = "tag_best", Items = new[] { Item.Coins(15000) } },
         };
 
         public static readonly Pack BoosterBundle = new Pack

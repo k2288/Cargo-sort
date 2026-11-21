@@ -46,8 +46,8 @@ Tune it in `LevelGenerator.ForLevel`.
 - **Purchases** (ids in `Economy.cs`): `starter_pack` (once, 24 hours from level 3), `piggy_bank`
   (every win adds coins; break it from 300), `coins_1000`, `coins_2500`, `coins_6000`, `coins_15000`,
   `booster_bundle`, and `remove_ads` (the No Ads Pack: no interstitials plus boosters and coins).
-  `remove_ads` is non-consumable; all others are consumable. The prices shown in the shop are
-  samples in `Economy.cs`: set them to your store prices.
+  `remove_ads` is non-consumable; all others are consumable. The prices shown in the shop are in
+  `Economy.cs` and match the Cafe Bazaar panel: update both together.
 - **Coins:** crate skins, truck skins and themes.
 
 In the editor, ads are always 1 second test ads. The real SDK code is in `Assets/Scripts/Monetization`
