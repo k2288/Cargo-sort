@@ -210,6 +210,7 @@ namespace CargoSort.Game
             else if (n == LevelGenerator.TwoColorFromLevel) hud.Toast(Loc.T("two_intro"), 4f);
             else if (n == LevelGenerator.LocksFromLevel) hud.Toast(Loc.T("lock_intro"), 4f);
             else if (n == LevelGenerator.BombsFromLevel) hud.Toast(Loc.T("bomb_intro"), 4.5f);
+            else if (n == LevelGenerator.TarpsFromLevel) hud.Toast(Loc.T("tarp_intro"), 4.5f);
             else if (freeUses[Booster.Crane] > 0) hud.Toast(Loc.T("streak_bonus", streak), 2.4f);
             else if (IsHard) hud.Toast(Loc.T("hard_start"), 2f);
         }
@@ -270,6 +271,7 @@ namespace CargoSort.Game
             {
                 Feedback.Invalid();
                 if (session.State.IsFrozen(column)) hud.Toast(Loc.T("frozen"));
+                else if (session.State.IsCovered(column)) hud.Toast(Loc.T("covered"));
                 board.Shake(column);
                 return;
             }

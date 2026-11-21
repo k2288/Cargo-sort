@@ -456,7 +456,7 @@ namespace CargoSort.Game
             Anchor(go.Root, new Vector2(0.5f, 0.5f), new Vector2(0, -20), new Vector2(620, 140));
             devGoLabel = go.Label;
 
-            int[] shortcuts = { 28, 40, 48, 56 };
+            int[] shortcuts = { 40, 48, 56, 64 };
             for (int i = 0; i < shortcuts.Length; i++)
             {
                 int n = shortcuts[i];

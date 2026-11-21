@@ -290,7 +290,7 @@ button.switch[aria-checked="true"]::after { inset-inline-start: 34px; }
       <button class="small purple" type="submit" data-t="go">Go</button></div>
     <div class="devrow">
       <button class="small quiet" type="button" data-lv="11">11 ?</button><button class="small quiet" type="button" data-lv="15">15</button>
-      <button class="small quiet" type="button" data-lv="18">18</button><button class="small quiet" type="button" data-lv="21">21</button><button class="small quiet" type="button" data-lv="28">28</button><button class="small quiet" type="button" data-lv="36">36</button><button class="small quiet" type="button" data-lv="40">40</button><button class="small quiet" type="button" data-lv="48">48</button><button class="small quiet" type="button" data-lv="56">56</button>
+      <button class="small quiet" type="button" data-lv="18">18</button><button class="small quiet" type="button" data-lv="21">21</button><button class="small quiet" type="button" data-lv="28">28</button><button class="small quiet" type="button" data-lv="36">36</button><button class="small quiet" type="button" data-lv="40">40</button><button class="small quiet" type="button" data-lv="48">48</button><button class="small quiet" type="button" data-lv="56">56</button><button class="small quiet" type="button" data-lv="64">64</button>
       <button class="small quiet" type="button" id="devCoins">+1000</button></div>
   </form>
 </div></div>
@@ -332,6 +332,8 @@ const LOCK_FROM = 48, LOCK_COLORS = ["#ffc83a", "#d5dce5", "#e08a4a"];
 // Bomb crates from level 56: ship the crate out of its stack before its countdown (in taps) runs out.
 // Each countdown = the tap on which the solver moves that crate + BOMB_SLACK, so every level stays winnable.
 const BOMB_FROM = 56, BOMB_SLACK = 8, BOMB_MARK = 100000;
+// Cover tarp from level 64: a whole column is covered (can't be tapped) until the column next to it is empty.
+const TARP_FROM = 64;
 // A truck: color (first color), color2 (-1 = one color), need1 = spots for the first color.
 function makeTruck(color, capacity, color2 = -1) { return { color, color2, capacity, need1: color2 >= 0 ? capacity / 2 : capacity, loaded: 0, loaded1: 0, loaded2: 0 }; }
 const accepts = (t, c) => !!t && ((c === t.color && t.loaded1 < t.need1) || (c === t.color2 && t.loaded2 < t.capacity - t.need1));
@@ -355,6 +357,7 @@ function difficulty(level) {
   if (level >= TWO_FROM) d.twoColorTrucks = Math.min(1 + Math.floor((level - TWO_FROM) / 10), 3);
   if (level >= LOCK_FROM) d.locks = Math.min(1 + Math.floor((level - LOCK_FROM) / 10), 3);
   if (level >= BOMB_FROM) d.bombs = level >= BOMB_FROM + 10 ? 2 : 1;
+  if (level >= TARP_FROM) d.tarps = level >= TARP_FROM + 16 ? 2 : 1;
   if (level >= FROZEN_FROM) { d.frozenCols = level >= 41 ? 2 : 1; d.frozenTaps = 3 + (level % 3); }
   return d;
 }
@@ -403,6 +406,13 @@ function build(level, d, r) {
     const r1 = Math.floor(r() * l1), r2 = Math.floor(r() * l2);
     if (!freeCell(c1, r1) || !freeCell(c2, r2)) continue;
     data.locks[c1][r1] = id; data.keys[c2][r2] = id; data.hidden[c1][r1] = false; data.hidden[c2][r2] = false; id++;
+  }
+  // Tarps: tarps[c] = the column that must be emptied to uncover column c (-1 = none). Kept only if the level stays winnable.
+  data.tarps = data.columns.map(() => -1);
+  for (let k = 0, tries = 0; k < (d.tarps || 0) && tries < 40; tries++) {
+    const c = Math.floor(r() * cols), n = c + (r() < 0.5 ? -1 : 1);
+    if (n < 0 || n >= cols || data.tarps[c] >= 0 || data.tarps[n] >= 0 || data.tarps.includes(c) || data.columns[c].length < 2 || data.columns[n].length < 2 || data.frozen[c]) continue;
+    data.tarps[c] = n; if (canSolve(data)) k++; else data.tarps[c] = -1;
   }
   // Bombs: buried crates (not top, taped, locked, keyed or hidden). Timers come from a solver run.
   data.bombs = data.columns.map(col => col.map(() => 0));
@@ -453,7 +463,8 @@ function generate(level, d = difficulty(level), seed = level * 7919) {
       last = build(level, { ...d, buffer: d.buffer + extra }, rng(seed + a * 104729 + extra * 31));
       if (!canSolve(last)) continue;
       found++;
-      const rate = casualWinRate(last, seed), gap = Math.abs(rate - target);
+      const missing = d.tarps ? d.tarps - last.tarps.filter(x => x >= 0).length : 0; // prefer layouts that got their tarp
+      const rate = casualWinRate(last, seed), gap = Math.abs(rate - target) + missing;
       if (gap < bestGap) { bestGap = gap; best = last; bestRate = rate; }
     }
     if (best && (bestRate >= target - TOO_HARD || extra >= MAX_EASING)) break;
@@ -478,6 +489,7 @@ class Game {
     this.keys = (data.keys || data.columns.map(c => c.map(() => 0))).map(t => t.slice());
     this.bombs = (data.bombs || data.columns.map(c => c.map(() => 0))).map(t => t.slice());
     this.moves = 0; this.exploded = false; this.defusedAt = {};
+    this.tarps = (data.tarps || data.columns.map(() => -1)).slice();
     this.buffer = new Array(data.buffer).fill(EMPTY);
     this.bays = new Array(data.bays).fill(null);
     this.queue = data.trucks.slice(); this.next = 0; this.capacity = data.capacity; this.shipped = 0; this.status = "playing";
@@ -486,8 +498,11 @@ class Game {
     const ev = []; for (let b = 0; b < this.bays.length; b++) this.arrive(b, ev);
     this.update();
   }
-  clone() { const g = new Game(); Object.assign(g, this, { columns: this.columns.map(c => c.slice()), hidden: this.hidden.map(h => h.slice()), frozen: this.frozen.slice(), taped: this.taped.map(t => t.slice()), locks: this.locks.map(t => t.slice()), keys: this.keys.map(t => t.slice()), bombs: this.bombs.map(t => t.slice()), defusedAt: { ...this.defusedAt }, buffer: this.buffer.slice(), bays: this.bays.map(t => t && { ...t }) }); return g; }
+  clone() { const g = new Game(); Object.assign(g, this, { columns: this.columns.map(c => c.slice()), hidden: this.hidden.map(h => h.slice()), frozen: this.frozen.slice(), taped: this.taped.map(t => t.slice()), locks: this.locks.map(t => t.slice()), keys: this.keys.map(t => t.slice()), bombs: this.bombs.map(t => t.slice()), defusedAt: { ...this.defusedAt }, tarps: this.tarps.slice(), buffer: this.buffer.slice(), bays: this.bays.map(t => t && { ...t }) }); return g; }
   isLocked(c, r) { return this.locks[c][r] > 0; }
+  covered(c) { return this.tarps[c] >= 0; }
+  // A column became empty: the tarp next to it comes off.
+  uncover(ev) { this.tarps = this.tarps.map(n => { if (n >= 0 && !this.columns[n].length) { ev && ev.push({ k: "uncover" }); return -1; } return n; }); }
   // A key crate left its stack: its lock opens.
   unlock(id) { if (id > 0) this.locks.forEach(col => col.forEach((v, r) => { if (v === id) col[r] = 0; })); }
   top(c) { const col = this.columns[c]; return col.length ? col[col.length - 1] : EMPTY; }
@@ -498,7 +513,7 @@ class Game {
   // The top crate is the upper half of a taped pair (both move together).
   tapedTop(c) { const n = this.columns[c].length; return n >= 2 && this.taped[c][n - 2]; }
   canTap(c) {
-    if (this.status !== "playing" || this.frozen[c] > 0) return false; const t = this.top(c); if (t === EMPTY) return false;
+    if (this.status !== "playing" || this.frozen[c] > 0 || this.covered(c)) return false; const t = this.top(c); if (t === EMPTY) return false;
     if (this.isLocked(c, this.columns[c].length - 1)) return false;
     if (!(this.bayFor(t) >= 0 || this.free() > 0)) return false;
     if (!this.tapedTop(c)) return true;
@@ -520,7 +535,7 @@ class Game {
     this.frozen = this.frozen.map((f, i) => i !== c && f > 0 ? f - 1 : f);
     this.route(this.popTop(c), { from: "col", fi: c }, ev);
     if (pair) this.route(this.popTop(c), { from: "col", fi: c }, ev);
-    this.update(); return ev;
+    this.uncover(ev); this.update(); return ev;
   }
   // Sends a crate to its truck, or to the dock; then trucks that are full leave and new ones arrive.
   route(color, src, ev) {
@@ -536,18 +551,18 @@ class Game {
         if (t && t.loaded >= t.capacity) { ev.push({ k: "depart", bay: i }); this.bays[i] = null; this.shipped++; this.arrive(i, ev); changed = true; } } }
   }
   // Crane: lift any crate (even under others or in ice).
-  canPluck(c, r) { const col = this.columns[c]; if (this.status !== "playing" || !col || r < 0 || r >= col.length || this.isLocked(c, r)) return false; return this.bayFor(col[r]) >= 0 || this.free() > 0; }
+  canPluck(c, r) { const col = this.columns[c]; if (this.status !== "playing" || !col || r < 0 || r >= col.length || this.isLocked(c, r) || this.covered(c)) return false; return this.bayFor(col[r]) >= 0 || this.free() > 0; }
   pluck(c, r, ev = []) {
     if (!this.canPluck(c, r)) return ev;
     const color = this.columns[c].splice(r, 1)[0]; this.hidden[c].splice(r, 1);
     this.taped[c].splice(r, 1); if (r > 0) this.taped[c][r - 1] = false; // the crane cuts the tape
     this.locks[c].splice(r, 1); this.unlock(this.keys[c].splice(r, 1)[0]); this.defuse(this.bombs[c].splice(r, 1)[0]);
-    this.route(color, { from: "col", fi: c, fr: r }, ev); this.update(); return ev;
+    this.route(color, { from: "col", fi: c, fr: r }, ev); this.uncover(ev); this.update(); return ev;
   }
   // Magnet: fills the trucks that are waiting now with the nearest matching crates from anywhere.
   magnetTarget() {
     let best = null;
-    this.columns.forEach((col, c) => { for (let r = col.length - 1; r >= 0; r--) if (this.bayFor(col[r]) >= 0 && !this.isLocked(c, r)) { const d = col.length - 1 - r; if (!best || d < best.d) best = { c, r, d }; break; } });
+    this.columns.forEach((col, c) => { if (this.covered(c)) return; for (let r = col.length - 1; r >= 0; r--) if (this.bayFor(col[r]) >= 0 && !this.isLocked(c, r)) { const d = col.length - 1 - r; if (!best || d < best.d) best = { c, r, d }; break; } });
     return best;
   }
   magnet() {
@@ -559,8 +574,8 @@ class Game {
   shuffled(seed) {
     const r = rng(seed); let pick = null;
     for (let tries = 0; tries < 40; tries++) {
-      const g = this.clone(), all = g.columns.flat(); shuffle(all, r); let k = 0;
-      g.columns = g.columns.map(col => col.map(() => all[k++])); g.taped = g.columns.map(col => col.map(() => false)); g.status = "playing"; g.update(); pick = g;
+      const g = this.clone(), all = g.columns.filter((_, c) => !g.covered(c)).flat(); shuffle(all, r); let k = 0;
+      g.columns = g.columns.map((col, c) => g.covered(c) ? col : col.map(() => all[k++])); // covered stacks stay as they are g.taped = g.columns.map(col => col.map(() => false)); g.status = "playing"; g.update(); pick = g;
       if (solvableFrom(g)) break;
     }
     return pick;
@@ -770,6 +785,18 @@ function crate(x, y, color, s = 1, shadow = true) {
   rr(x - z * 0.12, y + z * 0.33, z * 0.42, z * 0.06, 0.03 * s, "rgba(255,255,255,.4)");
   for (const [dx, dy] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) dot(x + dx * z * 0.42, y + dy * z * 0.42, 0.07 * s, tint(c, 0.35));
 }
+function tarp(c, n, rows, k) {
+  const [x, y0] = colPos(c, 0), [, y1] = colPos(c, rows - 1), w = CRATE + 0.22, top = y1 + CRATE / 2 + 0.12, bot = y0 - CRATE / 2 - 0.08;
+  const h = (top - bot) * (1 - k * 0.85), cy = top - h / 2 + k * 1.2;
+  ctx.globalAlpha = 1 - k;
+  rr(x, cy - 0.05, w + 0.06, h + 0.06, 0.2, "rgba(0,0,0,.3)");
+  rr(x, cy, w, h, 0.2, "#3f8a4a"); rr(x - w * 0.22, cy, w * 0.18, h - 0.1, 0.08, "rgba(255,255,255,.08)");
+  for (let i = 1; i < rows; i++) { const ly = top - (top - bot) * i / rows; if (ly > cy - h / 2 && ly < cy + h / 2) rr(x, ly, w + 0.04, 0.06, 0.03, "#2c6535"); }
+  rr(x, cy + h / 2 - 0.05, w + 0.1, 0.1, 0.05, "#c9a46a"); rr(x, cy - h / 2 + 0.05, w + 0.1, 0.1, 0.05, "#c9a46a");
+  const dir = n > c ? 1 : -1, ay = top - 0.42;
+  dot(x, ay, 0.62, "#fff"); label(dir > 0 ? "→" : "←", x, ay, 0.44, "#2c6535");
+  ctx.globalAlpha = 1;
+}
 function hiddenCrate(x, y) {
   rr(x, y, CRATE, CRATE, 0.16, "#3a404a"); rr(x, y, CRATE * 0.86, CRATE * 0.86, 0.12, "#6b7380");
   label("?", x, y, 0.6, "#fff");
@@ -908,6 +935,9 @@ function draw() {
       if (key) { const kc = LOCK_COLORS[(key - 1) % 3];
         dot(lx - 0.18, ly + 0.02, 0.3, "rgba(0,0,0,.35)"); dot(lx - 0.18, ly + 0.02, 0.26, kc); dot(lx - 0.18, ly + 0.02, 0.1, "rgba(0,0,0,.45)");
         rr(lx + 0.07, ly + 0.02, 0.36, 0.08, 0.03, kc); rr(lx + 0.2, ly - 0.06, 0.06, 0.12, 0.02, kc); rr(lx + 0.09, ly - 0.06, 0.06, 0.1, 0.02, kc); } });
+    // Cover tarp: a green canvas over the whole stack, tied with ropes, with an arrow to the column that opens it.
+    const lift = view.lift && view.lift.c === c ? view.lift : null, tn = lift ? lift.n : view.tarps[c];
+    if (tn >= 0 && col.length) tarp(c, tn, col.length, lift ? lift.k : 0);
     // Tape: a strip across the two crates of each taped pair.
     view.taped[c].forEach((tp, r) => { if (!tp || r + 1 >= col.length) return;
       const [tx, ty] = colPos(c, r), my = ty + ROWSP / 2;
@@ -965,7 +995,7 @@ function tutorialStep() {
   if (active) { const top = game.top(tutCol); $("tip").textContent = t(top !== EMPTY && game.bayFor(top) >= 0 ? "tut_truck" : "tut_dock"); }
 }
 
-function cloneView(g) { return { columns: g.columns.map(c => c.slice()), hidden: g.hidden.map(h => h.slice()), taped: g.taped.map(t => t.slice()), locks: g.locks.map(t => t.slice()), keys: g.keys.map(t => t.slice()), bombs: g.bombs.map(t => t.slice()), frozen: g.frozen.slice(), buffer: g.buffer.slice(), bays: g.bays.map(t => t && { ...t, off: 0 }) }; }
+function cloneView(g) { return { columns: g.columns.map(c => c.slice()), hidden: g.hidden.map(h => h.slice()), taped: g.taped.map(t => t.slice()), locks: g.locks.map(t => t.slice()), keys: g.keys.map(t => t.slice()), bombs: g.bombs.map(t => t.slice()), tarps: g.tarps.slice(), frozen: g.frozen.slice(), buffer: g.buffer.slice(), bays: g.bays.map(t => t && { ...t, off: 0 }) }; }
 
 function tween(time, step) { return new Promise(res => { if (reduce) { step(1); return res(); } const t0 = performance.now();
   (function f(now) { const k = Math.min(1, (now - t0) / (time * 1000)); step(1 - (1 - k) * (1 - k)); if (k < 1) requestAnimationFrame(f); else res(); })(t0); }); }
@@ -990,6 +1020,10 @@ async function play(events) {
       const t = view.bays[e.bay], [bx, by] = bayPos(e.bay); sfx.horn(); buzz(25);
       puff(bx - 1.6, by - 0.6, 6, "rgba(200,200,200,.6)", 0.3);
       await tween(0.32, k => { const e2 = Math.pow(k, 1.6); t.off = e2 * 10; t.bounce = 0.05 * Math.sin(k * 9) * (1 - k); }); view.bays[e.bay] = null;
+    } else if (e.k === "uncover") {
+      const old = view.tarps.slice(); view.tarps = game.tarps.slice(); sfx.thud();
+      old.forEach((n, c) => { if (n >= 0 && game.tarps[c] < 0) { view.lift = { c, n, k: 0 }; const [x, y] = colPos(c, 0); puff(x, y + 1, 8, "rgba(255,255,255,.55)", 0.8); } });
+      await tween(0.35, k => view.lift && (view.lift.k = k)); view.lift = null;
     } else if (e.k === "arrive") {
       const t = { ...(e.truck || makeTruck(e.color, game.capacity)), loaded: 0, loaded1: 0, loaded2: 0, off: -9, bounce: 0 }; view.bays[e.bay] = t;
       await tween(0.3, k => t.off = -9 + 9 * k); tween(0.25, k => t.bounce = -0.08 * Math.sin(k * Math.PI) * (1 - k * 0.5));
@@ -1051,6 +1085,8 @@ const STR = {
   tut_truck: ["Tap this column: its top crate\njumps onto the matching truck", "روی این ستون بزن: جعبه بالایی\nروی کامیون هم‌رنگ می‌پرد"],
   tut_dock: ["No truck for this color? It waits on the dock.\nDon't let the dock fill up!", "کامیون هم‌رنگ نیست؟ جعبه روی اسکله می‌ماند.\nنگذار اسکله پر شود!"], coins_price: ["{0} coins", "{0} سکه"], next_short: ["Next", "بعدی"],
   hard_level: ["Level {0} - HARD", "مرحله {0} - سخت"], hard_start: ["Hard level! Double coins", "مرحله سخت! سکه دو برابر"],
+  tarp_intro: ["New: a covered stack opens when the stack its arrow points to is empty", "جدید: ستون پوشیده وقتی ستونی که فلش نشان می‌دهد خالی شود باز می‌شود"],
+  covered: ["Covered! Empty the stack the arrow points to", "پوشیده! ستونی که فلش نشان می‌دهد را خالی کن"],
   lock_intro: ["New: locked crates open when their key crate leaves its stack", "جدید: جعبه قفل با برداشتن جعبه کلیددار باز می‌شود"],
   big_intro: ["New: big trucks hold 4 crates", "جدید: کامیون بزرگ ۴ جعبه جا دارد"],
   two_intro: ["New: two-color trucks take 2 of each color", "جدید: کامیون دورنگ از هر رنگ ۲ جعبه می‌برد"],
@@ -1317,6 +1353,7 @@ function start(n) {
   else if (n === TWO_FROM) toast(t("two_intro"), 4200);
   else if (n === LOCK_FROM) toast(t("lock_intro"), 4200);
   else if (n === BOMB_FROM) toast(t("bomb_intro"), 4600);
+  else if (n === TARP_FROM) toast(t("tarp_intro"), 4600);
   else if (free.crane) toast(t("streak_bonus", wstreak), 2400); else if (n > 0 && isHard(n)) toast(t("hard_start"));
 }
 function afterMove() {
@@ -1357,7 +1394,7 @@ cv.addEventListener("pointerdown", ev => {
     pay("crane", () => { setCrane(false); history.push(game.clone()); sfx.horn(); play(game.pluck(c, r0)); });
     return;
   }
-  if (!game.canTap(c)) { sfx.invalid(); if (game.frozen[c] > 0) toast(t("frozen")); if (game.columns[c].length) { view.shake = { c, t: 0 }; tween(0.25, k => view.shake && (view.shake.t = k * 0.25)).then(() => view.shake = null); } return; }
+  if (!game.canTap(c)) { sfx.invalid(); if (game.frozen[c] > 0) toast(t("frozen")); else if (game.covered(c)) toast(t("covered")); if (game.columns[c].length) { view.shake = { c, t: 0 }; tween(0.25, k => view.shake && (view.shake.t = k * 0.25)).then(() => view.shake = null); } return; }
   const frozenBefore = game.frozen.filter(f => f > 0).length, hiddenBefore = game.columns.map((_, i) => game.columns[i].length > 1 && game.hidden[i][game.columns[i].length - 2]);
   history.push(game.clone()); const events = game.tap(c);
   if (game.frozen.filter(f => f > 0).length < frozenBefore) setTimeout(() => { sfx.thud(); sfx.pop(3); buzz(20); }, 150);

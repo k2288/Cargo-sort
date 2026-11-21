@@ -263,6 +263,7 @@ namespace CargoSort.Game
             // Columns
             columnCrates.Clear();
             shownHidden.Clear();
+            tarps.Clear();
             ice.Clear();
             int tallest = 1;
             foreach (var col in state.Columns) tallest = Mathf.Max(tallest, col.Count);
@@ -289,6 +290,7 @@ namespace CargoSort.Game
                 }
                 columnCrates.Add(list);
                 shownHidden.Add(hidden);
+                if (state.IsCovered(c) && state.Columns[c].Count > 0) tarps[c] = AddTarp(c, state.Tarps[c], state.Columns[c].Count);
             }
             RefreshTwists(false);
 
@@ -323,6 +325,29 @@ namespace CargoSort.Game
             Art.Box(crate, "LockBody", new Vector2(0, -0.06f), new Vector2(0.48f, 0.38f), c, 17);
             Art.Dot(crate, "Keyhole", new Vector2(0, -0.03f), 0.1f, dark, 18);
             Art.Box(crate, "Keyhole", new Vector2(0, -0.12f), new Vector2(0.05f, 0.1f), dark, 18);
+        }
+
+        private readonly Dictionary<int, Transform> tarps = new Dictionary<int, Transform>();
+
+        /// <summary>Cover tarp: a green canvas over the whole stack, tied with ropes, with an arrow to the column that opens it.</summary>
+        private Transform AddTarp(int c, int opener, int rows)
+        {
+            var bottom = ColumnPos(c, 0);
+            var top = ColumnPos(c, rows - 1);
+            float y0 = bottom.y - CrateSize / 2f - 0.08f, y1 = top.y + CrateSize / 2f + 0.12f, h = y1 - y0, w = CrateSize + 0.22f;
+            var t = new GameObject("Tarp").transform;
+            t.SetParent(root, false);
+            t.position = new Vector3(bottom.x, (y0 + y1) / 2f);
+            Art.Box(t, "TarpShadow", new Vector2(0, -0.05f), new Vector2(w + 0.06f, h + 0.06f), new Color(0, 0, 0, 0.3f), 22);
+            Art.Box(t, "Tarp", Vector2.zero, new Vector2(w, h), new Color32(0x3F, 0x8A, 0x4A, 0xFF), 23);
+            Art.Box(t, "TarpShine", new Vector2(-w * 0.22f, 0), new Vector2(w * 0.18f, h - 0.1f), new Color(1, 1, 1, 0.08f), 24);
+            for (int i = 1; i < rows; i++)
+                Art.Box(t, "Fold", new Vector2(0, h / 2f - h * i / rows), new Vector2(w + 0.04f, 0.06f), new Color32(0x2C, 0x65, 0x35, 0xFF), 24);
+            Art.Box(t, "Rope", new Vector2(0, h / 2f - 0.05f), new Vector2(w + 0.1f, 0.1f), new Color32(0xC9, 0xA4, 0x6A, 0xFF), 25);
+            Art.Box(t, "Rope", new Vector2(0, -h / 2f + 0.05f), new Vector2(w + 0.1f, 0.1f), new Color32(0xC9, 0xA4, 0x6A, 0xFF), 25);
+            Art.Dot(t, "ArrowBadge", new Vector2(0, h / 2f - 0.42f), 0.62f, Color.white, 26);
+            Art.Label(t, opener > c ? "→" : "←", new Vector2(0, h / 2f - 0.42f), 0.44f, new Color32(0x2C, 0x65, 0x35, 0xFF), 27);
+            return t;
         }
 
         /// <summary>A black bomb with a lit fuse and the taps left (red when 3 or fewer).</summary>
@@ -482,6 +507,13 @@ namespace CargoSort.Game
                 }
             }
             state = s;
+            // A tarp came off: lift it away before redrawing.
+            foreach (var pair in tarps)
+                if (!s.IsCovered(pair.Key) && pair.Value != null)
+                {
+                    Feedback.IceMelted();
+                    yield return Slide(pair.Value, pair.Value.position + new Vector3(0, 2.5f), 0.3f);
+                }
             RefreshTwists(true);
             Redraw(s);
             done?.Invoke();

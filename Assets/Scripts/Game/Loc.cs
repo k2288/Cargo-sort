@@ -69,6 +69,8 @@ namespace CargoSort.Game
             { "home", ("Home", "خانه") },
             { "belt_intro", ("New: conveyor belt! Crates ride around and jump onto their truck", "جدید: نوار نقاله! جعبه‌ها می‌چرخند و روی کامیون همرنگ می‌پرند") },
             { "tape_intro", ("New: taped crates move together as a pair", "جدید: جعبه‌های چسب‌خورده با هم جابه‌جا می‌شوند") },
+            { "tarp_intro", ("New: a covered stack opens when the stack its arrow points to is empty", "جدید: ستون پوشیده وقتی ستونی که فلش نشان می‌دهد خالی شود باز می‌شود") },
+            { "covered", ("Covered! Empty the stack the arrow points to", "پوشیده! ستونی که فلش نشان می‌دهد را خالی کن") },
             { "bomb_intro", ("New: move the bomb crate out of its stack before its counter hits 0", "جدید: جعبه بمب را قبل از صفر شدن شمارنده از ستونش بردار") },
             { "bomb_title", ("Boom!", "بوم!") },
             { "bomb_text", ("A bomb crate ran out of moves.", "حرکت‌های جعبه بمب تمام شد.") },

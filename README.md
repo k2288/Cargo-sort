@@ -42,7 +42,9 @@ a pair and need room for both; Crane and Magnet cut the tape), **big trucks** (4
 level 48 (a padlock opens when the crate with the matching key leaves its stack; the Crane can't lift
 a locked crate and Magnet skips it), and **bomb crates** from level 56 (move the crate out of its
 stack before its tap counter runs out; each counter is the tap on which the solver moves that crate
-plus 8, so levels stay winnable; after an explosion the revive gives +5 moves). On belt levels the dock becomes a moving belt with 2 more spots;
+plus 8, so levels stay winnable; after an explosion the revive gives +5 moves), and **cover tarps** from level 64 (a whole stack is
+covered and can't be tapped, craned or shuffled until the stack next to it, shown by the arrow, is empty;
+1 tarp, 2 from level 80; a tarp is kept only if the level stays winnable). On belt levels the dock becomes a moving belt with 2 more spots;
 crates ride around and jump onto a truck of their color as they pass under it. Belt levels are
 checked with dock rules, because on the belt a player can always wait for a crate to come around.
 

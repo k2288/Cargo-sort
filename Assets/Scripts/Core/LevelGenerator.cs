@@ -19,6 +19,10 @@ namespace CargoSort.Core
         public List<List<int>> Locks = new List<List<int>>();    // [c][r]: lock id on this crate (0 = none)
         public List<List<int>> Keys = new List<List<int>>();     // [c][r]: id of the lock this crate's key opens (0 = none)
         public List<List<int>> Bombs = new List<List<int>>();    // [c][r]: the tap count at which this bomb explodes (0 = none)
+        public List<int> Tarps = new List<int>();                // [c]: the column that must be emptied to uncover column c (-1 = none)
+
+        /// <summary>A shallow copy (the generator only changes Belt and BufferSize on it).</summary>
+        public LevelData MemberwiseCloneForBelt() => (LevelData)MemberwiseClone();
         public List<int> TruckCapacities = new List<int>();      // per truck in TruckColors (big trucks hold more)
         public List<int> TruckSecondColors = new List<int>();    // per truck: second color of a two-color truck, or -1
         public bool Hard;
@@ -42,6 +46,7 @@ namespace CargoSort.Core
         public int TwoColorTrucks;
         public int Locks;
         public int Bombs;
+        public int Tarps;
         public bool Hard;
     }
 
@@ -87,11 +92,15 @@ namespace CargoSort.Core
             if (level >= TwoColorFromLevel) d.TwoColorTrucks = Math.Min(1 + (level - TwoColorFromLevel) / 10, 3);
             if (level >= LocksFromLevel) d.Locks = Math.Min(1 + (level - LocksFromLevel) / 10, 3);
             if (level >= BombsFromLevel) d.Bombs = level >= BombsFromLevel + 10 ? 2 : 1;
+            if (level >= TarpsFromLevel) d.Tarps = level >= TarpsFromLevel + 16 ? 2 : 1;
             return d;
         }
 
         /// <summary>Bomb crates start here. A bomb's countdown is the tap on which the solver moves it, plus BombSlack.</summary>
         public const int BombsFromLevel = 56;
+
+        /// <summary>Cover tarps start here: a covered column can't be used until the column next to it is empty.</summary>
+        public const int TarpsFromLevel = 64;
         public const int BombSlack = 8;
         private const int BombMark = 100000;
 
@@ -168,10 +177,11 @@ namespace CargoSort.Core
                     if (!Solver.CanSolve(last)) continue;
                     found++;
                     double rate = LevelRater.CasualWinRate(last, seed);
-                    double gap = Math.Abs(rate - target);
+                    double gap = Math.Abs(rate - target) + (dd.Tarps - TarpCount(last)); // prefer layouts that got their tarps
                     if (gap < bestGap) { bestGap = gap; best = last; bestRate = rate; }
                 }
-                if (best != null && (bestRate >= target - TooHardMargin || extraBuffer >= MaxEasing)) break;
+                bool tarpOk = d.Tarps == 0 || (best != null && TarpCount(best) > 0) || extraBuffer >= 2; // a tarp level should show its tarp
+                if (best != null && tarpOk && (bestRate >= target - TooHardMargin || extraBuffer >= MaxEasing)) break;
             }
             return best ?? last;
         }
@@ -299,6 +309,18 @@ namespace CargoSort.Core
                 id++;
             }
 
+            // Tarps: column c stays covered until column Tarps[c] (its neighbor) is empty. Kept only if still winnable.
+            for (int c = 0; c < data.Columns.Count; c++) data.Tarps.Add(-1);
+            for (int k = 0, tries = 0; k < d.Tarps && tries < 40; tries++)
+            {
+                int c = rng.Next(columns), n = c + (rng.Next(2) == 0 ? -1 : 1);
+                if (n < 0 || n >= columns || data.Tarps[c] >= 0 || data.Tarps[n] >= 0 || data.Tarps.Contains(c)) continue;
+                if (data.Columns[c].Count < 2 || data.Columns[n].Count < 2 || data.Frozen[c] > 0) continue;
+                data.Tarps[c] = n;
+                if (Solver.CanSolve(AsPlayed(data, level))) k++;
+                else data.Tarps[c] = -1;
+            }
+
             // Bombs: buried crates (not top, taped, locked, keyed or hidden). Their timers come from a solver
             // run (when the solver moves each bomb crate, plus some slack), so every level stays winnable.
             foreach (var col in data.Columns) data.Bombs.Add(new List<int>(new int[col.Count]));
@@ -314,7 +336,7 @@ namespace CargoSort.Core
             }
             if (d.Bombs > 0)
             {
-                var run = new GameState(data);
+                var run = new GameState(AsPlayed(data, level)).AsDock(); // the level as played, same rules as Solver.CanSolve
                 Solver.Solve(run);
                 foreach (var col in data.Bombs)
                     for (int r = 0; r < col.Count; r++)
@@ -322,6 +344,23 @@ namespace CargoSort.Core
                             col[r] = run.DefusedAt.TryGetValue(col[r], out int at) ? Math.Max(10, at + BombSlack) : 0;
             }
             return data;
+        }
+
+        /// <summary>The level as it will be played: belt levels get the belt and its extra spots (added in Generate).</summary>
+        private static LevelData AsPlayed(LevelData data, int level)
+        {
+            if (level <= 0 || !IsBelt(level)) return data;
+            var copy = (LevelData)data.MemberwiseCloneForBelt();
+            copy.Belt = true;
+            copy.BufferSize += BeltExtraSpots;
+            return copy;
+        }
+
+        private static int TarpCount(LevelData data)
+        {
+            int n = 0;
+            foreach (int t in data.Tarps) if (t >= 0) n++;
+            return n;
         }
 
         private static bool FreeForLock(LevelData data, int c, int row) =>
@@ -390,6 +429,15 @@ namespace CargoSort.Core
                 }
             }
             if (best >= 0) return best;
+
+            // A wanted crate is under a tarp: empty the stack that uncovers it, if the dock can take all of it.
+            for (int c = 0; c < s.Columns.Count; c++)
+            {
+                int n = s.Tarps[c];
+                if (n < 0 || s.Columns[n].Count > free || !s.CanTap(n)) continue;
+                foreach (int crate in s.Columns[c])
+                    if (s.IsWanted(crate)) return n;
+            }
 
             // Nothing wanted is reachable: park the crate whose truck comes soonest.
             int bestWait = int.MaxValue;

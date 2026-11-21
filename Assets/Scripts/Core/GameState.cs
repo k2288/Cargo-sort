@@ -82,6 +82,7 @@ namespace CargoSort.Core
         public List<List<int>> Locks;     // same shape: lock id on a crate (0 = none); it can't move while locked
         public List<List<int>> Keys;      // same shape: a key crate opens the lock with this id when it leaves its stack
         public List<List<int>> Bombs;     // same shape: tap count at which a bomb crate explodes (0 = none)
+        public int[] Tarps;               // per column: the column that must be emptied to uncover it (-1 = not covered)
         public int Moves;                 // taps so far (boosters don't count)
         public bool Exploded;             // lost because a bomb ran out of taps
         public Dictionary<int, int> DefusedAt = new Dictionary<int, int>(); // bomb value -> tap when it left its stack
@@ -125,6 +126,8 @@ namespace CargoSort.Core
             Locks = CopyIds(data.Locks);
             Keys = CopyIds(data.Keys);
             Bombs = CopyIds(data.Bombs);
+            Tarps = new int[Columns.Count];
+            for (int c = 0; c < Tarps.Length; c++) Tarps[c] = data.Tarps != null && c < data.Tarps.Count ? data.Tarps[c] : -1;
             Frozen = new int[Columns.Count];
             if (data.Frozen != null)
                 for (int c = 0; c < Frozen.Length && c < data.Frozen.Count; c++) Frozen[c] = data.Frozen[c];
@@ -202,7 +205,7 @@ namespace CargoSort.Core
         {
             if (Status != GameStatus.Playing) return false;
             if (column < 0 || column >= Columns.Count) return false;
-            if (Frozen[column] > 0) return false;
+            if (Frozen[column] > 0 || IsCovered(column)) return false;
             int top = Top(column);
             if (top == Empty) return false;
             if (IsLocked(column, Columns[column].Count - 1)) return false;
@@ -232,6 +235,16 @@ namespace CargoSort.Core
         }
 
         public bool IsLocked(int column, int row) => Locks[column][row] > 0;
+
+        /// <summary>The column is under a tarp (can't be tapped, craned or shuffled).</summary>
+        public bool IsCovered(int column) => Tarps[column] >= 0;
+
+        /// <summary>A column became empty: the tarp that waits for it comes off.</summary>
+        private void Uncover()
+        {
+            for (int c = 0; c < Tarps.Length; c++)
+                if (Tarps[c] >= 0 && Columns[Tarps[c]].Count == 0) Tarps[c] = -1;
+        }
 
         /// <summary>Taps left before the bomb on this crate explodes (int.MaxValue if it has none).</summary>
         public int BombTapsLeft(int column, int row) => Bombs[column][row] > 0 ? Bombs[column][row] - Moves : int.MaxValue;
@@ -299,6 +312,7 @@ namespace CargoSort.Core
 
             Route(PopTop(column), column, -1, events);
             if (pair) Route(PopTop(column), column, -1, events);
+            Uncover();
             UpdateStatus();
             return events;
         }
@@ -383,7 +397,7 @@ namespace CargoSort.Core
         {
             if (Status != GameStatus.Playing || column < 0 || column >= Columns.Count) return false;
             var col = Columns[column];
-            if (row < 0 || row >= col.Count || IsLocked(column, row)) return false;
+            if (row < 0 || row >= col.Count || IsLocked(column, row) || IsCovered(column)) return false;
             return IsWanted(col[row]) || FreeBufferSlots > 0;
         }
 
@@ -410,6 +424,7 @@ namespace CargoSort.Core
             Defuse(Bombs[column][row]);
             Bombs[column].RemoveAt(row);
             Route(color, column, row == Columns[column].Count ? -1 : row, events);
+            Uncover();
             UpdateStatus();
         }
 
@@ -420,6 +435,7 @@ namespace CargoSort.Core
             int bestDepth = int.MaxValue;
             for (int c = 0; c < Columns.Count; c++)
             {
+                if (IsCovered(c)) continue;
                 var col = Columns[c];
                 for (int r = col.Count - 1; r >= 0; r--)
                 {
@@ -460,15 +476,17 @@ namespace CargoSort.Core
             {
                 var s = Clone();
                 var all = new List<int>();
-                foreach (var col in s.Columns) all.AddRange(col);
+                for (int c = 0; c < s.Columns.Count; c++)
+                    if (!s.IsCovered(c)) all.AddRange(s.Columns[c]); // covered stacks stay as they are
                 for (int i = all.Count - 1; i > 0; i--)
                 {
                     int j = random.Next(i + 1);
                     int swap = all[i]; all[i] = all[j]; all[j] = swap;
                 }
                 int k = 0;
-                foreach (var col in s.Columns)
-                    for (int r = 0; r < col.Count; r++) col[r] = all[k++];
+                for (int c = 0; c < s.Columns.Count; c++)
+                    if (!s.IsCovered(c))
+                        for (int r = 0; r < s.Columns[c].Count; r++) s.Columns[c][r] = all[k++];
                 foreach (var taped in s.Taped)
                     for (int r = 0; r < taped.Count; r++) taped[r] = false;
                 s.Status = GameStatus.Playing;
@@ -582,6 +600,7 @@ namespace CargoSort.Core
                 Exploded = Exploded,
                 DefusedAt = new Dictionary<int, int>(DefusedAt),
                 Frozen = (int[])Frozen.Clone(),
+                Tarps = (int[])Tarps.Clone(),
                 Buffer = (int[])Buffer.Clone(),
                 Bays = new Truck[Bays.Length],
                 TruckQueue = TruckQueue,

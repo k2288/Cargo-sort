@@ -362,6 +362,40 @@ namespace CargoSort.Tests
                 Assert.IsTrue(Solver.CanSolve(LevelGenerator.Generate(n)), "level " + n);
         }
 
+        // Tarp test level: red truck then blue. Column 0 = blue, blue, blue (covered until column 1 is empty); column 1 = red x3.
+        private static LevelData TarpLevel() => new LevelData
+        {
+            TruckCapacity = 3, BufferSize = 3, BayCount = 1, ColorCount = 2,
+            TruckColors = new List<int> { 0, 1 },
+            Columns = new List<List<int>> { new List<int> { 1, 1, 1 }, new List<int> { 0, 0, 0 } },
+            Tarps = new List<int> { 1, -1 },
+        };
+
+        [Test]
+        public void TarpOpensWhenItsNeighborIsEmpty()
+        {
+            var s = new GameState(TarpLevel());
+            Assert.IsTrue(s.IsCovered(0));
+            Assert.IsFalse(s.CanTap(0));
+            Assert.IsFalse(s.CanPluck(0, 0));
+            s.Tap(1); s.Tap(1);
+            Assert.IsTrue(s.IsCovered(0));
+            s.Tap(1);                          // column 1 is empty now
+            Assert.IsFalse(s.IsCovered(0));
+            s.Tap(0); s.Tap(0); s.Tap(0);
+            Assert.AreEqual(GameStatus.Won, s.Status);
+        }
+
+        [Test]
+        public void TarpsStartAtLevel64AndStayWinnable()
+        {
+            int Count(LevelData d) { int n = 0; foreach (int t in d.Tarps) if (t >= 0) n++; return n; }
+            Assert.AreEqual(0, Count(LevelGenerator.Generate(63)));
+            Assert.AreEqual(1, Count(LevelGenerator.Generate(64)));
+            for (int n = 64; n <= 100; n += 4)
+                Assert.IsTrue(Solver.CanSolve(LevelGenerator.Generate(n)), "level " + n);
+        }
+
         [Test]
         public void CraneLiftsACrateFromUnderOthers()
         {
