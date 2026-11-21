@@ -25,12 +25,12 @@ namespace CargoSort.Game
             Stretch(screen);
             rushPanel = screen.gameObject;
             var bg = screen.gameObject.AddComponent<Image>();
-            bg.sprite = Art.Gradient(new Color32(0x24, 0x39, 0x5A, 0xFF), new Color32(0x15, 0x23, 0x3A, 0xFF));
+            bg.sprite = Art.Gradient(new Color32(0x7A, 0x48, 0xD8, 0xFF), new Color32(0x34, 0x19, 0x6F, 0xFF));
 
             var close = MakeCandy(screen, Red, () => rushPanel.SetActive(false), null, 0, "x", 60, 46);
             Anchor(close.Root, new Vector2(0, 1), new Vector2(110, -100), new Vector2(140, 140));
             var title = MakeText(screen, Loc.T("rush_week"), 74, TextAnchor.MiddleCenter, Art.DisplayFont);
-            AddShadow(title, new Color(0, 0, 0, 0.35f), 6);
+            AddOutline(title, Ink, 5);
             Anchor(title.rectTransform, new Vector2(0.5f, 1), new Vector2(0, -100), new Vector2(560, 120));
 
             var viewport = MakeRect("Viewport", screen);
@@ -88,7 +88,7 @@ namespace CargoSort.Game
         {
             var t = MakeText(RushRow(80), text, 50, TextAnchor.MiddleLeft, Art.DisplayFont);
             t.color = Gold;
-            AddShadow(t, new Color(0, 0, 0, 0.35f), 4);
+            AddOutline(t, new Color32(0x5A, 0x2A, 0x00, 0xFF), 3);
             Stretch(t.rectTransform);
             t.rectTransform.offsetMin = new Vector2(10, 0);
         }
@@ -130,7 +130,7 @@ namespace CargoSort.Game
             {
                 int step = i, need = RushWeek.Track[i];
                 bool got = points >= need, done = ((claimed >> i) & 1) == 1;
-                var card = Card(RushRow(190), new Color32(0x2B, 0x46, 0x69, 0xFF));
+                var card = Card(RushRow(190), PanelLight);
                 var circle = Img(card, Art.Circle, got ? Green : new Color(0, 0, 0, 0.3f), 0);
                 Anchor(circle.rectTransform, new Vector2(0, 0.5f), new Vector2(90, 0), new Vector2(130, 130));
                 var needText = MakeText(circle.rectTransform, Economy.Number(need), 44, TextAnchor.MiddleCenter, Art.DisplayFont);
@@ -228,11 +228,11 @@ namespace CargoSort.Game
 
         private void BuildRushSide(RectTransform home)
         {
-            rushSide = SideButton(home, Red, "bolt", "", new Vector2(1, 0.5f), new Vector2(-130, -420), () => OpenRush?.Invoke(), out rushSideTime).gameObject;
+            rushSide = SideButton(home, Red, "bolt", "", 3, () => OpenRush?.Invoke(), out rushSideTime).gameObject;
             var labelBg = Img((RectTransform)rushSideTime.transform.parent, Art.Rounded, new Color(0, 0, 0, 0.5f), 22);
-            Anchor(labelBg.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, -100), new Vector2(200, 50));
+            Anchor(labelBg.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, -100), new Vector2(170, 46));
             labelBg.transform.SetSiblingIndex(rushSideTime.transform.GetSiblingIndex());
-            rushSideTime.fontSize = 30;
+            rushSideTime.fontSize = 28;
             rushSideDot = Dot((RectTransform)rushSide.transform);
         }
 

@@ -48,12 +48,24 @@ namespace CargoSort.Game
             });
         }
 
-        private static Sprite Get(string key, float vx, float vy, float vw, float vh, int w, int h, int city, System.Action<Canvas> draw)
+        /// <summary>
+        /// The city's four landmarks standing on a line at the bottom, on a see-through background, for the home
+        /// screen. 360 x 316 units (the preview's home scene from y = 120 to the horizon at y = 436).
+        /// </summary>
+        public static Sprite Backdrop(int city, int mask)
+        {
+            return Get($"back{city}_{mask}", 0, 120, 360, 316, 720, 632, city, c =>
+            {
+                for (int i = 0; i < WorldTour.MarksPerCity; i++) c.Landmark(WorldTour.Cities[city].Marks[i], 52 + i * 85, 436, 1.75f, WorldTour.IsBuilt(mask, i));
+            }, false);
+        }
+
+        private static Sprite Get(string key, float vx, float vy, float vw, float vh, int w, int h, int city, System.Action<Canvas> draw, bool sky = true)
         {
             if (cache.TryGetValue(key, out var sprite) && sprite != null) return sprite;
             var canvas = new Canvas(vx, vy, vw, vh, w, h);
             var c = WorldTour.Cities[city];
-            canvas.Sky(Hex(c.SkyHigh), Hex(c.SkyLow));
+            if (sky) canvas.Sky(Hex(c.SkyHigh), Hex(c.SkyLow));
             draw(canvas);
             var tex = new Texture2D(w, h, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
             tex.SetPixels32(canvas.Pixels());
@@ -149,7 +161,9 @@ namespace CargoSort.Game
                         if (hits == 0) continue;
                         float a = col.a * hits / 9f;
                         ref var d = ref px[y * w + x];
-                        d = new Color(d.r + (col.r - d.r) * a, d.g + (col.g - d.g) * a, d.b + (col.b - d.b) * a, 1);
+                        // Normal alpha blending, so shapes can be drawn on a see-through background too.
+                        float na = d.a + (1f - d.a) * a;
+                        d = na <= 0f ? d : new Color((d.r * d.a * (1f - a) + col.r * a) / na, (d.g * d.a * (1f - a) + col.g * a) / na, (d.b * d.a * (1f - a) + col.b * a) / na, na);
                     }
             }
 

@@ -31,7 +31,7 @@ namespace CargoSort.Game
             { "ads_removed", ("Ads removed. Thank you!", "تبلیغات حذف شد. ممنون!") },
             { "purchase_failed", ("Purchase didn't go through", "خرید انجام نشد") },
             { "not_enough", ("Not enough coins", "سکه کافی نداری") },
-            { "theme_night", ("Night Dock", "اسکله شب") },
+            { "theme_night", ("Harbor Day", "اسکله روز") },
             { "theme_sunny", ("Sunny Port", "بندر آفتابی") },
             { "theme_snow", ("Snowy Yard", "انبار برفی") },
             { "theme_desert", ("Desert Depot", "انبار کویری") },

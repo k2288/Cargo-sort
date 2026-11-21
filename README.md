@@ -51,7 +51,7 @@ checked with dock rules, because on the belt a player can always wait for a crat
 **World Tour (meta):** each win gives a star (2 on hard levels). Stars build the landmarks of the
 current city (4 per city, costs 3+ stars, each pays coins). Finishing a city gives coins plus a Crane,
 a Magnet and a Shuffle, and the tour moves to the next of 8 cities (Tehran, Istanbul, Dubai, Cairo,
-Paris, London, New York, Tokyo). The home screen shows the city banner and a Tour button. Rules and
+Paris, London, New York, Tokyo). The home screen is a scene of the current city (its sky and its four landmarks, built ones in colour) with a winding level road in front, the city banner on top, and a tab bar along the bottom (Tour, Shop, starter pack, Rush Week, daily challenge, free gift). Popups are purple panels with a gold ribbon title; the board uses a bright harbor-day theme. Rules and
 data are in `Core/WorldTour.cs`; `Game/TourArt.cs` draws the skylines into textures from the same shape
 data the web preview draws as SVG.
 

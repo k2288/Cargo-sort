@@ -260,6 +260,83 @@ button.mk .ic { width: 18px; height: 18px; flex: none; }
 .devrow button { flex: 1; padding-inline: 6px; }
 @media (max-width: 380px) { .bar { gap: 14px; } .boost { width: 62px; height: 56px; } .side button { width: 54px; height: 54px; } }
 @media (prefers-reduced-motion: reduce) { .play { animation: none; } button, button.switch::after { transition: none; } }
+
+/* ===== Saga skin (preview): a scenic level map with a bottom tab bar ===== */
+.skinbar { position: fixed; z-index: 4; left: 8px; top: 6px; display: flex; background: rgba(0,0,0,.6); padding: 3px; border-radius: 999px; }
+.skinbar a { cursor: pointer; white-space: nowrap; font: 800 10px var(--body); color: #fff; padding: 5px 9px; border-radius: 999px; opacity: .8; }
+.skinbar a.on { background: #fff; color: #111; opacity: 1; }
+body[data-skin="saga"] { --display: "Lilita One", "Arial Rounded MT Bold", system-ui, sans-serif; }
+body[data-skin="saga"][data-screen="home"] { background: #5ab2ff; }
+body[data-skin="saga"] .app { position: relative; }
+/* home covers the whole screen; the top bar floats above it */
+body[data-skin="saga"][data-screen="home"] .top { position: relative; z-index: 4; margin-top: 22px; }
+body[data-skin="saga"][data-screen="home"] .home { position: absolute; inset: 0; border-radius: 0; gap: 0; justify-content: flex-start; padding-top: 92px; background: linear-gradient(180deg, #4aa8ff 0%, #8fd0ff 34%, #ffd6ea 66%, #ffbcd8 100%); }
+body[data-skin="saga"] .logo { display: none; }
+body[data-skin="saga"] .path { position: absolute; inset: 0; max-width: none; min-height: 0; }
+body[data-skin="saga"] .path svg { width: 100%; height: 100%; }
+/* top bar */
+body[data-skin="saga"] .coinpill { background: linear-gradient(180deg, #7a3fd0, #4d22a0); border: 3px solid #2b1170; padding: 3px 4px 3px 6px; box-shadow: 0 3px 0 rgba(0,0,0,.25), inset 0 2px 0 rgba(255,255,255,.35); }
+body[data-skin="saga"] .coinpill b { text-shadow: 0 2px 0 #2b1170; }
+body[data-skin="saga"] button.sq.quiet { --c1: #b89cff; --c2: #7a4fe0; --edge: #3f1f93; }
+body[data-skin="saga"] button { border: 3px solid color-mix(in srgb, var(--edge) 60%, #1b0a4a); text-shadow: 0 2px 0 var(--edge), 1.5px 0 0 var(--edge), -1.5px 0 0 var(--edge), 0 -1.5px 0 var(--edge); }
+/* world banner */
+body[data-skin="saga"] .citybar { position: relative; z-index: 3; margin-top: 4px; width: min(300px, 82%); --c1: #8f5be8; --c2: #5b2eb8; --edge: #2b1170; border-radius: 16px; color: #fff; }
+body[data-skin="saga"] .citybar .sky { border-radius: 10px; border: 2px solid rgba(255,255,255,.7); width: 78px; height: 50px; }
+body[data-skin="saga"] .citybar { grid-template-columns: 78px minmax(0, 1fr) auto; }
+body[data-skin="saga"] .citybar .meter { background: rgba(0,0,0,.4); }
+/* play button floats above the tab bar */
+body[data-skin="saga"] .play { position: absolute; left: 0; right: 0; margin: 0 auto; bottom: 112px; width: min(260px, 70%); font-size: 30px; padding: 12px 18px 10px; border-radius: 40px; z-index: 3;
+  --c1: #ffe86a; --c2: #ff9a1f; --edge: #a8510a; animation: breathe 1.6s ease-in-out infinite; }
+body[data-skin="saga"] .play.red { --c1: #ff9a8c; --c2: #e63a2e; --edge: #8f1a12; }
+body[data-skin="saga"] .streak { position: absolute; z-index: 3; bottom: 176px; left: 50%; margin-left: 108px; }
+/* bottom tab bar */
+body[data-skin="saga"] .home::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 96px; z-index: 1; border-radius: 28px 28px 0 0;
+  background: linear-gradient(180deg, #7d46d6, #4a2396 60%, #3a1a78); border-top: 4px solid #b793ff; box-shadow: 0 -6px 16px rgba(30,10,90,.35), inset 0 3px 0 rgba(255,255,255,.18); }
+body[data-skin="saga"] .side { top: auto; bottom: 8px; z-index: 2; display: flex; flex-direction: row; justify-content: space-evenly; align-items: flex-start; gap: 0; }
+body[data-skin="saga"] .side.s1 { left: 0; right: 50%; inset-inline-start: 0; inset-inline-end: 50%; }
+body[data-skin="saga"] .side.s2 { left: 50%; right: 0; inset-inline-start: 50%; inset-inline-end: 0; }
+body[data-skin="saga"] .sbtn { gap: 3px; flex: 1; }
+body[data-skin="saga"] .side button { width: 52px; height: 52px; border-radius: 16px; }
+body[data-skin="saga"] .side button .ic { width: 28px; height: 28px; }
+body[data-skin="saga"] .bname { font-size: 12px; color: #fff; text-shadow: 0 2px 0 rgba(30,10,90,.7); }
+body[data-skin="saga"] .timer { background: rgba(0,0,0,.35); font-size: 11px; }
+
+/* ---- Saga: board, popups, screens ---- */
+body[data-screen]:not([data-screen="home"]) .skinbar { display: none; }
+body[data-skin="saga"] { --panel: #3a1a80; --muted: #e0d2ff; }
+body[data-skin="saga"] .title h1 { color: #fff; -webkit-text-stroke: 4px #2b1170; paint-order: stroke fill; text-shadow: 0 3px 0 #2b1170; letter-spacing: .5px; }
+body[data-skin="saga"] .title p { display: inline-block; margin-top: 4px; padding: 2px 12px; border-radius: 999px; background: linear-gradient(#7a3fd0, #4d22a0); border: 2px solid #2b1170; color: #fff; font-weight: 800; }
+body[data-skin="saga"] .board { border: 4px solid #fff; border-radius: 26px; box-shadow: 0 6px 0 rgba(43,17,112,.55), 0 12px 18px rgba(0,0,0,.25); }
+body[data-skin="saga"] .bar { background: linear-gradient(180deg, #7d46d6, #4a2396 70%, #3a1a78); border: 3px solid #b793ff; border-bottom: 0; border-radius: 26px 26px 0 0; padding: 18px 10px 8px; margin: 0 -14px calc(-1 * max(10px, env(safe-area-inset-bottom, 0px))); box-shadow: 0 -6px 16px rgba(30,10,90,.3), inset 0 3px 0 rgba(255,255,255,.18); }
+body[data-skin="saga"] .tool { background: linear-gradient(#ffe86a, #ffb21f); border: 3px solid #b5560a; color: #5a2a00; }
+/* popups: purple panel with a gold ribbon title */
+body[data-skin="saga"] .overlay { background: rgba(30,10,80,.62); }
+body[data-skin="saga"] .card { background: linear-gradient(#9a68ee, #6a3cc8 55%, #4d26a6); border: 4px solid #2b1170; border-radius: 30px; padding-top: 58px; box-shadow: inset 0 4px 0 rgba(255,255,255,.35), inset 0 -8px 0 rgba(0,0,0,.12), 0 10px 0 rgba(20,5,70,.5), 0 18px 28px rgba(0,0,0,.35); animation: popin .32s cubic-bezier(.2,1.4,.4,1); }
+@keyframes popin { from { transform: scale(.7); opacity: 0; } }
+body[data-skin="saga"] .card h2 { position: absolute; top: -26px; left: 50%; transform: translateX(-50%); margin: 0; width: max-content; max-width: 92%; padding: 8px 26px 10px; border-radius: 16px; font-size: 26px; line-height: 1.1; color: #fff; -webkit-text-stroke: 4px #8a4a00; paint-order: stroke fill; text-shadow: none;
+  background: linear-gradient(#ffe86a, #ffb21f); border: 3px solid #8a4a00; box-shadow: inset 0 3px 0 rgba(255,255,255,.6), 0 5px 0 #8a4a00; }
+body[data-skin="saga"] #lose .card h2 { background: linear-gradient(#ff9a8c, #e63a2e); border-color: #7a1810; box-shadow: inset 0 3px 0 rgba(255,255,255,.5), 0 5px 0 #7a1810; -webkit-text-stroke-color: #7a1810; }
+body[data-skin="saga"] .card p { color: #efe6ff; }
+body[data-skin="saga"] .card.starter { background: linear-gradient(160deg, #ff7a59, #c9306b 60%, #7a2a8c); }
+body[data-skin="saga"] .setrow { background: rgba(255,255,255,.14); box-shadow: inset 0 2px 0 rgba(255,255,255,.18); }
+body[data-skin="saga"] .chip { background: rgba(0,0,0,.28); }
+body[data-skin="saga"] #win .card::before { content: ""; position: absolute; left: 50%; top: -118px; width: 230px; height: 84px; transform: translateX(-50%); pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 230 84'%3E%3Cg stroke='%238a4a00' stroke-width='2' stroke-linejoin='round'%3E%3Cpath transform='translate(10 22) scale(2.3)' fill='%23ffd23a' d='M12 1.5l3 6.8 7.4.7-5.6 4.9 1.7 7.2L12 17.3 5.5 21.1l1.7-7.2L1.6 9l7.4-.7z'/%3E%3Cpath transform='translate(80 0) scale(3)' fill='%23ffe66a' d='M12 1.5l3 6.8 7.4.7-5.6 4.9 1.7 7.2L12 17.3 5.5 21.1l1.7-7.2L1.6 9l7.4-.7z'/%3E%3Cpath transform='translate(150 22) scale(2.3)' fill='%23ffd23a' d='M12 1.5l3 6.8 7.4.7-5.6 4.9 1.7 7.2L12 17.3 5.5 21.1l1.7-7.2L1.6 9l7.4-.7z'/%3E%3C/g%3E%3C/svg%3E") center / contain no-repeat; animation: starpop .6s .15s cubic-bezier(.2,1.6,.4,1) both; filter: drop-shadow(0 6px 0 rgba(43,17,112,.5)); }
+@keyframes starpop { from { transform: translateX(-50%) scale(.2) rotate(-25deg); opacity: 0; } }
+body[data-skin="saga"] #win .card { margin-top: 60px; }
+/* full screens */
+body[data-skin="saga"] .screen { background: radial-gradient(500px 300px at 50% -40px, rgba(255,255,255,.28), transparent 70%), linear-gradient(#7a48d8, #4a2396 55%, #34196f); }
+body[data-skin="saga"] .screen header { background: linear-gradient(#8f5be8, #6a3cc8); border-bottom: 4px solid #2b1170; box-shadow: 0 6px 0 rgba(20,5,70,.35); max-width: none; padding-bottom: 12px; }
+body[data-skin="saga"] .screen header h2 { color: #fff; -webkit-text-stroke: 5px #2b1170; paint-order: stroke fill; text-shadow: 0 3px 0 #2b1170; font-size: 30px; }
+body[data-skin="saga"] .sect { color: #ffe66a; -webkit-text-stroke: 4px #5a2a00; paint-order: stroke fill; text-shadow: 0 3px 0 #5a2a00; }
+body[data-skin="saga"] .offer, body[data-skin="saga"] .pack, body[data-skin="saga"] .citycard { background: linear-gradient(#a577f0, #7d4fd6); border: 3px solid #2b1170; box-shadow: inset 0 3px 0 rgba(255,255,255,.35), 0 5px 0 rgba(20,5,70,.45); }
+body[data-skin="saga"] .offer b, body[data-skin="saga"] .citycard b { color: #fff; text-shadow: 0 2px 0 rgba(43,17,112,.6); }
+body[data-skin="saga"] .pack b { color: #ffe66a; text-shadow: 0 2px 0 #5a2a00; }
+body[data-skin="saga"] .meter { background: rgba(43,17,112,.55); border: 2px solid rgba(255,255,255,.5); }
+body[data-skin="saga"] .tag { background: linear-gradient(#ffe86a, #ffb21f); color: #5a2a00; border: 2px solid #8a4a00; }
+body[data-skin="saga"] .starpill, body[data-skin="saga"] .screen .coinpill { background: linear-gradient(#5a2eb8, #34196f); border: 3px solid #2b1170; }
+body[data-skin="saga"] .devrow input { background: #2b1170; }
+
 </style>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -384,6 +461,13 @@ button.mk .ic { width: 18px; height: 18px; flex: none; }
 <div class="overlay" id="ad" hidden><div class="fakead" id="adText">Ad<span>test ad, 1 second</span></div></div>
 <div class="toast" id="toast" hidden></div>
 
+<script>
+(function(){var m=location.search.match(/[?&]skin=(saga|classic)/);var k=m?m[1]:"saga";
+var bar=document.createElement("div");bar.className="skinbar";var links=[];
+window.setSkin=function(n){k=n;document.body.dataset.skin=n;links.forEach(function(x){x.el.className=x.n===n?"on":""});if(window.applyTheme)applyTheme();if(window.renderHome&&document.body.dataset.screen==="home")renderHome();};
+[["classic","Old"],["saga","New"]].forEach(function(o){var a=document.createElement("a");a.textContent=o[1];a.setAttribute("role","button");a.onclick=function(){setSkin(o[0])};links.push({n:o[0],el:a});bar.appendChild(a)});
+document.body.appendChild(bar);document.body.dataset.skin=k;links.forEach(function(x){x.el.className=x.n===k?"on":""});})();
+</script>
 <script>
 // ===== Core rules (same as Assets/Scripts/Core in the Unity project) =====
 const EMPTY = -1;
@@ -1036,6 +1120,8 @@ function drawHand(c) {
   rr(x, y + 1.25 + b, 0.72, 0.66, 0.2, "#1b1b1b"); rr(x, y + 1.25 + b, 0.6, 0.54, 0.16, "#fff");
   rr(x - 0.12, y + 0.72 + b, 0.3, 0.66, 0.15, "#1b1b1b"); rr(x - 0.12, y + 0.74 + b, 0.2, 0.58, 0.1, "#fff");
 }
+function countUp(el, to) { const t0 = performance.now(), dur = 700; el.textContent = "+" + num(0);
+  (function step(now) { const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3); el.textContent = "+" + num(Math.round(to * e)); if (k < 1) requestAnimationFrame(step); })(t0); }
 function burstConfetti() {
   if (reduce) return;
   for (let i = 0; i < 60; i++) { const a = (50 + Math.random() * 80) * Math.PI / 180, v = 9 + Math.random() * 7;
@@ -1225,7 +1311,8 @@ let lang = store.get("lang", "fa");
 const fa = () => lang === "fa";
 const num = n => fa() ? Number(n).toLocaleString("fa-IR", { useGrouping: false }) : String(n);
 function t(key, ...args) { const pair = STR[key]; if (!pair) return key; return pair[fa() ? 1 : 0].replace(/\{(\d)\}/g, (_, i) => num(args[+i])); }
-function theme() { return THEMES[Math.min(store.get("theme", 0), THEMES.length - 1)]; }
+const SAGA_THEME = { key: "theme_night", price: 0, bg: "#58b4f2", ground: "#b9814c", slot: "#3b78ad", bed: "#55648a" };
+function theme() { const i = Math.min(store.get("theme", 0), THEMES.length - 1); return i === 0 && document.body.dataset.skin === "saga" ? SAGA_THEME : THEMES[i]; }
 const owns = i => i === 0 || store.get("owned" + i, false);
 let coins = store.get("coins", 0), pendingWin = 0, pendingDaily = 0;
 function addCoins(n) { sfx.coins(); flyCoins(n); coins += n; store.set("coins", coins); refresh(); renderShop(); renderHome(); }
@@ -1562,7 +1649,7 @@ function renderCityBar() {
 // ===== Home screen =====
 let screen = "home";
 function setScreen(s) {
-  screen = s; const home = s === "home";
+  screen = s; const home = s === "home"; document.body.dataset.screen = s;
   $("home").hidden = !home; $("board").hidden = home; $("bar").hidden = home;
   $("homeBtn").style.visibility = home ? "hidden" : "visible"; $("titleBox").style.visibility = home ? "hidden" : "visible";
   if (home) { renderHome(); maybeStarter();
@@ -1585,6 +1672,7 @@ function renderHome() {
   $("streakTag").hidden = wstreak < 1; $("streakNum").textContent = num(wstreak);
   renderCityBar();
   rushRollover(); const ro = rushOpen(); $("rushSide").hidden = !ro; $("rushSideTime").textContent = dayClock(rushLeft()); $("rushDot").hidden = !ro || !rushClaimable();
+  if (document.body.dataset.skin === "saga") { $("path").innerHTML = sagaMap(cur); return; }
   // Level path: two finished levels at the bottom, the current one, then locked ones going up.
   const W = 200, H = 300, lv = [], first = Math.max(1, cur - 2);
   for (let n = first; n < first + 6; n++) lv.push(n);
@@ -1605,6 +1693,40 @@ function renderHome() {
     else svg += `<text x="${x}" y="${y + (now ? 10 : 7)}" text-anchor="middle" font-size="${now ? 28 : 19}" fill="#fff" stroke="${edge}" stroke-width="3" paint-order="stroke">${num(n)}</text>`;
   });
   $("path").innerHTML = svg + "</svg>";
+}
+
+// Saga map: a scenic harbor with a winding road of levels (preview skin).
+function sagaMap(cur) {
+  const W = 360, H = 640, xs = [-72, 18, 84, 14, -78, -6, 74], first = Math.max(1, cur - 1), n = 6;
+  const pos = []; for (let i = 0; i < n; i++) pos.push([W / 2 + xs[i], 468 - i * 58]);
+  let d = `M${pos[0][0]} ${pos[0][1]}`;
+  for (let i = 1; i < n; i++) { const [x0, y0] = pos[i - 1], [x1, y1] = pos[i], my = (y0 + y1) / 2; d += ` C${x0} ${my} ${x1} ${my} ${x1} ${y1}`; }
+  const cloud = (x, y, k) => `<g transform="translate(${x} ${y}) scale(${k})" fill="#fff" opacity=".8"><ellipse cx="0" cy="0" rx="34" ry="13"/><ellipse cx="-16" cy="-9" rx="18" ry="13"/><ellipse cx="10" cy="-13" rx="22" ry="16"/></g>`;
+  // The backdrop is the city of the World Tour: its sky colours, its four landmarks (built ones in colour), a sun and a strip of ground.
+  const ci = Math.min(tourCity(), TOUR.length - 1), city = TOUR[ci], mask = tourCity() < TOUR.length ? tourBuilt() : 15, gTop = shade(city.sky[0], 0.5), gBot = shade(city.sky[0], 0.72), HZ = 436;
+  $("home").style.background = document.body.dataset.skin === "saga" ? `linear-gradient(180deg, ${city.sky[1]} 0%, ${city.sky[0]} 62%, ${gTop} 100%)` : "";
+  let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" aria-label="${t("level", cur)}">` +
+    `<defs><linearGradient id="sg-gr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${gTop}"/><stop offset="1" stop-color="${gBot}"/></linearGradient>` +
+    `<linearGradient id="sg-haze" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity=".35"/></linearGradient></defs>` +
+    `<circle cx="288" cy="214" r="64" fill="rgba(255,255,255,.2)"/><circle cx="288" cy="214" r="38" fill="rgba(255,255,255,.62)"/>` +
+    cloud(64, 170, 1) + cloud(318, 290, .7) + cloud(40, 330, .6) +
+    `<rect x="0" y="${HZ - 150}" width="${W}" height="150" fill="url(#sg-haze)"/>` +
+    city.marks.map(([type, color], i) => landmarkSVG(type, color, 52 + i * 85, HZ, 1.75, isBuilt(mask, i))).join("") +
+    `<rect x="0" y="${HZ}" width="${W}" height="${H - HZ}" fill="url(#sg-gr)"/><rect x="0" y="${HZ}" width="${W}" height="5" fill="rgba(255,255,255,.35)"/>` +
+    `<path d="${d}" fill="none" stroke="#9b5b2e" stroke-width="30" stroke-linecap="round"/><path d="${d}" fill="none" stroke="#ffe3a6" stroke-width="24" stroke-linecap="round"/>` +
+    `<path d="${d}" fill="none" stroke="rgba(255,255,255,.7)" stroke-width="3" stroke-dasharray="3 12" stroke-linecap="round"/>`;
+  for (let i = 0; i < n; i++) {
+    const lvl = first + i, [x, y] = pos[i], done = lvl < cur, now = lvl === cur, hard = isHard(lvl), r = now ? 27 : 20;
+    const fill = done ? "#3fcf55" : now ? (hard ? "#ff4d3d" : "#ffb21f") : hard ? "#b24a6a" : "#8f5be8";
+    const edge = done ? "#1f7f35" : now ? (hard ? "#9c1c12" : "#b5560a") : hard ? "#5a1f35" : "#4a22a0";
+    if (now) svg += `<circle cx="${x}" cy="${y}" r="${r + 10}" fill="rgba(255,255,255,.55)"><animate attributeName="r" values="${r + 7};${r + 13};${r + 7}" dur="1.6s" repeatCount="indefinite"/></circle>`;
+    svg += `<circle cx="${x}" cy="${y + 4}" r="${r}" fill="${edge}"/><circle cx="${x}" cy="${y}" r="${r}" fill="${fill}" stroke="#fff" stroke-width="3"/>` +
+      `<ellipse cx="${x}" cy="${y - r * .48}" rx="${r * .62}" ry="${r * .3}" fill="rgba(255,255,255,.4)"/>` +
+      `<text x="${x}" y="${y + (now ? 9 : 7)}" text-anchor="middle" font-size="${now ? 26 : 19}" fill="#fff" stroke="${edge}" stroke-width="4" paint-order="stroke" style="font-family:var(--display)">${num(lvl)}</text>`;
+    if (done) svg += `<g transform="translate(${x - 15} ${y + r - 2})" fill="#ffd23a" stroke="#b5760a" stroke-width="1"><use href="#i-star" width="10" height="10"/><use href="#i-star" x="10" y="2" width="10" height="10"/><use href="#i-star" x="20" width="10" height="10"/></g>`;
+    if (now) svg += `<path d="M${x - 9} ${y - r - 26} h18 l-9 13z" fill="#fff" stroke="#b5560a" stroke-width="2.5" stroke-linejoin="round"><animateTransform attributeName="transform" type="translate" values="0 0;0 5;0 0" dur="1s" repeatCount="indefinite"/></path>`;
+  }
+  return svg + "</svg>";
 }
 
 function today() { const d = new Date(); return Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(2000, 0, 1)) / 86400000); }
@@ -1661,7 +1783,7 @@ function afterMove() {
       const add = Math.min(PIGGY_MAX - piggy(), isHard(level) ? 40 : 20); store.set("piggy", piggy() + add);
       $("winPiggy").lastChild.textContent = t("piggy_add", add); $("winPiggy").hidden = add <= 0; $("winStreak").lastChild.textContent = t("win_streak", wstreak); }
     $("winStreak").hidden = $("winStars").hidden = level === 0; if (level === 0) $("winRush").hidden = true; if (level === 0) $("winPiggy").hidden = true;
-    $("winTitle").textContent = level > 0 ? t("win_title", level) : t("challenge_win"); $("winReward").textContent = "+" + num(pendingWin);
+    $("winTitle").textContent = level > 0 ? t("win_title", level) : t("challenge_win"); countUp($("winReward"), pendingWin);
     busy = true; setTimeout(() => { busy = false; $("win").hidden = false; }, 800);
   }
   else if (game.status === "lost") { sfx.lose(); setCrane(false); buzz(80);

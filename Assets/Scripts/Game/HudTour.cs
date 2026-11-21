@@ -30,12 +30,12 @@ namespace CargoSort.Game
             Stretch(screen);
             tourPanel = screen.gameObject;
             var bg = screen.gameObject.AddComponent<Image>();
-            bg.sprite = Art.Gradient(new Color32(0x24, 0x39, 0x5A, 0xFF), new Color32(0x15, 0x23, 0x3A, 0xFF));
+            bg.sprite = Art.Gradient(new Color32(0x7A, 0x48, 0xD8, 0xFF), new Color32(0x34, 0x19, 0x6F, 0xFF));
 
             var close = MakeCandy(screen, Red, () => tourPanel.SetActive(false), null, 0, "x", 60, 46);
             Anchor(close.Root, new Vector2(0, 1), new Vector2(110, -100), new Vector2(140, 140));
             var title = MakeText(screen, Loc.T("world_tour"), 74, TextAnchor.MiddleCenter, Art.DisplayFont);
-            AddShadow(title, new Color(0, 0, 0, 0.35f), 6);
+            AddOutline(title, Ink, 5);
             Anchor(title.rectTransform, new Vector2(0.5f, 1), new Vector2(0, -100), new Vector2(520, 120));
             var pill = MakeRect("Stars", screen);
             Anchor(pill, new Vector2(1, 1), new Vector2(-170, -100), new Vector2(240, 104));
@@ -101,7 +101,7 @@ namespace CargoSort.Game
         {
             var t = MakeText(TourRow(80), text, 50, TextAnchor.MiddleLeft, Art.DisplayFont);
             t.color = Gold;
-            AddShadow(t, new Color(0, 0, 0, 0.35f), 4);
+            AddOutline(t, new Color32(0x5A, 0x2A, 0x00, 0xFF), 3);
             Stretch(t.rectTransform);
             t.rectTransform.offsetMin = new Vector2(10, 0);
         }
@@ -118,7 +118,7 @@ namespace CargoSort.Game
             {
                 var c = WorldTour.Cities[city];
                 // City card: skyline, name, "City 1 of 8", progress bar
-                var card = Card(TourRow(780), new Color32(0x26, 0x40, 0x5F, 0xFF));
+                var card = Card(TourRow(780), PanelLight);
                 var sky = Img(card, TourArt.Skyline(city, mask), Color.white, 0);
                 sky.rectTransform.anchorMin = new Vector2(0, 1);
                 sky.rectTransform.anchorMax = new Vector2(1, 1);
@@ -144,7 +144,7 @@ namespace CargoSort.Game
             }
             else
             {
-                var card = Card(TourRow(720), new Color32(0x26, 0x40, 0x5F, 0xFF));
+                var card = Card(TourRow(720), PanelLight);
                 var sky = Img(card, TourArt.Skyline(WorldTour.Cities.Length - 1, WorldTour.AllBuilt), Color.white, 0);
                 sky.rectTransform.anchorMin = new Vector2(0, 1);
                 sky.rectTransform.anchorMax = new Vector2(1, 1);
@@ -169,7 +169,7 @@ namespace CargoSort.Game
             var mark = WorldTour.Cities[city].Marks[i];
             bool built = WorldTour.IsBuilt(mask, i);
             int cost = WorldTour.Cost(city, i);
-            var card = Card(TourRow(210), new Color32(0x33, 0x50, 0x7A, 0xFF));
+            var card = Card(TourRow(210), PanelLight);
             var art = Img(card, TourArt.Mark(city, i, built), Color.white, 0);
             Anchor(art.rectTransform, new Vector2(0, 0.5f), new Vector2(110, 0), new Vector2(150, 150));
             RowTexts(card, Loc.T("l_" + mark.Key), "+" + Economy.Number(WorldTour.MarkCoins(city, i)), 230);
@@ -247,8 +247,8 @@ namespace CargoSort.Game
 
         private void BuildCityBar(RectTransform home)
         {
-            var bar = MakeCandy(home, new Color32(0x3A, 0x5B, 0x88, 0xFF), () => OpenTour?.Invoke(), null, 0, null, 0, 44);
-            Anchor(bar.Root, new Vector2(0.5f, 1), new Vector2(0, -690), new Vector2(780, 160));
+            var bar = MakeCandy(home, new Color32(0x8F, 0x5B, 0xE8, 0xFF), () => OpenTour?.Invoke(), null, 0, null, 0, 44);
+            Anchor(bar.Root, new Vector2(0.5f, 1), new Vector2(0, -330), new Vector2(800, 160));
             cityBarSky = Img(bar.Top, null, Color.white, 0);
             Anchor(cityBarSky.rectTransform, new Vector2(0, 0.5f), new Vector2(130, 0), new Vector2(220, 132));
             cityBarName = MakeText(bar.Top, "", 50, TextAnchor.MiddleLeft, Art.DisplayFont);
@@ -276,7 +276,7 @@ namespace CargoSort.Game
             Anchor(cityBarStars.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(24, 2), new Vector2(110, 70));
             cityBarDot = Dot(bar.Root);
 
-            var tour = SideButton(home, Blue, "globe", Loc.T("tour_short"), new Vector2(0, 0.5f), new Vector2(130, 40), () => OpenTour?.Invoke(), out _);
+            var tour = SideButton(home, Blue, "globe", Loc.T("tour_short"), 0, () => OpenTour?.Invoke(), out _);
             tourSideDot = Dot(tour);
         }
 

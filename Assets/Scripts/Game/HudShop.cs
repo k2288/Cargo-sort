@@ -27,12 +27,12 @@ namespace CargoSort.Game
             Stretch(screen);
             shopPanel = screen.gameObject;
             var bg = screen.gameObject.AddComponent<Image>();
-            bg.sprite = Art.Gradient(new Color32(0x24, 0x39, 0x5A, 0xFF), new Color32(0x15, 0x23, 0x3A, 0xFF));
+            bg.sprite = Art.Gradient(new Color32(0x7A, 0x48, 0xD8, 0xFF), new Color32(0x34, 0x19, 0x6F, 0xFF));
 
             var close = MakeCandy(screen, Red, () => shopPanel.SetActive(false), null, 0, "x", 60, 46);
             Anchor(close.Root, new Vector2(0, 1), new Vector2(110, -100), new Vector2(140, 140));
             var title = MakeText(screen, Loc.T("shop"), 80, TextAnchor.MiddleCenter, Art.DisplayFont);
-            AddShadow(title, new Color(0, 0, 0, 0.35f), 6);
+            AddOutline(title, Ink, 5);
             Anchor(title.rectTransform, new Vector2(0.5f, 1), new Vector2(0, -100), new Vector2(500, 120));
             var pill = MakeRect("Coins", screen);
             Anchor(pill, new Vector2(1, 1), new Vector2(-190, -100), new Vector2(300, 104));
@@ -133,20 +133,20 @@ namespace CargoSort.Game
             var row = Section(80);
             var t = MakeText(row, text, 50, TextAnchor.MiddleLeft, Art.DisplayFont);
             t.color = Gold;
-            AddShadow(t, new Color(0, 0, 0, 0.35f), 4);
+            AddOutline(t, new Color32(0x5A, 0x2A, 0x00, 0xFF), 3);
             Stretch(t.rectTransform);
             t.rectTransform.offsetMin = new Vector2(10, 0);
         }
 
         private static RectTransform Card(RectTransform row, Color color)
         {
-            var shadow = Img(row, Art.Rounded, new Color(0, 0, 0, 0.3f), 50);
+            var shadow = Img(row, Art.Rounded, Ink, 54);
             Stretch(shadow.rectTransform);
-            shadow.rectTransform.offsetMin = new Vector2(0, -12);
-            shadow.rectTransform.offsetMax = new Vector2(0, -12);
+            shadow.rectTransform.offsetMin = new Vector2(-6, -16);
+            shadow.rectTransform.offsetMax = new Vector2(6, 6);
             var card = Img(row, Art.Rounded, color, 50);
             Stretch(card.rectTransform);
-            var shine = Img(card.rectTransform, Art.Rounded, new Color(1, 1, 1, 0.07f), 50);
+            var shine = Img(card.rectTransform, Art.Rounded, new Color(1, 1, 1, 0.16f), 50);
             shine.rectTransform.anchorMin = new Vector2(0, 0.5f);
             shine.rectTransform.anchorMax = Vector2.one;
             shine.rectTransform.offsetMin = shine.rectTransform.offsetMax = Vector2.zero;
@@ -249,7 +249,7 @@ namespace CargoSort.Game
 
         private void ChestRow(RectTransform row)
         {
-            var card = Card(row, new Color32(0x33, 0x50, 0x7A, 0xFF));
+            var card = Card(row, PanelLight);
             var art = Img(card, Art.Rounded, Yellow, 36);
             Anchor(art.rectTransform, new Vector2(0, 0.5f), new Vector2(110, 0), new Vector2(150, 150));
             var ic = Icon(art.rectTransform, "gift", 96);
@@ -327,7 +327,7 @@ namespace CargoSort.Game
             holder.anchorMax = new Vector2(left ? 0.5f : 1, 1);
             holder.offsetMin = new Vector2(left ? 0 : 16, 0);
             holder.offsetMax = new Vector2(left ? -16 : 0, 0);
-            var card = Card(holder, new Color32(0x33, 0x50, 0x7A, 0xFF));
+            var card = Card(holder, PanelLight);
             Tag(card, pack.TagKey, new Vector2(0.5f, 1), new Vector2(0, -6));
             int coins = index + 2;
             for (int i = 0; i < coins; i++)
@@ -361,7 +361,7 @@ namespace CargoSort.Game
         private void SkinRow(string kind, Skin skin)
         {
             var row = Section(210);
-            var card = Card(row, new Color32(0x33, 0x50, 0x7A, 0xFF));
+            var card = Card(row, PanelLight);
             bool truck = kind == "truck";
             float artWidth = truck ? 250 : 150;
             var art = Img(card, Art.Rounded, Art.Background, 36);
@@ -382,7 +382,7 @@ namespace CargoSort.Game
         {
             var theme = Themes.All[index];
             var row = Section(210);
-            var card = Card(row, new Color32(0x33, 0x50, 0x7A, 0xFF));
+            var card = Card(row, PanelLight);
             var swatch = Img(card, Art.Rounded, theme.Background, 36);
             Anchor(swatch.rectTransform, new Vector2(0, 0.5f), new Vector2(110, 0), new Vector2(150, 150));
             var ground = Img(swatch.rectTransform, Art.Rounded, theme.Ground, 14);

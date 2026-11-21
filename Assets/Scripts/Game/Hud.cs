@@ -30,8 +30,11 @@ namespace CargoSort.Game
         public static readonly Color Red = new Color32(0xEE, 0x54, 0x44, 0xFF);
         public static readonly Color Quiet = new Color32(0x80, 0x94, 0xAF, 0xFF);
         public static readonly Color Gold = new Color32(0xFF, 0xCC, 0x33, 0xFF);
-        private static readonly Color CardColor = new Color32(0x26, 0x3D, 0x5E, 0xFF);
-        private static readonly Color Muted = new Color32(0xB6, 0xC6, 0xDA, 0xFF);
+        private static readonly Color CardColor = new Color32(0x6A, 0x3C, 0xC8, 0xFF);
+        private static readonly Color Ink = new Color32(0x2B, 0x11, 0x70, 0xFF);
+        /// <summary>Soft purple used for list cards on the full screens.</summary>
+        internal static readonly Color PanelLight = new Color32(0x8F, 0x5B, 0xE8, 0xFF);
+        private static readonly Color Muted = new Color32(0xE0, 0xD2, 0xFF, 0xFF);
 
         private GameObject canvasRoot;
         private RectTransform safeRect;
@@ -168,7 +171,7 @@ namespace CargoSort.Game
                 }
                 else if (coins >= Economy.Price(b))
                 {
-                    var pill = Pill(badge, new Color32(0x2A, 0x3A, 0x52, 0xFF), "", new Vector2(130, 64), 32);
+                    var pill = Pill(badge, Ink, "", new Vector2(130, 64), 32);
                     var coin = Coin(pill, 38);
                     Anchor(coin, new Vector2(0, 0.5f), new Vector2(30, 0), new Vector2(38, 38));
                     var t = MakeText(pill, Economy.Number(Economy.Price(b)), 32, TextAnchor.MiddleCenter, Art.DisplayFont);
@@ -227,6 +230,22 @@ namespace CargoSort.Game
         {
             winPanel = MakePopup(safe, new Vector2(900, 860), out var box);
             winTitle = Title(box, "", 330);
+            // Three big stars above the ribbon (they pop in with the panel).
+            var stars = MakeRect("Stars", box);
+            Anchor(stars, new Vector2(0.5f, 0.5f), new Vector2(0, 520), new Vector2(700, 200));
+            float[] sizes = { 150, 200, 150 };
+            for (int i = 0; i < 3; i++)
+            {
+                var st = Icon(stars, "star", sizes[i]);
+                st.color = i == 1 ? new Color32(0xFF, 0xE6, 0x6A, 0xFF) : new Color32(0xFF, 0xD2, 0x3A, 0xFF);
+                Anchor(st.rectTransform, new Vector2(0.5f, 0.5f), new Vector2((i - 1) * 190, i == 1 ? 10 : -20), new Vector2(sizes[i], sizes[i]));
+                var shadow = st.gameObject.AddComponent<Shadow>();
+                shadow.effectColor = new Color32(0x8A, 0x4A, 0x00, 0xFF);
+                shadow.effectDistance = new Vector2(0, -10);
+                var outline = st.gameObject.AddComponent<Outline>();
+                outline.effectColor = new Color32(0x8A, 0x4A, 0x00, 0xFF);
+                outline.effectDistance = new Vector2(6, -6);
+            }
             var reward = MakeRect("Reward", box);
             Anchor(reward, new Vector2(0.5f, 0.5f), new Vector2(0, 190), new Vector2(600, 120));
             var coin = Coin(reward, 100);
@@ -302,6 +321,7 @@ namespace CargoSort.Game
         {
             losePanel = MakePopup(safe, new Vector2(900, 860), out var box);
             loseTitle = Title(box, Loc.T("lose_title"), 330);
+            loseTitle.transform.parent.GetComponent<Image>().color = new Color32(0xE6, 0x3A, 0x2E, 0xFF);
             var text = MakeText(box, Loc.T("lose_text"), 40, TextAnchor.MiddleCenter);
             loseText = text;
             text.color = Muted;
@@ -586,7 +606,7 @@ namespace CargoSort.Game
         private void BuildToast(RectTransform safe)
         {
             toast = MakeRect("Toast", safe).gameObject;
-            var img = Img((RectTransform)toast.transform, Art.Rounded, new Color32(0x1B, 0x2B, 0x40, 0xF4), 40);
+            var img = Img((RectTransform)toast.transform, Art.Rounded, new Color32(0x2B, 0x11, 0x70, 0xF4), 40);
             img.raycastTarget = false;
             Anchor((RectTransform)toast.transform, new Vector2(0.5f, 0.5f), new Vector2(0, 120), new Vector2(880, 140));
             Stretch(img.rectTransform);
@@ -766,33 +786,57 @@ namespace CargoSort.Game
             return c;
         }
 
-        /// <summary>A rounded popup card on a dark backdrop.</summary>
+        /// <summary>A purple, glossy popup card with a dark outline, on a dimmed backdrop.</summary>
         private GameObject MakePopup(Transform parent, Vector2 size, out RectTransform box)
         {
             var dim = MakeRect("Popup", parent);
             Stretch(dim);
-            dim.gameObject.AddComponent<Image>().color = new Color(0.02f, 0.04f, 0.07f, 0.68f);
+            dim.gameObject.AddComponent<Image>().color = new Color(0.12f, 0.04f, 0.31f, 0.64f);
             var frame = MakeRect("Frame", dim);
             Anchor(frame, new Vector2(0.5f, 0.5f), Vector2.zero, size + new Vector2(16, 16));
-            Stretch(Img(frame, Art.Rounded, new Color(1, 1, 1, 0.12f), 70).rectTransform);
-            var shadow = Img(frame, Art.Rounded, new Color(0, 0, 0, 0.35f), 64);
-            Anchor(shadow.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, -26), size);
+            Stretch(Img(frame, Art.Rounded, Ink, 76).rectTransform);
+            var shadow = Img(frame, Art.Rounded, new Color(0.08f, 0.02f, 0.27f, 0.55f), 70);
+            Anchor(shadow.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, -30), size);
             shadow.transform.SetAsFirstSibling();
             box = MakeRect("Box", frame);
             Anchor(box, new Vector2(0.5f, 0.5f), Vector2.zero, size);
-            Stretch(Img(box, Art.Rounded, CardColor, 64).rectTransform);
-            var top = Img(box, Art.Rounded, new Color(1, 1, 1, 0.05f), 64);
+            Stretch(Img(box, Art.Rounded, CardColor, 68).rectTransform);
+            var top = Img(box, Art.Rounded, new Color(1, 1, 1, 0.2f), 68);
             top.rectTransform.anchorMin = new Vector2(0, 0.55f);
             top.rectTransform.anchorMax = Vector2.one;
-            top.rectTransform.offsetMin = top.rectTransform.offsetMax = Vector2.zero;
+            top.rectTransform.offsetMin = new Vector2(10, 0);
+            top.rectTransform.offsetMax = new Vector2(-10, -10);
+            var bottom = Img(box, Art.Rounded, new Color(0, 0, 0, 0.14f), 68);
+            bottom.rectTransform.anchorMin = Vector2.zero;
+            bottom.rectTransform.anchorMax = new Vector2(1, 0.3f);
+            bottom.rectTransform.offsetMin = new Vector2(10, 10);
+            bottom.rectTransform.offsetMax = new Vector2(-10, 0);
             return dim.gameObject;
         }
 
+        /// <summary>A gold ribbon with a white outlined title, sitting on the top edge of a popup.</summary>
         private Text Title(RectTransform box, string text, float y)
         {
-            var t = MakeText(box, text, 70, TextAnchor.MiddleCenter, Art.DisplayFont);
-            Anchor(t.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, y), new Vector2(860, 110));
-            AddShadow(t, new Color(0, 0, 0, 0.35f), 6);
+            var ribbon = MakeRect("Ribbon", box);
+            Anchor(ribbon, new Vector2(0.5f, 0.5f), new Vector2(0, y + 55), new Vector2(780, 128));
+            Stretch(Img(ribbon, Art.Rounded, new Color32(0x8A, 0x4A, 0x00, 0xFF), 52).rectTransform);
+            var face = Img(ribbon, Art.Rounded, new Color32(0xFF, 0xB2, 0x1F, 0xFF), 52);
+            Stretch(face.rectTransform);
+            face.rectTransform.offsetMin = new Vector2(0, 10);
+            var shine = Img(face.rectTransform, Art.Rounded, new Color(1, 1, 1, 0.4f), 40);
+            shine.rectTransform.anchorMin = new Vector2(0, 0.5f);
+            shine.rectTransform.anchorMax = Vector2.one;
+            shine.rectTransform.offsetMin = new Vector2(14, 0);
+            shine.rectTransform.offsetMax = new Vector2(-14, -8);
+            var t = MakeText(face.rectTransform, text, 64, TextAnchor.MiddleCenter, Art.DisplayFont);
+            AddOutline(t, new Color32(0x8A, 0x4A, 0x00, 0xFF), 4);
+            Stretch(t.rectTransform);
+            t.rectTransform.offsetMin = new Vector2(30, 0);
+            t.rectTransform.offsetMax = new Vector2(-30, 0);
+            t.horizontalOverflow = HorizontalWrapMode.Wrap;
+            t.resizeTextForBestFit = true;
+            t.resizeTextMinSize = 34;
+            t.resizeTextMaxSize = 64;
             return t;
         }
 
