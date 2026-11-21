@@ -290,7 +290,7 @@ button.switch[aria-checked="true"]::after { inset-inline-start: 34px; }
       <button class="small purple" type="submit" data-t="go">Go</button></div>
     <div class="devrow">
       <button class="small quiet" type="button" data-lv="11">11 ?</button><button class="small quiet" type="button" data-lv="15">15</button>
-      <button class="small quiet" type="button" data-lv="18">18</button><button class="small quiet" type="button" data-lv="21">21</button>
+      <button class="small quiet" type="button" data-lv="18">18</button><button class="small quiet" type="button" data-lv="21">21</button><button class="small quiet" type="button" data-lv="28">28</button>
       <button class="small quiet" type="button" id="devCoins">+1000</button></div>
   </form>
 </div></div>
@@ -323,6 +323,8 @@ function shuffle(arr, r) { for (let i = arr.length - 1; i > 0; i--) { const j = 
 const HIDDEN_FROM = 11, FROZEN_FROM = 21, BELT_FROM = 15;
 // Conveyor belt levels: level 15, then every 3rd level. The belt replaces the dock and has 2 more spots.
 const isBelt = level => level >= BELT_FROM && level % 3 === 0;
+// Taped crates: from level 28, two crates in a stack taped together move as a pair.
+const TAPE_FROM = 28;
 const BELT_EXTRA = 2;
 const isHard = level => level >= 5 && level % 5 === 0;
 function difficulty(level) {
@@ -336,6 +338,7 @@ function difficulty(level) {
   if (level % 5 === 0) d.buffer -= 1;
   d.hard = isHard(level);
   if (level >= HIDDEN_FROM) d.hiddenPct = Math.min(20 + Math.floor((level - HIDDEN_FROM) / 2), 30);
+  if (level >= TAPE_FROM) d.tapedPairs = Math.min(1 + Math.floor((level - TAPE_FROM) / 8), 3);
   if (level >= FROZEN_FROM) { d.frozenCols = level >= 41 ? 2 : 1; d.frozenTaps = 3 + (level % 3); }
   return d;
 }
@@ -360,6 +363,14 @@ function build(level, d, r) {
   data.hidden = data.columns.map(col => col.map((_, row) => !!d.hiddenPct && row < col.length - 1 && Math.floor(r() * 100) < d.hiddenPct));
   data.frozen = data.columns.map(() => 0);
   for (let k = 0; k < (d.frozenCols || 0); k++) { const c = Math.floor(r() * cols); if (!data.frozen[c]) data.frozen[c] = d.frozenTaps + k * 2; }
+  // Taped pairs: taped[c][row] means the crate is taped to the one above it. Never hidden, never chained.
+  data.taped = data.columns.map(col => col.map(() => false));
+  for (let k = 0, tries = 0; k < (d.tapedPairs || 0) && tries < 40; tries++) {
+    const c = Math.floor(r() * cols), col = data.columns[c]; if (col.length < 3) continue;
+    const row = Math.floor(r() * (col.length - 1)), tp = data.taped[c];
+    if (tp[row] || (row > 0 && tp[row - 1]) || tp[row + 1]) continue;
+    tp[row] = true; data.hidden[c][row] = false; data.hidden[c][row + 1] = false; k++;
+  }
   return data;
 }
 
@@ -417,6 +428,7 @@ class Game {
     this.columns = data.columns.map(c => c.slice());
     this.hidden = (data.hidden || data.columns.map(c => c.map(() => false))).map(h => h.slice());
     this.frozen = (data.frozen || data.columns.map(() => 0)).slice();
+    this.taped = (data.taped || data.columns.map(c => c.map(() => false))).map(t => t.slice());
     this.buffer = new Array(data.buffer).fill(EMPTY);
     this.bays = new Array(data.bays).fill(null);
     this.queue = data.trucks.slice(); this.next = 0; this.capacity = data.capacity; this.shipped = 0; this.status = "playing";
@@ -424,18 +436,29 @@ class Game {
     const ev = []; for (let b = 0; b < this.bays.length; b++) this.arrive(b, ev);
     this.update();
   }
-  clone() { const g = new Game(); Object.assign(g, this, { columns: this.columns.map(c => c.slice()), hidden: this.hidden.map(h => h.slice()), frozen: this.frozen.slice(), buffer: this.buffer.slice(), bays: this.bays.map(t => t && { ...t }) }); return g; }
+  clone() { const g = new Game(); Object.assign(g, this, { columns: this.columns.map(c => c.slice()), hidden: this.hidden.map(h => h.slice()), frozen: this.frozen.slice(), taped: this.taped.map(t => t.slice()), buffer: this.buffer.slice(), bays: this.bays.map(t => t && { ...t }) }); return g; }
   top(c) { const col = this.columns[c]; return col.length ? col[col.length - 1] : EMPTY; }
   free() { return this.buffer.filter(x => x === EMPTY).length; }
   bayFor(color) { return this.bays.findIndex(t => t && t.loaded < t.capacity && t.color === color); }
   isHidden(c, r) { return this.hidden[c][r] && r < this.columns[c].length - 1; }
   upcoming(n) { return this.queue.slice(this.next, this.next + n); }
-  canTap(c) { if (this.status !== "playing" || this.frozen[c] > 0) return false; const t = this.top(c); if (t === EMPTY) return false; return this.bayFor(t) >= 0 || this.free() > 0; }
+  // The top crate is the upper half of a taped pair (both move together).
+  tapedTop(c) { const n = this.columns[c].length; return n >= 2 && this.taped[c][n - 2]; }
+  canTap(c) {
+    if (this.status !== "playing" || this.frozen[c] > 0) return false; const t = this.top(c); if (t === EMPTY) return false;
+    if (!(this.bayFor(t) >= 0 || this.free() > 0)) return false;
+    if (!this.tapedTop(c)) return true;
+    // A pair needs room for the second crate too (after the first one moved).
+    const s = this.clone(); s.slotPicker = null; s.popTop(c); s.route(t, { from: "col", fi: c }, []);
+    const b = s.top(c); return s.bayFor(b) >= 0 || s.free() > 0;
+  }
+  popTop(c) { const color = this.columns[c].pop(); this.hidden[c].pop(); this.taped[c].pop(); const n = this.taped[c].length; if (n) this.taped[c][n - 1] = false; return color; }
   tap(c) {
     const ev = []; if (!this.canTap(c)) return ev;
-    const color = this.columns[c].pop(); this.hidden[c].pop();
+    const pair = this.tapedTop(c);
     this.frozen = this.frozen.map((f, i) => i !== c && f > 0 ? f - 1 : f);
-    this.route(color, { from: "col", fi: c }, ev);
+    this.route(this.popTop(c), { from: "col", fi: c }, ev);
+    if (pair) this.route(this.popTop(c), { from: "col", fi: c }, ev);
     this.update(); return ev;
   }
   // Sends a crate to its truck, or to the dock; then trucks that are full leave and new ones arrive.
@@ -456,6 +479,7 @@ class Game {
   pluck(c, r, ev = []) {
     if (!this.canPluck(c, r)) return ev;
     const color = this.columns[c].splice(r, 1)[0]; this.hidden[c].splice(r, 1);
+    this.taped[c].splice(r, 1); if (r > 0) this.taped[c][r - 1] = false; // the crane cuts the tape
     this.route(color, { from: "col", fi: c, fr: r }, ev); this.update(); return ev;
   }
   // Magnet: fills the trucks that are waiting now with the nearest matching crates from anywhere.
@@ -474,7 +498,7 @@ class Game {
     const r = rng(seed); let pick = null;
     for (let tries = 0; tries < 40; tries++) {
       const g = this.clone(), all = g.columns.flat(); shuffle(all, r); let k = 0;
-      g.columns = g.columns.map(col => col.map(() => all[k++])); g.status = "playing"; g.update(); pick = g;
+      g.columns = g.columns.map(col => col.map(() => all[k++])); g.taped = g.columns.map(col => col.map(() => false)); g.status = "playing"; g.update(); pick = g;
       if (solvableFrom(g)) break;
     }
     return pick;
@@ -510,14 +534,14 @@ class Game {
 }
 
 function pickMove(s) {
-  for (let c = 0; c < s.columns.length; c++) { const t = s.top(c); if (!s.frozen[c] && t !== EMPTY && s.bayFor(t) >= 0) return c; }
+  for (let c = 0; c < s.columns.length; c++) { const t = s.top(c); if (!s.frozen[c] && t !== EMPTY && s.bayFor(t) >= 0 && s.canTap(c)) return c; }
   const free = s.free(); let best = -1, bestDepth = Infinity;
   for (let c = 0; c < s.columns.length; c++) { if (s.frozen[c]) continue; const col = s.columns[c];
-    for (let i = col.length - 1; i >= 0; i--) { if (s.bayFor(col[i]) < 0) continue; const depth = col.length - 1 - i; if (depth <= free && depth < bestDepth) { bestDepth = depth; best = c; } break; } }
+    for (let i = col.length - 1; i >= 0; i--) { if (s.bayFor(col[i]) < 0) continue; const depth = col.length - 1 - i; if (depth <= free && depth < bestDepth && s.canTap(c)) { bestDepth = depth; best = c; } break; } }
   if (best >= 0) return best;
   let bestWait = Infinity;
   for (let c = 0; c < s.columns.length; c++) { const t = s.top(c); if (t === EMPTY || free === 0 || s.frozen[c]) continue;
-    let w = s.queue.indexOf(t, s.next); if (w < 0) w = Infinity - 1; if (w < bestWait) { bestWait = w; best = c; } }
+    let w = s.queue.indexOf(t, s.next); if (w < 0) w = Infinity - 1; if (w < bestWait && s.canTap(c)) { bestWait = w; best = c; } }
   return best;
 }
 function solvableFrom(g) { const s = g.clone(); let guard = 2000;
@@ -792,6 +816,12 @@ function draw() {
       if (sc < 0.999) { ctx.save(); ctx.translate(sx(px), sy(py)); ctx.scale(sc, sc); ctx.translate(-sx(px), -sy(py)); }
       if (view.hidden[c][r] && r < col.length - 1) hiddenCrate(px + shake, py); else crate(px + shake, py, color);
       if (sc < 0.999) ctx.restore(); });
+    // Tape: a strip across the two crates of each taped pair.
+    view.taped[c].forEach((tp, r) => { if (!tp || r + 1 >= col.length) return;
+      const [tx, ty] = colPos(c, r), my = ty + ROWSP / 2;
+      rr(tx + 0.03, my - 0.04, 0.3, ROWSP + 0.42, 0.05, "rgba(0,0,0,.22)");
+      rr(tx, my, 0.3, ROWSP + 0.42, 0.05, "#e8cf8f"); rr(tx, my, 0.08, ROWSP + 0.42, 0.03, "rgba(255,255,255,.35)");
+      rr(tx, my, 0.52, 0.12, 0.04, "#d6b86a"); });
     if (view.frozen[c] > 0 && col.length) {
       const [ix, iy] = colPos(c, col.length - 1); const sh = view.shake && view.shake.c === c ? Math.sin(view.shake.t * 40) * 0.12 * (1 - view.shake.t / 0.25) : 0;
       rr(ix + sh, iy, CRATE + 0.18, CRATE + 0.18, 0.18, "rgba(184,230,255,.85)"); label(num(view.frozen[c]), ix + sh, iy, 0.55, "#1f4e79");
@@ -843,7 +873,7 @@ function tutorialStep() {
   if (active) { const top = game.top(tutCol); $("tip").textContent = t(top !== EMPTY && game.bayFor(top) >= 0 ? "tut_truck" : "tut_dock"); }
 }
 
-function cloneView(g) { return { columns: g.columns.map(c => c.slice()), hidden: g.hidden.map(h => h.slice()), frozen: g.frozen.slice(), buffer: g.buffer.slice(), bays: g.bays.map(t => t && { ...t, off: 0 }) }; }
+function cloneView(g) { return { columns: g.columns.map(c => c.slice()), hidden: g.hidden.map(h => h.slice()), taped: g.taped.map(t => t.slice()), frozen: g.frozen.slice(), buffer: g.buffer.slice(), bays: g.bays.map(t => t && { ...t, off: 0 }) }; }
 
 function tween(time, step) { return new Promise(res => { if (reduce) { step(1); return res(); } const t0 = performance.now();
   (function f(now) { const k = Math.min(1, (now - t0) / (time * 1000)); step(1 - (1 - k) * (1 - k)); if (k < 1) requestAnimationFrame(f); else res(); })(t0); }); }
@@ -852,7 +882,7 @@ async function play(events) {
   busy = true; hintCol = -1;
   for (const e of events) {
     if (e.k === "move") {
-      let from; if (e.from === "col") { const col = view.columns[e.fi], r = e.fr ?? col.length - 1; from = colPos(e.fi, r); col.splice(r, 1); view.hidden[e.fi].splice(r, 1); } else { from = bufPos(e.fi); view.buffer[e.fi] = EMPTY; }
+      let from; if (e.from === "col") { const col = view.columns[e.fi], r = e.fr ?? col.length - 1; from = colPos(e.fi, r); col.splice(r, 1); view.hidden[e.fi].splice(r, 1); view.taped[e.fi].splice(r, 1); } else { from = bufPos(e.fi); view.buffer[e.fi] = EMPTY; }
       let to; if (e.to === "bay") { const t = view.bays[e.ti]; const [bx, by] = bayPos(e.ti); const [lx, ly] = slotLocal(t.loaded, t.capacity); to = [bx + lx, by + ly]; } else to = bufPos(e.ti);
       const f = { x: from[0], y: from[1], color: e.color }; flying.push(f);
       const arc = 0.6 + Math.hypot(to[0] - from[0], to[1] - from[1]) * 0.06;
@@ -927,6 +957,7 @@ const STR = {
   tut_truck: ["Tap this column: its top crate\njumps onto the matching truck", "روی این ستون بزن: جعبه بالایی\nروی کامیون هم‌رنگ می‌پرد"],
   tut_dock: ["No truck for this color? It waits on the dock.\nDon't let the dock fill up!", "کامیون هم‌رنگ نیست؟ جعبه روی اسکله می‌ماند.\nنگذار اسکله پر شود!"], coins_price: ["{0} coins", "{0} سکه"], next_short: ["Next", "بعدی"],
   hard_level: ["Level {0} - HARD", "مرحله {0} - سخت"], hard_start: ["Hard level! Double coins", "مرحله سخت! سکه دو برابر"],
+  tape_intro: ["New: taped crates move together as a pair", "جدید: جعبه‌های چسب‌خورده با هم جابه‌جا می‌شوند"],
   twist_hidden: ["New: ? crates show their color on top", "جدید: رنگ جعبه ؟ بالای ستون معلوم می‌شود"],
   twist_frozen: ["New: ice melts as you tap other columns", "جدید: یخ با ضربه به ستون‌های دیگر آب می‌شود"],
   belt_intro: ["New: conveyor belt! Crates ride around and jump onto their truck", "جدید: نوار نقاله! جعبه‌ها می‌چرخند و روی کامیون همرنگ می‌پرند"],
@@ -1184,6 +1215,7 @@ function start(n) {
   if (screen !== "game") return;
   if (n === FROZEN_FROM) toast(t("twist_frozen"), 3000); else if (n === HIDDEN_FROM) toast(t("twist_hidden"), 3000);
   else if (n === BELT_FROM) toast(t("belt_intro"), 4200);
+  else if (n === TAPE_FROM) toast(t("tape_intro"), 4200);
   else if (free.crane) toast(t("streak_bonus", wstreak), 2400); else if (n > 0 && isHard(n)) toast(t("hard_start"));
 }
 function afterMove() {

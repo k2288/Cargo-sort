@@ -161,6 +161,62 @@ namespace CargoSort.Tests
             }));
         }
 
+        // Taped test level: red truck then blue truck (2 crates each), column 0 = blue, red, red (top two taped).
+        private static LevelData TapedLevel(int buffer) => new LevelData
+        {
+            TruckCapacity = 2,
+            BufferSize = buffer,
+            BayCount = 1,
+            ColorCount = 2,
+            TruckColors = new List<int> { 0, 1 },
+            Columns = new List<List<int>> { new List<int> { 1, 0, 0 }, new List<int> { 1 } },
+            Taped = new List<List<bool>> { new List<bool> { false, true, false }, new List<bool> { false } },
+        };
+
+        [Test]
+        public void TapedPairMovesTogether()
+        {
+            var s = new GameState(TapedLevel(1));
+            Assert.IsTrue(s.IsTapedTop(0));
+            var events = s.Tap(0);
+            Assert.AreEqual(1, s.Columns[0].Count);  // both red crates left
+            Assert.AreEqual(1, s.TrucksShipped);    // the red truck filled up and left
+            Assert.AreEqual(Place.Column, events[0].From);
+            Assert.IsFalse(s.IsTapedTop(0));
+        }
+
+        [Test]
+        public void TapedPairNeedsRoomForBothCrates()
+        {
+            var data = TapedLevel(0);
+            data.Columns[0] = new List<int> { 1, 1, 0 };          // top two: blue (taped under) and red
+            data.Taped[0] = new List<bool> { false, true, false };
+            var s = new GameState(data);
+            // Red goes to the red truck, but the blue crate under it has no truck and the dock has no room.
+            Assert.IsFalse(s.CanTap(0));
+        }
+
+        [Test]
+        public void CraneCutsTheTape()
+        {
+            var s = new GameState(TapedLevel(1));
+            s.Pluck(0, 2); // lift only the upper crate of the pair
+            Assert.AreEqual(2, s.Columns[0].Count);
+            Assert.IsFalse(s.Taped[0][1]);
+            Assert.IsFalse(s.IsTapedTop(0));
+        }
+
+        [Test]
+        public void TapedPairsStartAtLevel28()
+        {
+            int Count(LevelData d) { int n = 0; foreach (var col in d.Taped) foreach (bool t in col) if (t) n++; return n; }
+            Assert.AreEqual(0, Count(LevelGenerator.Generate(27)));
+            Assert.AreEqual(1, Count(LevelGenerator.Generate(28)));
+            Assert.AreEqual(3, Count(LevelGenerator.Generate(44)));
+            for (int level = 28; level <= 60; level += 4)
+                Assert.IsTrue(Solver.CanSolve(LevelGenerator.Generate(level)), "level " + level);
+        }
+
         [Test]
         public void CraneLiftsACrateFromUnderOthers()
         {

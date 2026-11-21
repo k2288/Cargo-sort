@@ -55,6 +55,7 @@ namespace CargoSort.Core
 
         public List<List<int>> Columns;
         public List<List<bool>> Hidden;   // same shape as Columns
+        public List<List<bool>> Taped;    // same shape: crate r is taped to the crate above it (they move together)
         public int[] Frozen;              // taps left until each column thaws (0 = free)
         public int[] Buffer;
         public Truck[] Bays;
@@ -81,6 +82,14 @@ namespace CargoSort.Core
                 for (int r = 0; r < Columns[c].Count; r++)
                     h.Add(data.Hidden != null && c < data.Hidden.Count && r < data.Hidden[c].Count && data.Hidden[c][r]);
                 Hidden.Add(h);
+            }
+            Taped = new List<List<bool>>();
+            for (int c = 0; c < Columns.Count; c++)
+            {
+                var t = new List<bool>();
+                for (int r = 0; r < Columns[c].Count; r++)
+                    t.Add(data.Taped != null && c < data.Taped.Count && r < data.Taped[c].Count && data.Taped[c][r]);
+                Taped.Add(t);
             }
             Frozen = new int[Columns.Count];
             if (data.Frozen != null)
@@ -144,7 +153,35 @@ namespace CargoSort.Core
             if (Frozen[column] > 0) return false;
             int top = Top(column);
             if (top == Empty) return false;
-            return IsWanted(top) || FreeBufferSlots > 0;
+            if (!IsWanted(top) && FreeBufferSlots == 0) return false;
+            if (!IsTapedTop(column)) return true;
+
+            // A taped pair also needs room for the second crate, after the first one has moved.
+            var s = Clone();
+            s.BeltSpotPicker = null;
+            s.PopTop(column);
+            s.Route(top, column, -1, new List<GameEvent>());
+            int second = s.Top(column);
+            return s.IsWanted(second) || s.FreeBufferSlots > 0;
+        }
+
+        /// <summary>The top crate is the upper half of a taped pair, so tapping moves both.</summary>
+        public bool IsTapedTop(int column)
+        {
+            int n = Columns[column].Count;
+            return n >= 2 && Taped[column][n - 2];
+        }
+
+        private int PopTop(int column)
+        {
+            var col = Columns[column];
+            int color = col[col.Count - 1];
+            col.RemoveAt(col.Count - 1);
+            Hidden[column].RemoveAt(Hidden[column].Count - 1);
+            var taped = Taped[column];
+            taped.RemoveAt(taped.Count - 1);
+            if (taped.Count > 0) taped[taped.Count - 1] = false; // the new top has nothing above to be taped to
+            return color;
         }
 
         public List<GameEvent> Tap(int column)
@@ -152,14 +189,12 @@ namespace CargoSort.Core
             var events = new List<GameEvent>();
             if (!CanTap(column)) return events;
 
-            var col = Columns[column];
-            int color = col[col.Count - 1];
-            col.RemoveAt(col.Count - 1);
-            Hidden[column].RemoveAt(Hidden[column].Count - 1);
+            bool pair = IsTapedTop(column);
             for (int c = 0; c < Frozen.Length; c++)
                 if (c != column && Frozen[c] > 0) Frozen[c]--;
 
-            Route(color, column, -1, events);
+            Route(PopTop(column), column, -1, events);
+            if (pair) Route(PopTop(column), column, -1, events);
             UpdateStatus();
             return events;
         }
@@ -260,6 +295,8 @@ namespace CargoSort.Core
             int color = Columns[column][row];
             Columns[column].RemoveAt(row);
             Hidden[column].RemoveAt(row);
+            Taped[column].RemoveAt(row);
+            if (row > 0) Taped[column][row - 1] = false; // the crane cuts the tape
             Route(color, column, row == Columns[column].Count ? -1 : row, events);
             UpdateStatus();
         }
@@ -320,6 +357,8 @@ namespace CargoSort.Core
                 int k = 0;
                 foreach (var col in s.Columns)
                     for (int r = 0; r < col.Count; r++) col[r] = all[k++];
+                foreach (var taped in s.Taped)
+                    for (int r = 0; r < taped.Count; r++) taped[r] = false;
                 s.Status = GameStatus.Playing;
                 s.UpdateStatus();
                 pick = s;
@@ -410,6 +449,7 @@ namespace CargoSort.Core
             {
                 Columns = new List<List<int>>(),
                 Hidden = new List<List<bool>>(),
+                Taped = new List<List<bool>>(),
                 Frozen = (int[])Frozen.Clone(),
                 Buffer = (int[])Buffer.Clone(),
                 Bays = new Truck[Bays.Length],
@@ -423,6 +463,7 @@ namespace CargoSort.Core
             };
             foreach (var c in Columns) s.Columns.Add(new List<int>(c));
             foreach (var h in Hidden) s.Hidden.Add(new List<bool>(h));
+            foreach (var t in Taped) s.Taped.Add(new List<bool>(t));
             for (int b = 0; b < Bays.Length; b++) s.Bays[b] = Bays[b]?.Clone();
             return s;
         }

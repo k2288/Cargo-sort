@@ -15,6 +15,7 @@ namespace CargoSort.Core
         public List<int> TruckColors = new List<int>();         // arrival order
         public List<List<bool>> Hidden = new List<List<bool>>(); // same shape as Columns
         public List<int> Frozen = new List<int>();               // ice taps per column
+        public List<List<bool>> Taped = new List<List<bool>>();  // [c][r]: crate r is taped to the crate above
         public bool Hard;
         public bool Belt;   // conveyor belt instead of the dock (see GameState.Belt)
     }
@@ -31,6 +32,7 @@ namespace CargoSort.Core
         public int HiddenPercent;   // chance a non-top crate is hidden
         public int FrozenColumns;
         public int FrozenTaps;
+        public int TapedPairs;
         public bool Hard;
     }
 
@@ -71,8 +73,12 @@ namespace CargoSort.Core
                 d.FrozenColumns = level >= 41 ? 2 : 1;
                 d.FrozenTaps = 3 + (level % 3);
             }
+            if (level >= TapedFromLevel) d.TapedPairs = Math.Min(1 + (level - TapedFromLevel) / 8, 3);
             return d;
         }
+
+        /// <summary>Taped crates (pairs that move together) start here.</summary>
+        public const int TapedFromLevel = 28;
 
         /// <summary>Conveyor belt levels: level 15, then every 3rd level.</summary>
         public const int BeltFromLevel = 15;
@@ -207,6 +213,22 @@ namespace CargoSort.Core
                 int c = rng.Next(columns);
                 if (data.Frozen[c] == 0) data.Frozen[c] = d.FrozenTaps + i * 2;
             }
+
+            // Taped pairs (drawn after everything else, so earlier levels stay the same). Never hidden or chained.
+            foreach (var col in data.Columns) data.Taped.Add(new List<bool>(new bool[col.Count]));
+            for (int k = 0, tries = 0; k < d.TapedPairs && tries < 40; tries++)
+            {
+                int c = rng.Next(columns);
+                var col = data.Columns[c];
+                if (col.Count < 3) continue;
+                int row = rng.Next(col.Count - 1);
+                var taped = data.Taped[c];
+                if (taped[row] || (row > 0 && taped[row - 1]) || taped[row + 1]) continue;
+                taped[row] = true;
+                data.Hidden[c][row] = false;
+                data.Hidden[c][row + 1] = false;
+                k++;
+            }
             return data;
         }
 
@@ -245,7 +267,7 @@ namespace CargoSort.Core
         public static int PickMove(GameState s)
         {
             for (int c = 0; c < s.Columns.Count; c++)
-                if (!s.IsFrozen(c) && s.Top(c) != GameState.Empty && s.IsWanted(s.Top(c))) return c;
+                if (!s.IsFrozen(c) && s.Top(c) != GameState.Empty && s.IsWanted(s.Top(c)) && s.CanTap(c)) return c;
 
             int free = s.FreeBufferSlots;
             int best = -1, bestDepth = int.MaxValue;
@@ -257,7 +279,7 @@ namespace CargoSort.Core
                 {
                     if (!s.IsWanted(col[i])) continue;
                     int depth = col.Count - 1 - i;
-                    if (depth <= free && depth < bestDepth) { bestDepth = depth; best = c; }
+                    if (depth <= free && depth < bestDepth && s.CanTap(c)) { bestDepth = depth; best = c; }
                     break;
                 }
             }
@@ -271,7 +293,7 @@ namespace CargoSort.Core
                 if (top == GameState.Empty || free == 0 || s.IsFrozen(c)) continue;
                 int wait = s.TruckQueue.IndexOf(top, Math.Min(s.NextTruck, s.TruckQueue.Count));
                 if (wait < 0) wait = int.MaxValue - 1;
-                if (wait < bestWait) { bestWait = wait; best = c; }
+                if (wait < bestWait && s.CanTap(c)) { bestWait = wait; best = c; }
             }
             return best;
         }

@@ -280,6 +280,7 @@ namespace CargoSort.Game
                     bool isHidden = state.IsHidden(c, r);
                     var crate = isHidden ? Art.HiddenCrate(root, CrateSize) : Art.Crate(root, state.Columns[c][r], CrateSize);
                     crate.position = ColumnPos(c, r);
+                    if (r > 0 && state.Taped[c][r - 1]) AddTape(list[r - 1]);
                     list.Add(crate);
                     hidden.Add(isHidden);
                 }
@@ -300,6 +301,16 @@ namespace CargoSort.Game
                 for (int i = 0; i < truck.Loaded; i++) AddCrateToTruck(trucks[b], Art.Crate(root, truck.Color, CrateSize));
             }
             DrawNextTrucks();
+        }
+
+        /// <summary>Tape from a crate up across the crate above it (the pair moves together).</summary>
+        private static void AddTape(Transform lower)
+        {
+            float y = RowSpacing / 2f, length = RowSpacing + 0.42f;
+            Art.Box(lower, "TapeShadow", new Vector2(0.03f, y - 0.04f), new Vector2(0.3f, length), new Color(0, 0, 0, 0.22f), 15);
+            Art.Box(lower, "Tape", new Vector2(0, y), new Vector2(0.3f, length), new Color32(0xE8, 0xCF, 0x8F, 0xFF), 16);
+            Art.Box(lower, "TapeShine", new Vector2(0, y), new Vector2(0.08f, length), new Color(1, 1, 1, 0.35f), 17);
+            Art.Box(lower, "TapeBand", new Vector2(0, y), new Vector2(0.52f, 0.12f), new Color32(0xD6, 0xB8, 0x6A, 0xFF), 17);
         }
 
         /// <summary>The next trucks in line, so players can plan which crates to dig out.</summary>
