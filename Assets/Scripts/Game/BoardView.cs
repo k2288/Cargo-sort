@@ -18,7 +18,17 @@ namespace CargoSort.Game
         private const float BaySpacing = 4.7f;
         private const float OffscreenX = 9f;
         private const float NextY = 3.9f;
+        private const float BeltNextY = 4.2f;
         private const int NextShown = 2;
+
+        // Conveyor belt: a racetrack under the trucks. The bottom run goes left, the top run goes right.
+        private const float BeltHalfLength = 4.1f, BeltRadius = 0.72f, BeltCenterY = 2.6f;
+        public float BeltSpeed = 2.6f;
+        private float beltOffset;
+        private readonly List<Transform> beltPlates = new List<Transform>();
+        private readonly List<Transform> beltRidges = new List<Transform>();
+        private readonly List<Transform> beltSpokes = new List<Transform>();
+        private readonly List<SpriteRenderer> beltRim = new List<SpriteRenderer>();
 
         public float MoveTime = 0.16f;
         public float TruckTime = 0.24f;
@@ -54,8 +64,135 @@ namespace CargoSort.Game
 
         private float BufferSpacing => Mathf.Min(1.15f, 9.4f / Mathf.Max(1, state.Buffer.Length));
 
-        private Vector3 BufferPos(int slot) =>
-            new Vector3((slot - (state.Buffer.Length - 1) / 2f) * BufferSpacing, BufferY, 0f);
+        private Vector3 BufferPos(int slot) => IsBelt
+            ? (Vector3)BeltPoint(SlotParam(slot))
+            : new Vector3((slot - (state.Buffer.Length - 1) / 2f) * BufferSpacing, BufferY, 0f);
+
+        private bool IsBelt => state != null && state.Belt;
+
+        // ---------- Conveyor belt ----------
+
+        private static float BeltLength => 4f * BeltHalfLength + 2f * Mathf.PI * BeltRadius;
+
+        /// <summary>A point on the belt loop, s units along it from the bottom-right corner.</summary>
+        private static Vector2 BeltPoint(float s)
+        {
+            float a = BeltHalfLength, r = BeltRadius, yc = BeltCenterY, half = Mathf.PI * r;
+            s = Mathf.Repeat(s, BeltLength);
+            if (s < 2f * a) return new Vector2(a - s, yc - r);
+            s -= 2f * a;
+            if (s < half) { float g = -Mathf.PI / 2f - s / r; return new Vector2(-a + r * Mathf.Cos(g), yc + r * Mathf.Sin(g)); }
+            s -= half;
+            if (s < 2f * a) return new Vector2(-a + s, yc + r);
+            s -= 2f * a;
+            float g2 = Mathf.PI / 2f - s / r;
+            return new Vector2(a + r * Mathf.Cos(g2), yc + r * Mathf.Sin(g2));
+        }
+
+        /// <summary>Where belt spot i is now (spots are spread evenly and move together).</summary>
+        private float SlotParam(int slot) => Mathf.Repeat(beltOffset + slot * BeltLength / Mathf.Max(1, state.Buffer.Length), BeltLength);
+
+        /// <summary>The point on the top run right under a truck.</summary>
+        private float BayParam(int bay) => 2f * BeltHalfLength + Mathf.PI * BeltRadius + BayPos(bay).x + BeltHalfLength;
+
+        /// <summary>The free belt spot closest to a column's top crate (where a parked crate lands).</summary>
+        public int NearestBeltSpot(int column)
+        {
+            if (!IsBelt || column < 0 || column >= state.Columns.Count) return -1;
+            Vector2 from = ColumnPos(column, Mathf.Max(0, state.Columns[column].Count - 1));
+            int best = -1;
+            float bestDistance = float.MaxValue;
+            for (int i = 0; i < state.Buffer.Length; i++)
+            {
+                if (state.Buffer[i] != GameState.Empty) continue;
+                float d = Vector2.Distance(BeltPoint(SlotParam(i)), from);
+                if (d < bestDistance) { bestDistance = d; best = i; }
+            }
+            return best;
+        }
+
+        /// <summary>A riding crate that has just passed under a truck of its color, if any.</summary>
+        public bool TryFindBeltLoad(out int slot, out int bay)
+        {
+            slot = bay = -1;
+            if (!IsBelt || Busy || state.Status != GameStatus.Playing) return false;
+            for (int i = 0; i < state.Buffer.Length; i++)
+            {
+                int color = state.Buffer[i];
+                if (color == GameState.Empty || i >= bufferCrates.Length || bufferCrates[i] == null) continue;
+                for (int b = 0; b < state.Bays.Length; b++)
+                {
+                    var truck = state.Bays[b];
+                    if (truck == null || truck.Color != color || truck.Full) continue;
+                    float d = SlotParam(i) - BayParam(b);
+                    if (d < -0.1f || d >= 2.2f) continue; // just under the truck, or a little past it
+                    slot = i;
+                    bay = b;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private void Update()
+        {
+            if (!IsBelt || root == null) return;
+            beltOffset += BeltSpeed * Time.deltaTime;
+            for (int i = 0; i < beltPlates.Count; i++)
+                if (beltPlates[i] != null) beltPlates[i].localPosition = BufferPos(i);
+            for (int i = 0; i < bufferCrates.Length && i < state.Buffer.Length; i++)
+                if (bufferCrates[i] != null) bufferCrates[i].position = BufferPos(i);
+            float step = BeltLength / Mathf.Max(1, beltRidges.Count);
+            for (int i = 0; i < beltRidges.Count; i++)
+                if (beltRidges[i] != null) beltRidges[i].localPosition = BeltPoint(Mathf.Repeat(beltOffset, step) + i * step);
+            float spin = beltOffset / BeltRadius;
+            for (int i = 0; i < beltSpokes.Count; i++)
+            {
+                if (beltSpokes[i] == null) continue;
+                float x = i < 3 ? -BeltHalfLength : BeltHalfLength, an = spin + (i % 3) * 2.094f;
+                beltSpokes[i].localPosition = new Vector2(x + Mathf.Cos(an) * 0.34f, BeltCenterY + Mathf.Sin(an) * 0.34f);
+            }
+            var rim = state.FreeBufferSlots == 0 ? new Color32(0xA8, 0x34, 0x2A, 0xFF) : new Color32(0x59, 0x63, 0x6F, 0xFF);
+            foreach (var sr in beltRim) if (sr != null) sr.color = rim;
+        }
+
+        /// <summary>A rounded racetrack shape around the belt line (box in the middle, circles at the ends).</summary>
+        private void Stadium(string name, float band, Color color, int order, bool rim)
+        {
+            float a = BeltHalfLength, r = BeltRadius, yc = BeltCenterY;
+            var mid = Art.Box(root, name, new Vector2(0, yc), new Vector2(2f * a, 2f * r + band), color, order);
+            var left = Art.Dot(root, name, new Vector2(-a, yc), 2f * r + band, color, order);
+            var right = Art.Dot(root, name, new Vector2(a, yc), 2f * r + band, color, order);
+            if (rim) { beltRim.Add(mid); beltRim.Add(left); beltRim.Add(right); }
+        }
+
+        /// <summary>The conveyor: rim, rubber band, moving ridges, end rollers, legs and one plate per spot.</summary>
+        private void DrawBelt()
+        {
+            beltPlates.Clear();
+            beltRidges.Clear();
+            beltSpokes.Clear();
+            beltRim.Clear();
+            float a = BeltHalfLength, r = BeltRadius, yc = BeltCenterY;
+            foreach (float lx in new[] { -a + 0.6f, 0f, a - 0.6f })
+                Art.Box(root, "Leg", new Vector2(lx, yc - r - 0.55f), new Vector2(0.2f, 0.5f), Art.Darken(Art.Ground, 0.4f), -3);
+            Stadium("BeltRim", CrateSize + 0.5f, new Color32(0x59, 0x63, 0x6F, 0xFF), -2, true);
+            Stadium("Belt", CrateSize + 0.3f, new Color32(0x2A, 0x2F, 0x37, 0xFF), -2, false);
+            Stadium("BeltTop", CrateSize + 0.06f, new Color32(0x36, 0x3D, 0x47, 0xFF), -2, false);
+            Art.Box(root, "BeltGap", new Vector2(0, yc), new Vector2(2f * a, 0.12f), new Color32(0x22, 0x26, 0x2D, 0xFF), -1);
+
+            int ridges = Mathf.RoundToInt(BeltLength / 0.55f);
+            for (int i = 0; i < ridges; i++) beltRidges.Add(Art.Dot(root, "Ridge", Vector2.zero, 0.1f, new Color(1, 1, 1, 0.13f), -1).transform);
+            foreach (float ex in new[] { -a, a })
+            {
+                Art.Dot(root, "Roller", new Vector2(ex, yc), 0.5f, new Color32(0x7B, 0x87, 0x94, 0xFF), -1);
+                Art.Dot(root, "Hub", new Vector2(ex, yc), 0.22f, new Color32(0xC9, 0xD1, 0xDB, 0xFF), 0);
+            }
+            for (int i = 0; i < 6; i++) beltSpokes.Add(Art.Dot(root, "Spoke", Vector2.zero, 0.08f, new Color32(0x4B, 0x55, 0x63, 0xFF), 0).transform);
+            for (int i = 0; i < state.Buffer.Length; i++)
+                beltPlates.Add(Art.Box(root, "Spot", BufferPos(i), new Vector2(CrateSize + 0.06f, CrateSize + 0.06f), new Color(1, 1, 1, 0.1f), 1).transform);
+            Update();
+        }
 
         private Vector3 BayPos(int bay) =>
             new Vector3((bay - (state.Bays.Length - 1) / 2f) * BaySpacing, BayY, 0f);
@@ -66,7 +203,8 @@ namespace CargoSort.Game
         public int HitColumn(Vector2 world)
         {
             if (state == null) return -1;
-            if (world.y < ColumnBaseY - 0.8f || world.y > BufferY - 0.7f) return -1;
+            float top = IsBelt ? BeltCenterY - BeltRadius - 0.55f : BufferY - 0.7f;
+            if (world.y < ColumnBaseY - 0.8f || world.y > top) return -1;
             for (int c = 0; c < state.Columns.Count; c++)
                 if (Mathf.Abs(world.x - ColumnPos(c, 0).x) <= ColumnSpacing / 2f) return c;
             return -1;
@@ -100,13 +238,21 @@ namespace CargoSort.Game
             root.SetParent(transform, false);
             hintMarker = null;
 
-            // Dock buffer
+            // Dock buffer, or the conveyor belt
             DrawBackdrop();
-            DrawDock(state.Buffer.Length * BufferSpacing + 0.3f);
+            if (IsBelt) DrawBelt();
+            else
+            {
+                beltPlates.Clear();
+                beltRidges.Clear();
+                beltSpokes.Clear();
+                beltRim.Clear();
+                DrawDock(state.Buffer.Length * BufferSpacing + 0.3f);
+            }
             bufferCrates = new Transform[state.Buffer.Length];
             for (int i = 0; i < state.Buffer.Length; i++)
             {
-                Art.Box(root, "Slot", BufferPos(i), new Vector2(CrateSize + 0.08f, CrateSize + 0.08f), Art.Slot, 1);
+                if (!IsBelt) Art.Box(root, "Slot", BufferPos(i), new Vector2(CrateSize + 0.08f, CrateSize + 0.08f), Art.Slot, 1);
                 if (state.Buffer[i] != GameState.Empty)
                 {
                     bufferCrates[i] = Art.Crate(root, state.Buffer[i], CrateSize);
@@ -165,20 +311,21 @@ namespace CargoSort.Game
             var next = state.UpcomingTrucks(NextShown);
             if (next.Count == 0) return;
 
-            Art.Label(nextRoot, Loc.T("next_short"), new Vector2(-2.1f, NextY), 0.42f, new Color(1, 1, 1, 0.7f), 5);
+            float ny = IsBelt ? BeltNextY : NextY;
+            Art.Label(nextRoot, Loc.T("next_short"), new Vector2(-2.1f, ny), 0.42f, new Color(1, 1, 1, 0.7f), 5);
             for (int i = 0; i < next.Count; i++)
             {
                 var c = Art.CrateColor(next[i]);
                 float x = -0.6f + i * 1.5f;
                 float alpha = i == 0 ? 1f : 0.6f;
                 Color A(Color col) => new Color(col.r, col.g, col.b, col.a * alpha);
-                Art.Box(nextRoot, "MiniShadow", new Vector2(x + 0.05f, NextY - 0.3f), new Vector2(1.05f, 0.12f), A(new Color(0, 0, 0, 0.2f)), 4);
-                Art.Box(nextRoot, "MiniBed", new Vector2(x, NextY + 0.02f), new Vector2(0.78f, 0.42f), A(c), 5);
-                Art.Box(nextRoot, "MiniStripe", new Vector2(x, NextY - 0.15f), new Vector2(0.78f, 0.07f), A(Art.Darken(c, 0.25f)), 6);
-                Art.Box(nextRoot, "MiniCab", new Vector2(x + 0.55f, NextY - 0.02f), new Vector2(0.3f, 0.34f), A(Art.Darken(c, 0.15f)), 5);
-                Art.Box(nextRoot, "MiniWindow", new Vector2(x + 0.6f, NextY + 0.06f), new Vector2(0.14f, 0.12f), A(Art.Window), 6);
-                Art.DrawWheel(nextRoot, new Vector2(x - 0.2f, NextY - 0.24f), 0.2f, 7);
-                Art.DrawWheel(nextRoot, new Vector2(x + 0.5f, NextY - 0.24f), 0.2f, 7);
+                Art.Box(nextRoot, "MiniShadow", new Vector2(x + 0.05f, ny - 0.3f), new Vector2(1.05f, 0.12f), A(new Color(0, 0, 0, 0.2f)), 4);
+                Art.Box(nextRoot, "MiniBed", new Vector2(x, ny + 0.02f), new Vector2(0.78f, 0.42f), A(c), 5);
+                Art.Box(nextRoot, "MiniStripe", new Vector2(x, ny - 0.15f), new Vector2(0.78f, 0.07f), A(Art.Darken(c, 0.25f)), 6);
+                Art.Box(nextRoot, "MiniCab", new Vector2(x + 0.55f, ny - 0.02f), new Vector2(0.3f, 0.34f), A(Art.Darken(c, 0.15f)), 5);
+                Art.Box(nextRoot, "MiniWindow", new Vector2(x + 0.6f, ny + 0.06f), new Vector2(0.14f, 0.12f), A(Art.Window), 6);
+                Art.DrawWheel(nextRoot, new Vector2(x - 0.2f, ny - 0.24f), 0.2f, 7);
+                Art.DrawWheel(nextRoot, new Vector2(x + 0.5f, ny - 0.24f), 0.2f, 7);
             }
         }
 
@@ -308,6 +455,7 @@ namespace CargoSort.Game
             {
                 target = BufferPos(e.ToIndex);
             }
+            bool live = truck == null && IsBelt; // belt spots keep moving during the flight
 
             Art.SetLift(crate, true);
             Vector3 start = crate.position;
@@ -317,11 +465,13 @@ namespace CargoSort.Game
             for (float t = 0; t < 1f; t += Time.deltaTime / MoveTime)
             {
                 float k = EaseOut(t);
+                if (live) target = BufferPos(e.ToIndex);
                 crate.position = Vector3.Lerp(start, target, k) + Vector3.up * Mathf.Sin(k * Mathf.PI) * arc;
                 crate.localRotation = Quaternion.Euler(0, 0, Mathf.Sin(k * Mathf.PI) * spin);
                 crate.localScale = baseScale * (1f + 0.06f * Mathf.Sin(k * Mathf.PI));
                 yield return null;
             }
+            if (live) target = BufferPos(e.ToIndex);
             crate.position = target;
             crate.localRotation = Quaternion.identity;
             crate.localScale = baseScale;

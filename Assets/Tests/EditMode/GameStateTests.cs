@@ -80,6 +80,87 @@ namespace CargoSort.Tests
             Assert.AreEqual(LevelGenerator.Generate(9).TruckColors, LevelGenerator.Generate(9).TruckColors);
         }
 
+        // Belt test level: trucks red, blue, red (1 crate each), one bay, one belt spot.
+        private static LevelData BeltLevel() => new LevelData
+        {
+            TruckCapacity = 1,
+            BufferSize = 1,
+            BayCount = 1,
+            ColorCount = 2,
+            Belt = true,
+            TruckColors = new List<int> { 0, 1, 0 },
+            Columns = new List<List<int>> { new List<int> { 0, 1 }, new List<int> { 0 } },
+        };
+
+        [Test]
+        public void BeltCratesWaitForTheirTruckInsteadOfBeingPulled()
+        {
+            var s = new GameState(BeltLevel());
+            s.Tap(0); // blue rides the belt
+            s.Tap(1); // red fills the red truck; the blue truck arrives
+            Assert.AreEqual(1, s.Bays[0].Color);
+            Assert.AreEqual(0, s.Bays[0].Loaded);   // not pulled from the belt
+            Assert.AreEqual(1, s.Buffer[0]);
+            // No tap is possible (belt full, red on top), but the riding blue crate has a truck: keep playing.
+            Assert.IsFalse(s.CanTap(0));
+            Assert.AreEqual(GameStatus.Playing, s.Status);
+
+            var events = s.BeltLoad(0, 0);
+            Assert.AreEqual(Place.Buffer, events[0].From);
+            Assert.AreEqual(GameState.Empty, s.Buffer[0]);
+            s.Tap(0);
+            Assert.AreEqual(GameStatus.Won, s.Status);
+        }
+
+        [Test]
+        public void DockStillPullsCratesWhenATruckArrives()
+        {
+            var data = BeltLevel();
+            data.Belt = false;
+            var s = new GameState(data);
+            s.Tap(0);
+            s.Tap(1);
+            Assert.AreEqual(GameState.Empty, s.Buffer[0]); // pulled into the blue truck, which then left
+        }
+
+        [Test]
+        public void BeltSpotPickerChoosesTheSpot()
+        {
+            var data = Simple();
+            data.Belt = true;
+            var s = new GameState(data) { BeltSpotPicker = column => 1 };
+            s.Tap(0); // blue goes to the belt, spot 1 as picked
+            Assert.AreEqual(1, s.Buffer[1]);
+            Assert.AreEqual(GameState.Empty, s.Buffer[0]);
+        }
+
+        [Test]
+        public void BeltStateCanBeSolvedAsDock()
+        {
+            var s = new GameState(BeltLevel());
+            s.Tap(0);
+            s.Tap(1);
+            Assert.IsNotNull(Solver.Solve(s.AsDock()));
+            Assert.IsTrue(s.Belt); // the original is unchanged
+        }
+
+        [Test]
+        public void BeltLevelsStartAtFifteenEveryThirdLevel()
+        {
+            Assert.IsFalse(LevelGenerator.IsBelt(12));
+            Assert.IsTrue(LevelGenerator.IsBelt(15));
+            Assert.IsFalse(LevelGenerator.IsBelt(16));
+            Assert.IsTrue(LevelGenerator.IsBelt(18));
+            var belt = LevelGenerator.Generate(18);
+            Assert.IsTrue(belt.Belt);
+            Assert.IsFalse(LevelGenerator.Generate(16).Belt);
+            Assert.IsTrue(Solver.CanSolve(new LevelData
+            {
+                TruckCapacity = belt.TruckCapacity, BufferSize = belt.BufferSize - LevelGenerator.BeltExtraSpots, BayCount = belt.BayCount,
+                ColorCount = belt.ColorCount, TruckColors = belt.TruckColors, Columns = belt.Columns, Hidden = belt.Hidden, Frozen = belt.Frozen,
+            }));
+        }
+
         [Test]
         public void CraneLiftsACrateFromUnderOthers()
         {

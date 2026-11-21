@@ -202,6 +202,12 @@ button.switch[aria-checked="true"]::after { inset-inline-start: 34px; }
 .offer.wide .art { width: 88px; } .offer.wide canvas { width: 88px; }
 .card.starter { padding-top: 34px; background: linear-gradient(160deg, #ff7a59, #c9306b 60%, #7a2a8c); }
 .ribbon { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); background: linear-gradient(#ffe066, #f2a900); color: #7a3a00; font-family: var(--display); font-size: 22px; padding: 6px 22px; border-radius: 12px; box-shadow: 0 4px 0 #b5640a; white-space: nowrap; }
+.dev { display: grid; gap: 10px; padding: 12px; border-radius: 16px; border: 2px dashed rgba(255,255,255,.25); text-align: start; }
+.dev label { font-weight: 800; font-size: 14px; color: var(--muted); }
+.devrow { display: flex; gap: 8px; flex-wrap: wrap; }
+.devrow input { flex: 1; min-width: 0; font: 800 16px var(--body); padding: 10px 12px; border-radius: 12px; border: 0; background: #0f1a2a; color: #fff; }
+.devrow input:focus-visible { outline: 3px solid #fff; }
+.devrow button { flex: 1; padding-inline: 6px; }
 @media (max-width: 380px) { .bar { gap: 14px; } .boost { width: 62px; height: 56px; } .side button { width: 54px; height: 54px; } }
 @media (prefers-reduced-motion: reduce) { .play { animation: none; } button, button.switch::after { transition: none; } }
 </style>
@@ -278,6 +284,15 @@ button.switch[aria-checked="true"]::after { inset-inline-start: 34px; }
   <div class="setrow"><span data-t="language">Language</span><button class="small blue" id="lang" data-t="other_language">English</button></div>
   <div class="row2" id="gameRow"><button class="blue" id="restartBtn" data-t="restart">Restart</button><button class="purple" id="homeBtn2" data-t="home">Home</button></div>
   <div class="row2"><button class="small quiet" id="restoreBtn" data-t="restore">Restore</button><button class="small quiet" id="privacyBtn" data-t="privacy">Privacy</button></div>
+  <form class="dev" id="devForm">
+    <label for="devLevel" data-t="dev_level">Developer: go to level</label>
+    <div class="devrow"><input id="devLevel" type="number" inputmode="numeric" min="1" max="999" value="15">
+      <button class="small purple" type="submit" data-t="go">Go</button></div>
+    <div class="devrow">
+      <button class="small quiet" type="button" data-lv="11">11 ?</button><button class="small quiet" type="button" data-lv="15">15</button>
+      <button class="small quiet" type="button" data-lv="18">18</button><button class="small quiet" type="button" data-lv="21">21</button>
+      <button class="small quiet" type="button" id="devCoins">+1000</button></div>
+  </form>
 </div></div>
 
 <div class="screen" id="shop" hidden>
@@ -305,7 +320,10 @@ const COLORS = ["#f04e4e","#3e8ef7","#4cc95b","#ffcc33","#a85cf0","#ff8a2b","#2f
 function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function shuffle(arr, r) { for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } }
 
-const HIDDEN_FROM = 11, FROZEN_FROM = 21;
+const HIDDEN_FROM = 11, FROZEN_FROM = 21, BELT_FROM = 15;
+// Conveyor belt levels: level 15, then every 3rd level. The belt replaces the dock and has 2 more spots.
+const isBelt = level => level >= BELT_FROM && level % 3 === 0;
+const BELT_EXTRA = 2;
 const isHard = level => level >= 5 && level % 5 === 0;
 function difficulty(level) {
   const d = { bays: 2, capacity: 3, maxHeight: 8 };
@@ -402,6 +420,7 @@ class Game {
     this.buffer = new Array(data.buffer).fill(EMPTY);
     this.bays = new Array(data.bays).fill(null);
     this.queue = data.trucks.slice(); this.next = 0; this.capacity = data.capacity; this.shipped = 0; this.status = "playing";
+    this.belt = !!data.belt; // belt crates load only when they pass their truck (the view moves the belt)
     const ev = []; for (let b = 0; b < this.bays.length; b++) this.arrive(b, ev);
     this.update();
   }
@@ -423,7 +442,10 @@ class Game {
   route(color, src, ev) {
     const b = this.bayFor(color);
     if (b >= 0) { this.bays[b].loaded++; ev.push({ k: "move", ...src, to: "bay", ti: b, color }); }
-    else { const s = this.buffer.indexOf(EMPTY); this.buffer[s] = color; ev.push({ k: "move", ...src, to: "buf", ti: s, color }); }
+    else { const s = this.slotPicker ? this.slotPicker(src, this.buffer) : this.buffer.indexOf(EMPTY); this.buffer[s] = color; ev.push({ k: "move", ...src, to: "buf", ti: s, color }); }
+    this.resolveFull(ev);
+  }
+  resolveFull(ev) {
     let changed = true;
     while (changed) { changed = false;
       for (let i = 0; i < this.bays.length; i++) { const t = this.bays[i];
@@ -457,9 +479,23 @@ class Game {
     }
     return pick;
   }
+  // Belt: a crate passing under a truck of its color jumps on.
+  beltLoad(slot, b) {
+    const ev = [], t = this.bays[b], c = this.buffer[slot];
+    if (this.status !== "playing" || !t || c === EMPTY || t.color !== c || t.loaded >= t.capacity) return ev;
+    this.buffer[slot] = EMPTY; t.loaded++; ev.push({ k: "move", from: "buf", fi: slot, to: "bay", ti: b, color: c });
+    this.resolveFull(ev); this.update(); return ev;
+  }
+  // Loads every belt crate that has a truck (as if the player waited one loop). Used by the solver.
+  settle() {
+    let moved = true;
+    while (moved) { moved = false;
+      for (let i = 0; i < this.buffer.length; i++) { const b = this.bayFor(this.buffer[i]); if (this.buffer[i] !== EMPTY && b >= 0) { this.beltLoad(i, b); moved = true; } } }
+  }
   arrive(b, ev) {
     if (this.next >= this.queue.length) return;
     const t = { color: this.queue[this.next++], capacity: this.capacity, loaded: 0 }; this.bays[b] = t; ev.push({ k: "arrive", bay: b, color: t.color });
+    if (this.belt) return; // belt crates board as they pass
     for (let i = 0; i < this.buffer.length && t.loaded < t.capacity; i++)
       if (this.buffer[i] === t.color) { this.buffer[i] = EMPTY; t.loaded++; ev.push({ k: "move", from: "buf", fi: i, to: "bay", ti: b, color: t.color }); }
   }
@@ -468,6 +504,7 @@ class Game {
     if (this.status !== "playing") return;
     if (this.bays.every(t => !t) && this.next >= this.queue.length) { this.status = "won"; return; }
     for (let c = 0; c < this.columns.length; c++) if (this.canTap(c)) return;
+    if (this.belt && this.buffer.some(c => c !== EMPTY && this.bayFor(c) >= 0)) return; // a belt crate is on its way to a truck
     this.status = "lost";
   }
 }
@@ -484,6 +521,7 @@ function pickMove(s) {
   return best;
 }
 function solvableFrom(g) { const s = g.clone(); let guard = 2000;
+  s.slotPicker = null; if (s.belt) { s.status = "playing"; s.settle(); s.belt = false; s.update(); } // belt = dock rules after waiting
   while (s.status === "playing" && guard-- > 0) { const m = pickMove(s); if (m < 0 || !s.canTap(m)) return false; s.tap(m); }
   return s.status === "won"; }
 function canSolve(data) { const s = new Game(data); let guard = 2000;
@@ -515,7 +553,64 @@ let game, history, view, level, bonus, busy = false, anim = [], hintCol = -1, fl
 
 function colPos(c, r) { return [(c - (view.columns.length - 1) / 2) * COLSP, BASEY + r * ROWSP]; }
 function bufSp() { return Math.min(1.15, 9.4 / Math.max(1, view.buffer.length)); }
-function bufPos(i) { return [(i - (view.buffer.length - 1) / 2) * bufSp(), BUFY]; }
+function bufPos(i) { if (game && game.belt) return beltPoint(slotParam(i)); return [(i - (view.buffer.length - 1) / 2) * bufSp(), BUFY]; }
+
+// ===== Conveyor belt (racetrack: bottom run goes left, top run goes right under the trucks) =====
+const BELT = { a: 4.1, r: 0.72, yc: 2.6, speed: 2.6 };
+let beltOffset = 0, beltLast = performance.now();
+const beltLen = () => 4 * BELT.a + 2 * Math.PI * BELT.r;
+function beltPoint(s) {
+  const { a, r, yc } = BELT, L = beltLen(), half = Math.PI * r; s = ((s % L) + L) % L;
+  if (s < 2 * a) return [a - s, yc - r];
+  s -= 2 * a; if (s < half) { const g = -Math.PI / 2 - s / r; return [-a + r * Math.cos(g), yc + r * Math.sin(g)]; }
+  s -= half; if (s < 2 * a) return [-a + s, yc + r];
+  s -= 2 * a; const g = Math.PI / 2 - s / r; return [a + r * Math.cos(g), yc + r * Math.sin(g)];
+}
+const slotParam = i => { const L = beltLen(), n = Math.max(1, (view ? view.buffer.length : game.buffer.length)); return (((beltOffset + i * L / n) % L) + L) % L; };
+const bayParam = b => 2 * BELT.a + Math.PI * BELT.r + (bayPos(b)[0] + BELT.a);
+// Where a crate from a stack lands: the free spot closest to that stack.
+function nearestBeltSlot(src, buffer) {
+  const from = src && src.fi !== undefined && view ? colPos(src.fi, Math.max(0, view.columns[src.fi].length - 1)) : [0, 0];
+  let best = buffer.indexOf(EMPTY), bestD = Infinity;
+  if (!game || !game.belt) return best;
+  buffer.forEach((c, i) => { if (c !== EMPTY) return; const [x, y] = beltPoint(slotParam(i)); const d = Math.hypot(x - from[0], y - from[1]); if (d < bestD) { bestD = d; best = i; } });
+  return best;
+}
+// Moves the belt and lets crates jump onto their truck as they pass under it.
+function beltTick() {
+  const now = performance.now(), dt = Math.min(0.05, (now - beltLast) / 1000); beltLast = now;
+  if (!game || !game.belt || screen !== "game") return;
+  beltOffset += BELT.speed * dt;
+  if (busy || game.status !== "playing") return;
+  for (let i = 0; i < game.buffer.length; i++) {
+    const c = game.buffer[i]; if (c === EMPTY) continue;
+    const s = slotParam(i);
+    for (let b = 0; b < game.bays.length; b++) {
+      const t = game.bays[b]; if (!t || t.color !== c || t.loaded >= t.capacity) continue;
+      const d = s - bayParam(b);
+      if (d >= -0.1 && d < 2.2) { const ev = game.beltLoad(i, b); if (ev.length) { play(ev); return; } }
+    }
+  }
+}
+function drawBelt() {
+  const { a, r, yc } = BELT, path = () => { ctx.beginPath(); ctx.moveTo(sx(a), sy(yc - r)); ctx.lineTo(sx(-a), sy(yc - r));
+    ctx.arc(sx(-a), sy(yc), r * scale, Math.PI / 2, Math.PI * 1.5); ctx.lineTo(sx(a), sy(yc + r)); ctx.arc(sx(a), sy(yc), r * scale, -Math.PI / 2, Math.PI / 2); ctx.closePath(); };
+  const full = game && game.free() === 0;
+  // legs and shadow
+  for (const lx of [-a + 0.6, 0, a - 0.6]) rr(lx, yc - r - 0.55, 0.2, 0.5, 0.05, shade(theme().ground, 0.4));
+  ctx.lineJoin = "round"; ctx.lineCap = "round";
+  path(); ctx.lineWidth = (CRATE + 0.5) * scale; ctx.strokeStyle = full ? "#a8342a" : "#59636f"; ctx.stroke();
+  path(); ctx.lineWidth = (CRATE + 0.3) * scale; ctx.strokeStyle = "#2a2f37"; ctx.stroke();
+  path(); ctx.lineWidth = (CRATE + 0.06) * scale; ctx.strokeStyle = "#363d47"; ctx.stroke();
+  // moving ridges show the direction of travel
+  const L = beltLen(), step = 0.55;
+  for (let s = beltOffset % step; s < L; s += step) { const [x, y] = beltPoint(s); dot(x, y, 0.1, "rgba(255,255,255,.13)"); }
+  // end rollers
+  for (const ex of [-a, a]) { dot(ex, yc, 0.5, "#7b8794"); dot(ex, yc, 0.22, "#c9d1db");
+    const g = beltOffset / r; for (let k = 0; k < 3; k++) { const an = g + k * 2.094; dot(ex + Math.cos(an) * 0.34, yc + Math.sin(an) * 0.34, 0.08, "#4b5563"); } }
+  // spots: one plate per belt spot, crates on top
+  view.buffer.forEach((c, i) => { const [x, y] = bufPos(i); rr(x, y, CRATE + 0.06, CRATE + 0.06, 0.14, "rgba(255,255,255,.1)"); if (c !== EMPTY) crate(x, y, c); });
+}
 function bayPos(b) { return [(b - (view.bays.length - 1) / 2) * BAYSP, BAYY]; }
 function slotLocal(i, cap) { return [(i - (cap - 1) / 2) * SLOTSP - 0.45, 0.12]; }
 
@@ -679,10 +774,14 @@ function draw() {
   view.bays.forEach((t, b) => { const [x, y] = bayPos(b); rr(x, y - 0.95, BAYSP - 0.4, 0.06, 0.03, "rgba(255,255,255,.18)"); if (t) truck(x + (t.off || 0), y, t.color, t.loaded, t.capacity, t.bounce || 0); });
   // next trucks in line
   const next = game ? game.upcoming(2) : [];
-  if (next.length) { label(t("next_short"), -2.1, NEXTY, 0.42, "rgba(255,255,255,.7)"); next.forEach((c, i) => miniTruck(-0.6 + i * 1.5, NEXTY, c, i ? 0.6 : 1)); }
+  const ny = game && game.belt ? 4.2 : NEXTY;
+  if (next.length) { label(t("next_short"), -2.1, ny, 0.42, "rgba(255,255,255,.7)"); next.forEach((c, i) => miniTruck(-0.6 + i * 1.5, ny, c, i ? 0.6 : 1)); }
   // dock
-  dockDeck(view.buffer.length * bufSp() + 0.3);
-  view.buffer.forEach((c, i) => { const [x, y] = bufPos(i); rr(x, y, CRATE + 0.08, CRATE + 0.08, 0.16, theme().slot); if (c !== EMPTY) crate(x, y, c); });
+  if (game && game.belt) drawBelt();
+  else {
+    dockDeck(view.buffer.length * bufSp() + 0.3);
+    view.buffer.forEach((c, i) => { const [x, y] = bufPos(i); rr(x, y, CRATE + 0.08, CRATE + 0.08, 0.16, theme().slot); if (c !== EMPTY) crate(x, y, c); });
+  }
   // lanes and stacks
   const tallest = Math.max(1, ...view.columns.map(c => c.length));
   view.columns.forEach((col, c) => {
@@ -758,7 +857,8 @@ async function play(events) {
       const f = { x: from[0], y: from[1], color: e.color }; flying.push(f);
       const arc = 0.6 + Math.hypot(to[0] - from[0], to[1] - from[1]) * 0.06;
       const spin = (to[0] > from[0] ? -1 : 1) * 0.35;
-      await tween(0.17, k => { f.x = from[0] + (to[0] - from[0]) * k; f.y = from[1] + (to[1] - from[1]) * k + Math.sin(k * Math.PI) * arc; f.a = Math.sin(k * Math.PI) * spin; });
+      const live = e.to === "buf" && game.belt; // belt spots keep moving during the flight
+      await tween(0.17, k => { if (live) to = bufPos(e.ti); f.x = from[0] + (to[0] - from[0]) * k; f.y = from[1] + (to[1] - from[1]) * k + Math.sin(k * Math.PI) * arc; f.a = Math.sin(k * Math.PI) * spin; });
       flying = flying.filter(x => x !== f);
       if (e.to === "bay") {
         const tr = view.bays[e.ti]; tr.loaded++; sfx.pop(tr.loaded - 1); puff(to[0], to[1] - 0.4, 4, "rgba(255,255,255,.5)", 0.5);
@@ -776,7 +876,7 @@ async function play(events) {
   view = cloneView(game); busy = false; afterMove();
 }
 
-function loop() { draw(); requestAnimationFrame(loop); }
+function loop() { beltTick(); draw(); requestAnimationFrame(loop); }
 
 // ===== Sounds (made with WebAudio, no files) and vibration =====
 let actx = null;
@@ -829,11 +929,13 @@ const STR = {
   hard_level: ["Level {0} - HARD", "مرحله {0} - سخت"], hard_start: ["Hard level! Double coins", "مرحله سخت! سکه دو برابر"],
   twist_hidden: ["New: ? crates show their color on top", "جدید: رنگ جعبه ؟ بالای ستون معلوم می‌شود"],
   twist_frozen: ["New: ice melts as you tap other columns", "جدید: یخ با ضربه به ستون‌های دیگر آب می‌شود"],
+  belt_intro: ["New: conveyor belt! Crates ride around and jump onto their truck", "جدید: نوار نقاله! جعبه‌ها می‌چرخند و روی کامیون همرنگ می‌پرند"],
   frozen: ["Frozen! Tap other columns to melt it", "یخ زده! به ستون‌های دیگر ضربه بزن"], levels: ["Levels", "مراحل"], challenge_level: ["Daily challenge", "چالش روزانه"],
   challenge_win: ["Challenge complete!", "چالش امروز تمام شد!"], challenge_done: ["Done for today! New challenge tomorrow", "چالش امروز انجام شد! فردا چالش جدید"],
   challenge_start: ["Hard level, big prize: {0} coins", "مرحله سخت، جایزه بزرگ: {0} سکه"],
   settings: ["Settings", "تنظیمات"], sound: ["Sound", "صدا"], vibration: ["Vibration", "لرزش"], language: ["Language", "زبان"],
   restart: ["Restart", "از نو"], home: ["Home", "خانه"], restore: ["Restore", "بازیابی خرید"], privacy: ["Privacy", "حریم خصوصی"],
+  dev_level: ["Developer: go to level (test only)", "توسعه‌دهنده: رفتن به مرحله (فقط برای تست)"], go: ["Go", "برو"],
   restore_none: ["Nothing to restore (test)", "خریدی برای بازیابی نیست (آزمایشی)"], privacy_soon: ["Privacy policy link goes here", "لینک حریم خصوصی اینجا قرار می‌گیرد"],
   free_btn: ["Free", "رایگان"], free_coins_sub: ["Watch a short ad", "یک تبلیغ کوتاه ببین"], remove_ads_sub: ["No ads between levels", "بدون تبلیغ بین مرحله‌ها"],
   buy: ["Buy", "خرید"], themes: ["Themes", "تم‌ها"], theme_sub_owned: ["Owned", "داری"], theme_sub_new: ["New look for your harbor", "ظاهر تازه برای بندرت"],
@@ -1069,7 +1171,9 @@ function refresh() {
   $("coins").textContent = num(coins);
 }
 function start(n) {
-  level = n; game = new Game(n > 0 ? generate(n) : generateChallenge(today())); history = []; bonus = 0; hintCol = -1; busy = false; flying = []; setCrane(false, true);
+  const data = n > 0 ? generate(n) : generateChallenge(today());
+  if (n > 0 && isBelt(n)) data.belt = true, data.buffer += BELT_EXTRA;
+  level = n; game = new Game(data); game.slotPicker = nearestBeltSlot; history = []; bonus = 0; hintCol = -1; busy = false; flying = []; setCrane(false, true);
   // Free boosters for this level: one undo, plus win-streak rewards (3+ wins: Crane, 5+ wins: Magnet too).
   free = { undo: 1, slot: 0, crane: n > 0 && wstreak >= 3 ? 1 : 0, magnet: n > 0 && wstreak >= 5 ? 1 : 0, shuffle: 0 };
   view = cloneView(game); $("win").hidden = true; $("lose").hidden = true; pendingWin = 0; refresh();
@@ -1079,6 +1183,7 @@ function start(n) {
   tutorialStep();
   if (screen !== "game") return;
   if (n === FROZEN_FROM) toast(t("twist_frozen"), 3000); else if (n === HIDDEN_FROM) toast(t("twist_hidden"), 3000);
+  else if (n === BELT_FROM) toast(t("belt_intro"), 4200);
   else if (free.crane) toast(t("streak_bonus", wstreak), 2400); else if (n > 0 && isHard(n)) toast(t("hard_start"));
 }
 function afterMove() {
@@ -1107,7 +1212,7 @@ cv.addEventListener("pointerdown", ev => {
   if (busy || game.status !== "playing") return;
   const r = cv.getBoundingClientRect(); const px = (ev.clientX - r.left) * dpr, py = (ev.clientY - r.top) * dpr;
   const wx = (px - cx) / scale, wy = (cy - py) / scale;
-  if (wy < BASEY - 0.8 || wy > BUFY - 0.7) return;
+  if (wy < BASEY - 0.8 || wy > (game.belt ? BELT.yc - BELT.r - 0.55 : BUFY - 0.7)) return;
   let c = -1; for (let i = 0; i < view.columns.length; i++) if (Math.abs(wx - colPos(i, 0)[0]) <= COLSP / 2) c = i;
   if (c < 0) return;
   if (craneMode) {
@@ -1207,6 +1312,15 @@ $("closeSettings").onclick = () => $("settings").hidden = true;
 $("settings").onclick = ev => { if (ev.target === $("settings")) $("settings").hidden = true; };
 $("restartBtn").onclick = () => { $("settings").hidden = true; if (history.length) breakStreak(); start(level); };
 $("restoreBtn").onclick = () => toast(t("restore_none"));
+// Developer tools (test builds only): jump to any level, or add coins.
+function devGo(n) {
+  n = Math.max(1, Math.min(999, Math.floor(+n) || 1));
+  $("lose").hidden = $("win").hidden = $("settings").hidden = true; pendingWin = 0;
+  store.set("level", n); setScreen("game"); start(n); renderHome();
+}
+$("devForm").onsubmit = ev => { ev.preventDefault(); devGo($("devLevel").value); };
+$("devForm").querySelectorAll("[data-lv]").forEach(b => b.onclick = () => devGo(b.dataset.lv));
+$("devCoins").onclick = () => { $("settings").hidden = true; addCoins(1000); };
 $("privacyBtn").onclick = () => toast(t("privacy_soon"));
 $("soundBtn").onclick = () => { store.set("sound", !soundOn()); renderSettings(); };
 $("vibeBtn").onclick = () => { store.set("vibe", !vibeOn()); buzz(40); renderSettings(); };

@@ -35,6 +35,14 @@ checked by a solver before it is used, so every level can be beaten. Difficulty 
 colors, more trucks and a smaller dock; every 5th level is a hard level with one less dock slot.
 Tune it in `LevelGenerator.ForLevel`.
 
+Twists come in over time: "?" crates from level 11, the **conveyor belt** from level 15 (then every
+3rd level), and ice from level 21. On belt levels the dock becomes a moving belt with 2 more spots;
+crates ride around and jump onto a truck of their color as they pass under it. Belt levels are
+checked with dock rules, because on the belt a player can always wait for a crate to come around.
+
+**Developer panel:** in the editor and in development builds, Settings has a **DEV** button to jump
+to any level and add coins. It is not in release builds.
+
 ## Money
 
 - **Boosters:** Undo, +1 Slot (max 2 per level), Crane (lift any crate), Magnet (fill the waiting

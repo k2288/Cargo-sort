@@ -45,6 +45,9 @@ namespace CargoSort.Core
     /// Win: every truck shipped. Lose: buffer full and no top crate matches a waiting truck.
     /// Twists: hidden crates (shown as "?" until they reach the top of their column, view only) and
     /// frozen columns (can't be tapped; each tap on another column melts the ice by one).
+    /// Belt levels: the buffer is a moving conveyor. Arriving trucks don't pull from it; a riding crate
+    /// loads when the view reports it passing its truck (BeltLoad). The game is only lost when no tap
+    /// is possible and no riding crate has a truck to reach.
     /// </summary>
     public sealed class GameState
     {
@@ -60,6 +63,10 @@ namespace CargoSort.Core
         public int TruckCapacity;
         public int TrucksShipped;
         public GameStatus Status;
+        public bool Belt;
+
+        /// <summary>Belt levels: picks the free spot a crate from this column drops onto (the view knows where the spots are).</summary>
+        public System.Func<int, int> BeltSpotPicker;
 
         private GameState() { }
 
@@ -83,6 +90,7 @@ namespace CargoSort.Core
             Bays = new Truck[data.BayCount];
             TruckQueue = new List<int>(data.TruckColors);
             TruckCapacity = data.TruckCapacity;
+            Belt = data.Belt;
             var ignored = new List<GameEvent>();
             for (int b = 0; b < Bays.Length; b++) ArriveNext(b, ignored);
             Status = GameStatus.Playing;
@@ -168,13 +176,63 @@ namespace CargoSort.Core
             }
             else
             {
-                int slot = System.Array.IndexOf(Buffer, Empty);
+                int slot = BeltSpotPicker != null ? BeltSpotPicker(column) : -1;
+                if (slot < 0 || slot >= Buffer.Length || Buffer[slot] != Empty) slot = System.Array.IndexOf(Buffer, Empty);
                 Buffer[slot] = color;
                 move = GameEvent.Move(Place.Column, column, Place.Buffer, slot, color);
             }
             move.FromRow = row;
             events.Add(move);
             ResolveFullTrucks(events);
+        }
+
+        // ---------- Conveyor belt ----------
+
+        /// <summary>Belt: the crate in this spot passed under its truck and jumps on.</summary>
+        public List<GameEvent> BeltLoad(int slot, int bay)
+        {
+            var events = new List<GameEvent>();
+            if (Status != GameStatus.Playing || slot < 0 || slot >= Buffer.Length || bay < 0 || bay >= Bays.Length) return events;
+            var truck = Bays[bay];
+            int color = Buffer[slot];
+            if (truck == null || color == Empty || truck.Color != color || truck.Full) return events;
+            Buffer[slot] = Empty;
+            truck.Loaded++;
+            events.Add(GameEvent.Move(Place.Buffer, slot, Place.Bay, bay, color));
+            ResolveFullTrucks(events);
+            UpdateStatus();
+            return events;
+        }
+
+        /// <summary>Loads every riding crate that has a truck, as if the player waited a full loop.</summary>
+        public void Settle()
+        {
+            bool moved = true;
+            while (moved)
+            {
+                moved = false;
+                for (int i = 0; i < Buffer.Length; i++)
+                {
+                    if (Buffer[i] == Empty) continue;
+                    int bay = FindBayFor(Buffer[i]);
+                    if (bay < 0) continue;
+                    BeltLoad(i, bay);
+                    moved = true;
+                }
+            }
+        }
+
+        /// <summary>A copy that follows dock rules (riding crates settled), for the solver.</summary>
+        public GameState AsDock()
+        {
+            var s = Clone();
+            s.BeltSpotPicker = null;
+            if (!s.Belt) return s;
+            if (s.Status == GameStatus.Lost) s.Status = GameStatus.Playing;
+            s.Settle();
+            s.Belt = false;
+            s.UpdateStatus();
+            return s;
         }
 
         // ---------- Boosters ----------
@@ -265,7 +323,7 @@ namespace CargoSort.Core
                 s.Status = GameStatus.Playing;
                 s.UpdateStatus();
                 pick = s;
-                if (Solver.Solve(s.Clone()) != null) break;
+                if (Solver.Solve(s.AsDock()) != null) break;
             }
             return pick;
         }
@@ -312,6 +370,7 @@ namespace CargoSort.Core
             var truck = new Truck { Color = color, Capacity = TruckCapacity };
             Bays[bay] = truck;
             events.Add(GameEvent.Arrive(bay, color));
+            if (Belt) return; // riding crates board when they pass the truck
 
             for (int i = 0; i < Buffer.Length && !truck.Full; i++)
             {
@@ -337,6 +396,11 @@ namespace CargoSort.Core
             for (int c = 0; c < Columns.Count; c++)
                 if (CanTap(c)) return;
 
+            // Belt: a riding crate that has a truck will get there, so the game goes on.
+            if (Belt)
+                foreach (int color in Buffer)
+                    if (color != Empty && IsWanted(color)) return;
+
             Status = GameStatus.Lost;
         }
 
@@ -354,6 +418,8 @@ namespace CargoSort.Core
                 TruckCapacity = TruckCapacity,
                 TrucksShipped = TrucksShipped,
                 Status = Status,
+                Belt = Belt,
+                BeltSpotPicker = BeltSpotPicker,
             };
             foreach (var c in Columns) s.Columns.Add(new List<int>(c));
             foreach (var h in Hidden) s.Hidden.Add(new List<bool>(h));

@@ -16,6 +16,7 @@ namespace CargoSort.Core
         public List<List<bool>> Hidden = new List<List<bool>>(); // same shape as Columns
         public List<int> Frozen = new List<int>();               // ice taps per column
         public bool Hard;
+        public bool Belt;   // conveyor belt instead of the dock (see GameState.Belt)
     }
 
     public struct Difficulty
@@ -73,7 +74,28 @@ namespace CargoSort.Core
             return d;
         }
 
-        public static LevelData Generate(int level) => Generate(level, ForLevel(level), level * 7919);
+        /// <summary>Conveyor belt levels: level 15, then every 3rd level.</summary>
+        public const int BeltFromLevel = 15;
+
+        /// <summary>The belt has this many more spots than the dock would have (crates take time to ride around).</summary>
+        public const int BeltExtraSpots = 2;
+
+        public static bool IsBelt(int level) => level >= BeltFromLevel && level % 3 == 0;
+
+        /// <summary>
+        /// Builds level n. Belt levels are generated and solver-checked with dock rules: on the belt a
+        /// player can always wait for a crate to reach its truck, so a dock-solvable level is belt-solvable.
+        /// </summary>
+        public static LevelData Generate(int level)
+        {
+            var data = Generate(level, ForLevel(level), level * 7919);
+            if (IsBelt(level))
+            {
+                data.Belt = true;
+                data.BufferSize += BeltExtraSpots;
+            }
+            return data;
+        }
 
         /// <summary>
         /// The daily challenge for a day number: the same level for every player that day, harder than
@@ -201,7 +223,8 @@ namespace CargoSort.Core
     /// <summary>Greedy solver used to make sure generated levels can be beaten.</summary>
     public static class Solver
     {
-        public static bool CanSolve(LevelData data) => Solve(new GameState(data)) != null;
+        /// <summary>Belt levels are checked with dock rules (a player can always wait for a riding crate).</summary>
+        public static bool CanSolve(LevelData data) => Solve(new GameState(data).AsDock()) != null;
 
         /// <summary>Returns the list of column taps that wins, or null if greedy play fails.</summary>
         public static List<int> Solve(GameState s)
@@ -287,6 +310,9 @@ namespace CargoSort.Core
         }
 
         public void AddBufferSlot() => State.AddBufferSlot();
+
+        /// <summary>Belt: a riding crate reached a truck of its color (not an undo step).</summary>
+        public List<GameEvent> BeltLoad(int slot, int bay) => State.BeltLoad(slot, bay);
 
         /// <summary>Crane booster: lift any crate. Undo can take it back.</summary>
         public List<GameEvent> Pluck(int column, int row)

@@ -19,6 +19,8 @@ namespace CargoSort.Game
         public event Action<bool> ClaimWin;   // true = x3 with ad
         public event Action<bool> ClaimDaily; // true = x2 with ad
         public event Action<Booster> BoosterTapped;
+        public event Action<int> DevGoToLevel;
+        public event Action DevAddCoins;
 
         // Candy colors (face; the bottom edge is a darker shade).
         public static readonly Color Yellow = new Color32(0xFF, 0xB2, 0x2A, 0xFF);
@@ -46,7 +48,7 @@ namespace CargoSort.Game
         private bool craneOn;
 
         public bool PanelOpen =>
-            winPanel.activeSelf || losePanel.activeSelf || dailyPanel.activeSelf || settingsPanel.activeSelf || rewardPanel.activeSelf ||
+            winPanel.activeSelf || losePanel.activeSelf || dailyPanel.activeSelf || settingsPanel.activeSelf || rewardPanel.activeSelf || devPanel.activeSelf ||
             shopPanel.activeSelf || starterPanel.activeSelf || homePanel.activeSelf;
 
         public bool HomeVisible => homePanel != null && homePanel.activeSelf;
@@ -82,6 +84,7 @@ namespace CargoSort.Game
             BuildSettings(safe);
             BuildStarterPanel(safe);
             BuildRewardPanel(safe);
+            BuildDevPanel(safe);
             BuildToast(safe);
         }
 
@@ -363,6 +366,10 @@ namespace CargoSort.Game
             var privacy = MakeCandy(box, Quiet, () => Privacy?.Invoke(), Loc.T("privacy"), 36, null, 0, 30);
             Anchor(privacy.Root, new Vector2(0.5f, 0.5f), new Vector2(207, -360), new Vector2(390, 110));
             privacyButton = privacy.Root.gameObject;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            var dev = MakeCandy(box, Purple, () => { settingsPanel.SetActive(false); ShowDevPanel(); }, "DEV", 34, null, 0, 30);
+            Anchor(dev.Root, new Vector2(0, 1), new Vector2(110, -70), new Vector2(150, 90));
+#endif
             settingsPanel.SetActive(false);
         }
 
@@ -411,6 +418,64 @@ namespace CargoSort.Game
             sw.SetColor(on ? Green : (Color)new Color32(0x5F, 0x6E, 0x84, 0xFF));
             var knob = sw.Top.Find("Knob") as RectTransform;
             if (knob != null) knob.anchoredPosition = new Vector2(on ? 36 : -36, 0);
+        }
+
+        // ---------- Developer panel (editor and development builds only) ----------
+
+        private GameObject devPanel;
+        private Text devLevelText;
+        private int devLevel = 15;
+
+        private void BuildDevPanel(RectTransform safe)
+        {
+            devPanel = MakePopup(safe, new Vector2(900, 900), out var box);
+            CloseButton(box, () => devPanel.SetActive(false));
+            Title(box, Loc.T("dev_title"), 340);
+            var note = MakeText(box, Loc.T("dev_note"), 30, TextAnchor.MiddleCenter);
+            note.color = Muted;
+            Anchor(note.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, 260), new Vector2(840, 50));
+
+            int[] steps = { -10, -1, 1, 10 };
+            float[] xs = { -330, -190, 190, 330 };
+            for (int i = 0; i < steps.Length; i++)
+            {
+                int step = steps[i];
+                var b = MakeCandy(box, Quiet, () => SetDevLevel(devLevel + step), (step > 0 ? "+" : "") + step, 40, null, 0, 34);
+                Anchor(b.Root, new Vector2(0.5f, 0.5f), new Vector2(xs[i], 130), new Vector2(124, 110));
+            }
+            devLevelText = MakeText(box, "", 70, TextAnchor.MiddleCenter, Art.DisplayFont);
+            Anchor(devLevelText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, 136), new Vector2(220, 110));
+            var go = MakeCandy(box, Purple, () => { devPanel.SetActive(false); DevGoToLevel?.Invoke(devLevel); }, "", 48);
+            Anchor(go.Root, new Vector2(0.5f, 0.5f), new Vector2(0, -20), new Vector2(620, 140));
+            devGoLabel = go.Label;
+
+            int[] shortcuts = { 11, 15, 18, 21 };
+            for (int i = 0; i < shortcuts.Length; i++)
+            {
+                int n = shortcuts[i];
+                var b = MakeCandy(box, Blue, () => { devPanel.SetActive(false); DevGoToLevel?.Invoke(n); }, n.ToString(), 40, null, 0, 34);
+                Anchor(b.Root, new Vector2(0.5f, 0.5f), new Vector2(-300 + i * 200, -190), new Vector2(170, 110));
+            }
+            var coins = MakeCandy(box, Yellow, () => DevAddCoins?.Invoke(), "+1000", 42, null, 0, 34);
+            Anchor(coins.Root, new Vector2(0.5f, 0.5f), new Vector2(0, -330), new Vector2(360, 110));
+            devPanel.SetActive(false);
+            SetDevLevel(devLevel);
+        }
+
+        private Text devGoLabel;
+
+        private void SetDevLevel(int n)
+        {
+            devLevel = Mathf.Clamp(n, 1, 999);
+            if (devLevelText != null) devLevelText.text = devLevel.ToString();
+            if (devGoLabel != null) devGoLabel.text = Loc.T("dev_go", devLevel);
+        }
+
+        private void ShowDevPanel()
+        {
+            devPanel.SetActive(true);
+            devPanel.transform.SetAsLastSibling();
+            PopIn(devPanel);
         }
 
         // ---------- Reward popup ----------

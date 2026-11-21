@@ -84,6 +84,8 @@ namespace CargoSort.Game
             hud.ToggleLanguage += OnToggleLanguage;
             hud.RestorePurchases += OnRestorePurchases;
             hud.Privacy += () => Application.OpenURL(Economy.PrivacyUrl);
+            hud.DevGoToLevel += OnDevGoToLevel;
+            hud.DevAddCoins += () => AddCoins(1000);
             hud.Build();
 
             Analytics.SessionStart();
@@ -192,6 +194,7 @@ namespace CargoSort.Game
             hud.ShowWin(false);
             hud.ShowLose(false);
             hud.SetLevel(n, IsHard);
+            session.State.BeltSpotPicker = board.NearestBeltSpot; // copied into undo states and shuffles
             board.Rebuild(session.State);
             board.PlayIntro();
             Analytics.LevelStart(n);
@@ -201,6 +204,7 @@ namespace CargoSort.Game
             if (hud.HomeVisible) return; // toasts only while playing
             if (n == LevelGenerator.FrozenFromLevel) hud.Toast(Loc.T("twist_frozen"), 3f);
             else if (n == LevelGenerator.HiddenFromLevel) hud.Toast(Loc.T("twist_hidden"), 3f);
+            else if (n == LevelGenerator.BeltFromLevel) hud.Toast(Loc.T("belt_intro"), 4f);
             else if (freeUses[Booster.Crane] > 0) hud.Toast(Loc.T("streak_bonus", streak), 2.4f);
             else if (IsHard) hud.Toast(Loc.T("hard_start"), 2f);
         }
@@ -219,6 +223,17 @@ namespace CargoSort.Game
         {
             FitCamera();
             if (board.Busy || waitingForAd || buying || hud.PanelOpen) return;
+
+            // Belt: a riding crate passing under its truck jumps on.
+            if (session.State.Belt && board.TryFindBeltLoad(out int beltSlot, out int beltBay))
+            {
+                var loaded = session.BeltLoad(beltSlot, beltBay);
+                if (loaded.Count > 0)
+                {
+                    board.Play(loaded, session.State, AfterMove);
+                    return;
+                }
+            }
             if (session.State.Status != GameStatus.Playing) return;
             if (!TryGetTap(out var screen)) return;
 
@@ -759,6 +774,20 @@ namespace CargoSort.Game
             var backend = MonetizationServices.StoreBackend;
             if (backend != null) backend.Restore();
             hud.Toast(Loc.T("restore_done"));
+        }
+
+        // ---------- Developer tools (editor and development builds only; see Hud.BuildDevPanel) ----------
+
+        private void OnDevGoToLevel(int n)
+        {
+            if (board.Busy || waitingForAd) return;
+            n = Mathf.Clamp(n, 1, 999);
+            pendingWinReward = 0;
+            hud.ShowWin(false);
+            hud.ShowLose(false);
+            Progress.Level = n;
+            ShowGame();
+            StartLevel(n);
         }
 
         // ---------- Language ----------
