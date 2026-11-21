@@ -69,6 +69,8 @@ namespace CargoSort.Game
             hud.Challenge += OnChallenge;
             hud.OpenShop += OnOpenShop;
             hud.OpenTour += OnOpenTour;
+            hud.OpenRush += OnOpenRush;
+            hud.ClaimRush += OnClaimRush;
             hud.BuildLandmark += OnBuildLandmark;
             hud.OpenChest += OnOpenChest;
             hud.OpenStarter += () => { Analytics.Offer("starter", "shown"); hud.ShowStarter(true); };
@@ -147,6 +149,12 @@ namespace CargoSort.Game
                 Progress.TourSeen = true;
                 hud.Toast(Loc.T("tour_intro"), 3.8f);
             }
+            else if (Rush.Open && !Progress.RushSeen)
+            {
+                Progress.RushSeen = true;
+                hud.Toast(Loc.T("rush_intro"), 3.8f);
+            }
+            ShowRushResult();
         }
 
         private void ShowGame()
@@ -342,7 +350,7 @@ namespace CargoSort.Game
                 if (level == 1) Progress.TutorialDone = true;
                 Analytics.LevelWin(level, session.State.Buffer.Length);
                 hud.SetTip(null);
-                int streak = 0, piggyAdded = 0, starsAdded = 0;
+                int streak = 0, piggyAdded = 0, starsAdded = 0, rushAdded = 0;
                 if (level == 0)
                 {
                     Progress.ChallengeDay = Progress.Today;
@@ -358,8 +366,14 @@ namespace CargoSort.Game
                     Progress.Piggy += piggyAdded;
                     starsAdded = WorldTour.StarsForWin(level);
                     Progress.Stars += starsAdded;
+                    Rush.Rollover();
+                    if (level >= RushWeek.FromLevel)
+                    {
+                        rushAdded = RushWeek.PointsForWin(session.State.TrucksTotal, streak);
+                        Progress.RushPoints += rushAdded;
+                    }
                 }
-                StartCoroutine(ShowWinSoon(level, pendingWinReward, streak, piggyAdded, starsAdded));
+                StartCoroutine(ShowWinSoon(level, pendingWinReward, streak, piggyAdded, starsAdded, rushAdded));
             }
             else if (session.State.Status == GameStatus.Lost)
             {
@@ -371,12 +385,12 @@ namespace CargoSort.Game
         }
 
         /// <summary>Lets the confetti play for a moment before the win panel covers the board.</summary>
-        private System.Collections.IEnumerator ShowWinSoon(int wonLevel, int reward, int streak, int piggyAdded, int starsAdded)
+        private System.Collections.IEnumerator ShowWinSoon(int wonLevel, int reward, int streak, int piggyAdded, int starsAdded, int rushAdded)
         {
             waitingForAd = true; // blocks other buttons for the short pause
             yield return new WaitForSeconds(0.8f);
             waitingForAd = false;
-            if (level == wonLevel && pendingWinReward == reward) hud.ShowWin(true, wonLevel, reward, streak, piggyAdded, starsAdded);
+            if (level == wonLevel && pendingWinReward == reward) hud.ShowWin(true, wonLevel, reward, streak, piggyAdded, starsAdded, rushAdded);
         }
 
         private void BreakStreak()
@@ -666,6 +680,43 @@ namespace CargoSort.Game
             });
         }
 
+        // ---------- Rush Week ----------
+
+        private void OnOpenRush()
+        {
+            if (board.Busy || waitingForAd) return;
+            if (!Rush.Open)
+            {
+                hud.Toast(Loc.T("rush_locked", RushWeek.FromLevel));
+                return;
+            }
+            SetCrane(false);
+            hud.ShowRush(true);
+        }
+
+        private void OnClaimRush(int step)
+        {
+            if (!RushWeek.CanClaim(Progress.RushPoints, Progress.RushClaimed, step)) return;
+            Progress.RushClaimed |= 1 << step;
+            Analytics.RushStep(step, Progress.RushPoints);
+            GiveItems(Rush.TrackRewards[step], "rush_week");
+            hud.RefreshRush();
+            if (hud.HomeVisible) ShowHome();
+        }
+
+        /// <summary>Last week's rank (and prize, top 10) once a new week has started.</summary>
+        private void ShowRushResult()
+        {
+            Rush.Rollover();
+            int rank = Progress.RushResultRank, prize = Progress.RushResultPrize;
+            if (rank <= 0 || hud.DailyVisible) return;
+            Progress.RushResultRank = 0;
+            Progress.RushResultPrize = 0;
+            Analytics.RushResult(rank);
+            if (prize > 0) GiveItems(new[] { Item.Coins(prize) }, "rush_week", Loc.T("rush_result", rank));
+            else hud.Toast(Loc.T("rush_result", rank), 3f);
+        }
+
         // ---------- World Tour ----------
 
         private void OnOpenTour()
@@ -694,7 +745,7 @@ namespace CargoSort.Game
             if (result == WorldTour.BuildResult.CityDone)
             {
                 GiveItems(new[] { Item.Coins(WorldTour.CityCoins(was)), Item.Of(Booster.Crane, 1), Item.Of(Booster.Magnet, 1), Item.Of(Booster.Shuffle, 1) }, "city_done");
-                if (!WorldTour.Finished(city)) hud.Toast(Loc.T("next_city", Loc.T("c_" + WorldTour.Cities[city].Key)), 2.6f);
+                if (!WorldTour.Finished(city)) hud.Toast(Loc.T("next_city", Loc.Raw("c_" + WorldTour.Cities[city].Key)), 2.6f);
             }
             if (hud.HomeVisible) ShowHome();
         }
@@ -751,11 +802,11 @@ namespace CargoSort.Game
         }
 
         /// <summary>Shows the reward popup; the items are added when the player taps Claim.</summary>
-        private void GiveItems(IList<Item> items, string titleKey)
+        private void GiveItems(IList<Item> items, string titleKey, string titleText = null)
         {
             if (pendingItems != null) Grant(pendingItems); // never lose an earlier reward
             pendingItems = items;
-            hud.ShowReward(titleKey, items);
+            hud.ShowReward(titleKey, items, titleText);
         }
 
         private void OnRewardClaimed()
@@ -785,6 +836,7 @@ namespace CargoSort.Game
             hud.SetCoins(Progress.Coins);
             hud.RefreshShop();
             hud.RefreshTour();
+            hud.RefreshRush();
             if (hud.HomeVisible) ShowHome();
         }
 

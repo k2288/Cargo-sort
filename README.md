@@ -55,6 +55,12 @@ Paris, London, New York, Tokyo). The home screen shows the city banner and a Tou
 data are in `Core/WorldTour.cs`; `Game/TourArt.cs` draws the skylines into textures from the same shape
 data the web preview draws as SVG.
 
+**Rush Week (weekly event, from level 10):** weeks start on Saturday. Each win gives points (1 per
+truck, x2 on a 3+ win streak). Points unlock a 5-step reward track (40 / 100 / 180 / 280 / 400 points,
+claimed on the Rush screen). The player is ranked in a group of 30; the top 10 get 500 / 300 / 200 / 100
+coins when the next week starts. Without a server the other 29 are computer rivals (labelled as such)
+whose scores grow through the week. Rules: `Core/RushWeek.cs`; device state and rewards: `Game/Rush.cs`.
+
 **Developer panel:** in the editor and in development builds, Settings has a **DEV** button to jump
 to any level and add coins. It is not in release builds.
 

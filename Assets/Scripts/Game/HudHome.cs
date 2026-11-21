@@ -54,6 +54,7 @@ namespace CargoSort.Game
             challengeDot = Dot(challenge);
             var chest = SideButton(home, Yellow, "gift", Loc.T("chest"), new Vector2(1, 0.5f), new Vector2(-130, -190), () => OpenChest?.Invoke(), out _);
             chestDot = Dot(chest);
+            BuildRushSide(home);
 
             // Win streak and Play
             playButton = MakeCandy(home, Green, () => Play?.Invoke(), "Level", 92, null, 0, 64);
@@ -117,6 +118,7 @@ namespace CargoSort.Game
             streakText.text = Economy.Number(streak);
             starterSide.SetActive(Economy.StarterActive);
             SetCityBar();
+            SetRushSide();
             DrawPath(level);
         }
 

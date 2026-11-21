@@ -111,6 +111,11 @@ namespace CargoSort.Game
         public static void Landmark(int city, int mark, bool cityDone) =>
             Send("tour_build", new Dictionary<string, object> { { "city", city }, { "landmark", mark }, { "city_done", cityDone } });
 
+        public static void RushStep(int step, int points) =>
+            Send("rush_step", new Dictionary<string, object> { { "step", step }, { "points", points } });
+
+        public static void RushResult(int rank) => Send("rush_result", new Dictionary<string, object> { { "rank", rank } });
+
         public static void Tutorial(string step) => Send("tutorial", new Dictionary<string, object> { { "step", step } });
 
         public static void DailyGift(int streak, bool doubled) =>

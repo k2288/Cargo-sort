@@ -245,6 +245,44 @@ namespace CargoSort.Game
             set { PlayerPrefs.SetInt("tour_built", value); PlayerPrefs.Save(); }
         }
 
+        /// <summary>Rush Week: the week these points belong to, points, claimed track steps (bits), last week's result.</summary>
+        public static int RushWeek
+        {
+            get => PlayerPrefs.GetInt("rush_week", -1);
+            set { PlayerPrefs.SetInt("rush_week", value); PlayerPrefs.Save(); }
+        }
+
+        public static int RushPoints
+        {
+            get => PlayerPrefs.GetInt("rush_points", 0);
+            set { PlayerPrefs.SetInt("rush_points", Mathf.Max(0, value)); PlayerPrefs.Save(); }
+        }
+
+        public static int RushClaimed
+        {
+            get => PlayerPrefs.GetInt("rush_claimed", 0);
+            set { PlayerPrefs.SetInt("rush_claimed", value); PlayerPrefs.Save(); }
+        }
+
+        /// <summary>0 = nothing to show.</summary>
+        public static int RushResultRank
+        {
+            get => PlayerPrefs.GetInt("rush_result_rank", 0);
+            set { PlayerPrefs.SetInt("rush_result_rank", value); PlayerPrefs.Save(); }
+        }
+
+        public static int RushResultPrize
+        {
+            get => PlayerPrefs.GetInt("rush_result_prize", 0);
+            set { PlayerPrefs.SetInt("rush_result_prize", value); PlayerPrefs.Save(); }
+        }
+
+        public static bool RushSeen
+        {
+            get => PlayerPrefs.GetInt("rush_seen", 0) == 1;
+            set { PlayerPrefs.SetInt("rush_seen", value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
         public static bool TourSeen
         {
             get => PlayerPrefs.GetInt("tour_seen", 0) == 1;

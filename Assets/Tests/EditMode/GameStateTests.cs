@@ -436,6 +436,34 @@ namespace CargoSort.Tests
         }
 
         [Test]
+        public void RushWeekPointsWeeksAndPrizes()
+        {
+            Assert.AreEqual(12, RushWeek.PointsForWin(12, 2));
+            Assert.AreEqual(24, RushWeek.PointsForWin(12, 3));   // 3+ win streak doubles
+            Assert.AreEqual(0, RushWeek.WeekOf(6));              // 2000-01-01 (Saturday) .. 01-07
+            Assert.AreEqual(1, RushWeek.WeekOf(7));
+            Assert.AreEqual(500, RushWeek.Prize(1));
+            Assert.AreEqual(100, RushWeek.Prize(10));
+            Assert.AreEqual(0, RushWeek.Prize(11));
+            Assert.IsTrue(RushWeek.CanClaim(40, 0, 0));
+            Assert.IsFalse(RushWeek.CanClaim(40, 1, 0));         // already claimed
+            Assert.IsFalse(RushWeek.CanClaim(99, 0, 1));         // needs 100
+        }
+
+        [Test]
+        public void RushWeekGroupHas30AndRivalsGrow()
+        {
+            var start = RushWeek.Standings(1400, 0, 0);
+            Assert.AreEqual(RushWeek.GroupSize, start.Count);
+            Assert.AreEqual(1, RushWeek.RankOf(start));          // everyone at 0: the player is shown first
+            var end = RushWeek.Standings(1400, 0, 1);
+            Assert.AreEqual(RushWeek.GroupSize, RushWeek.RankOf(end));
+            Assert.AreEqual(1, RushWeek.RankOf(RushWeek.Standings(1400, 10000, 1)));
+            foreach (var r in RushWeek.Rivals(1400))
+                Assert.IsTrue(RushWeek.RivalScore(r, 0.5) <= RushWeek.RivalScore(r, 0.9));
+        }
+
+        [Test]
         public void CraneLiftsACrateFromUnderOthers()
         {
             var s = new GameState(Simple());

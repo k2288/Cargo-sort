@@ -187,6 +187,26 @@ button.switch[aria-checked="true"]::after { inset-inline-start: 34px; }
 .tag { position: absolute; top: -10px; inset-inline-end: 12px; background: #ffe066; color: #7a3a00; font-weight: 800; font-size: 13px; padding: 4px 10px; border-radius: 10px; box-shadow: 0 3px 0 #b5640a; }
 .old { text-decoration: line-through; opacity: .7; font-size: 14px; margin-inline-end: 6px; font-family: var(--body); }
 .piggy { background: linear-gradient(160deg, #ff9ec7, #d0557f); }
+/* Rush Week */
+.rushhead { border-radius: 22px; padding: 14px 16px; display: grid; gap: 8px; text-align: center; background: linear-gradient(160deg, #ffb13b, #f06a2b 55%, #c9306b); box-shadow: inset 0 2px 0 rgba(255,255,255,.25), 0 6px 0 rgba(0,0,0,.3); }
+.rushhead b { font-family: var(--display); font-weight: 400; font-size: 44px; line-height: 1; text-shadow: 0 3px 0 rgba(0,0,0,.25); }
+.rushhead span { font-weight: 800; font-size: 13px; }
+.track { display: grid; gap: 8px; }
+.ms { display: grid; grid-template-columns: 54px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 16px; background: #2b4669; }
+.ms .need { width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center; font-family: var(--display); font-size: 17px; background: rgba(0,0,0,.3); }
+.ms.got .need { background: #35b84a; }
+.ms .items { justify-content: flex-start; gap: 6px; flex-wrap: nowrap; }
+.ms .item { width: 52px; padding: 6px 2px 4px; font-size: 14px; background: rgba(0,0,0,.18); }
+.ms .item .ic, .ms .item .coin { width: 24px; height: 24px; } .ms .ibg { width: 30px; height: 30px; border-radius: 9px; } .ms .ibg .ic { width: 20px; height: 20px; }
+.ms.done { opacity: .55; }
+.board-list { display: grid; gap: 4px; }
+.lrow { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 7px 12px; border-radius: 12px; background: rgba(255,255,255,.05); font-weight: 800; }
+.lrow .rk { font-family: var(--display); font-size: 18px; text-align: center; color: var(--muted); }
+.lrow.top .rk { color: #ffcc33; }
+.lrow.me { background: linear-gradient(90deg, #3e8ef7, #2f6fd6); box-shadow: 0 3px 0 #1b4a96; }
+.lrow.me .rk { color: #fff; }
+.lrow .pts { font-family: var(--display); font-size: 18px; }
+.note { text-align: center; color: var(--muted); font-size: 12px; font-weight: 700; margin: 0; }
 /* World Tour */
 .citybar { width: min(330px, 100%); display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 6px 10px 6px 6px; border-radius: 18px; text-align: start;
   --c1: #3a5b88; --c2: #2b4669; --edge: #1a2c45; font-family: var(--body); text-shadow: none; position: relative; }
@@ -262,6 +282,7 @@ button.mk .ic { width: 18px; height: 18px; flex: none; }
   <symbol id="i-piggy" viewBox="0 0 24 24"><path d="M4 11.5C4 7.4 8 4.5 12.6 4.5c1.9 0 3.6.5 5 1.4l2.4-1.6v3.9c.9.9 1.5 2 1.8 3.3H23v3.5h-1.3a7.6 7.6 0 0 1-3.2 4v3.5h-3.3v-2.3h-4.4V22H7.5v-3.6A7.4 7.4 0 0 1 4 11.5zm12.3-1.7a1.1 1.1 0 1 0 0 2.2 1.1 1.1 0 0 0 0-2.2zM10 6.5v1.6h4.4V6.5z"/><path d="M1 9.5c0 1.4 1 2.4 3 2.4" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
   <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 1.8 3.1 6.6 7.2.8-5.4 4.9 1.5 7.1L12 17.6l-6.4 3.6 1.5-7.1-5.4-4.9 7.2-.8z"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="m3 12.5 2.8-2.8 4 4L18.2 5.3 21 8.1 9.8 19.3z"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M14.2 1.5 4 13.6h6.4L8.8 22.5 20 9.8h-6.6z"/></symbol>
   <symbol id="i-globe" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 1.5a10.5 10.5 0 1 0 0 21 10.5 10.5 0 0 0 0-21zm6.8 9.2h-2.9a15.6 15.6 0 0 0-1.5-6 8.3 8.3 0 0 1 4.4 6zM12 3.9c1 1.3 1.9 3.8 2.1 6.8H9.9c.2-3 1.1-5.5 2.1-6.8zM9.6 4.7a15.6 15.6 0 0 0-1.5 6H5.2a8.3 8.3 0 0 1 4.4-6zm-4.4 8.6h2.9a15.6 15.6 0 0 0 1.5 6 8.3 8.3 0 0 1-4.4-6zm6.8 6.8c-1-1.3-1.9-3.8-2.1-6.8h4.2c-.2 3-1.1 5.5-2.1 6.8zm2.4-.8a15.6 15.6 0 0 0 1.5-6h2.9a8.3 8.3 0 0 1-4.4 6z"/></symbol>
   <symbol id="i-lock" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2a5 5 0 0 0-5 5v3H5v12h14V10h-2V7a5 5 0 0 0-5-5zm-2.6 8V7a2.6 2.6 0 0 1 5.2 0v3z"/></symbol>
 </svg>
@@ -286,6 +307,7 @@ button.mk .ic { width: 18px; height: 18px; flex: none; }
       <div class="sbtn" id="starterSide" hidden><button class="red" id="starterHome" aria-label="Starter Pack"><svg class="ic"><use href="#i-star"/></svg></button><span class="bname timer" id="starterSideTime"></span></div>
     </div>
     <div class="side s2">
+      <div class="sbtn" id="rushSide" hidden><button class="red" id="rushHome" aria-label="Rush Week"><svg class="ic"><use href="#i-bolt"/></svg><i class="dot" id="rushDot" hidden></i></button><span class="bname timer" id="rushSideTime"></span></div>
       <div class="sbtn"><button class="blue" id="challengeHome" aria-label="Challenge"><svg class="ic"><use href="#i-trophy"/></svg><i class="dot" id="challengeDot" hidden></i></button><span class="bname" data-t="challenge">Challenge</span></div>
       <div class="sbtn"><button id="chestHome" aria-label="Free chest"><svg class="ic"><use href="#i-gift"/></svg><i class="dot" id="chestDot" hidden></i></button><span class="bname" data-t="chest">Free gift</span></div>
     </div>
@@ -299,7 +321,7 @@ button.mk .ic { width: 18px; height: 18px; flex: none; }
 </div>
 
 <div class="overlay" id="win" hidden><div class="card"><h2 id="winTitle">Level complete!</h2><p class="reward"><span class="coin big"></span><span id="winReward">+10</span></p>
-  <div class="winrow"><span class="chip" id="winStreak"><svg class="ic"><use href="#i-flame"/></svg><span></span></span><span class="chip pig" id="winPiggy"><svg class="ic"><use href="#i-piggy"/></svg><span></span></span><span class="chip stars" id="winStars"><svg class="ic"><use href="#i-star"/></svg><span></span></span></div>
+  <div class="winrow"><span class="chip" id="winStreak"><svg class="ic"><use href="#i-flame"/></svg><span></span></span><span class="chip pig" id="winPiggy"><svg class="ic"><use href="#i-piggy"/></svg><span></span></span><span class="chip stars" id="winStars"><svg class="ic"><use href="#i-star"/></svg><span></span></span><span class="chip" id="winRush" hidden><svg class="ic"><use href="#i-bolt"/></svg><span></span></span></div>
   <button class="ad" id="claim3"><span data-t="claim_x3">Claim x3</span><small data-t="watch_ad">WATCH AD</small></button>
   <button id="claim" data-t="claim">Claim</button></div></div>
 <div class="overlay" id="lose" hidden><div class="card"><h2 data-t="lose_title">Dock is full!</h2><p data-t="lose_text">No crate can move.</p><p class="warn" id="streakWarn" hidden></p>
@@ -337,6 +359,14 @@ button.mk .ic { width: 18px; height: 18px; flex: none; }
   <div class="body" id="shopBody"></div>
 </div>
 
+<div class="screen" id="rush" hidden>
+  <header>
+    <div><button class="sq red" id="closeRush" aria-label="Close"><svg class="ic"><use href="#i-x"/></svg></button></div>
+    <h2 data-t="rush_week">Rush Week</h2>
+    <div></div>
+  </header>
+  <div class="body" id="rushBody"></div>
+</div>
 <div class="screen" id="tour" hidden>
   <header>
     <div><button class="sq red" id="closeTour" aria-label="Close"><svg class="ic"><use href="#i-x"/></svg></button></div>
@@ -1107,6 +1137,12 @@ document.addEventListener("click", ev => { if (ev.target.closest("button")) sfx.
 // ===== Language, coins, themes =====
 const $ = id => document.getElementById(id);
 const STR = {
+  rush_week: ["Rush Week", "هفته شتاب"], rush_points: ["points", "امتیاز"], rush_how: ["Win levels: 1 point per truck, x2 on a 3+ win streak", "مرحله ببر: هر کامیون ۱ امتیاز، با ۳ برد پشت سر هم ۲ برابر"],
+  rush_track: ["Rewards", "جایزه‌ها"], rush_group: ["Your group", "گروه تو"], rush_rivals_note: ["Computer rivals (offline). Online groups with real players are coming.", "رقیب‌های کامپیوتری (آفلاین). گروه‌های آنلاین با بازیکن‌های واقعی به زودی."],
+  rush_ends: ["Ends in {0}", "پایان تا {0}"], days_hours: ["{0}d {1}h", "{0} روز {1} ساعت"], you: ["You", "تو"],
+  rush_prizes: ["Top 10 win prizes at the end of the week", "۱۰ نفر اول در پایان هفته جایزه می‌گیرند"], rush_win: ["+{0} rush", "{0}+ شتاب"],
+  rush_intro: ["New: Rush Week! Win levels for points and prizes", "جدید: هفته شتاب! مرحله ببر و امتیاز و جایزه بگیر"],
+  rush_result: ["Last week you finished #{0}!", "هفته پیش نفر {0} شدی!"], rush_locked: ["Rush Week opens at level {0}", "هفته شتاب از مرحله {0} باز می‌شود"],
   world_tour: ["World Tour", "تور جهانی"], tour_short: ["Tour", "تور"], landmarks: ["Landmarks", "بناهای دیدنی"], cities: ["Cities", "شهرها"],
   city_n: ["City {0} of {1}", "شهر {0} از {1}"], build: ["Build", "بساز"], built: ["Built", "ساخته شد"], need_stars: ["Win levels to earn stars", "با بردن مراحل ستاره بگیر"],
   win_stars: ["+{0} stars", "{0}+ ستاره"], city_done: ["City complete!", "شهر کامل شد!"], tour_done: ["You visited every city! More cities soon.", "همه شهرها را دیدی! شهرهای تازه به زودی."],
@@ -1325,8 +1361,84 @@ setInterval(() => {
   const left = starterLeft();
   document.querySelectorAll(".cd").forEach(el => el.textContent = t("ends_in", clock(left)));
   if ($("starterSideTime")) $("starterSideTime").textContent = clock(left);
+  if ($("rushSideTime")) $("rushSideTime").textContent = dayClock(rushLeft()); if ($("rushEnds")) $("rushEnds").textContent = t("rush_ends", dayClock(rushLeft()));
   if (!left && !$("starterSide").hidden) { renderHome(); if (!$("shop").hidden) renderShop(); }
 }, 1000);
+
+// ===== Rush Week (weekly event): points from wins, a reward track, and a group of 30 =====
+// Weeks start on Saturday (2000-01-01 was a Saturday). Until a server is connected, the other 29 in the group are
+// computer rivals, clearly labelled; their scores grow through the week toward a target fixed by the week's seed.
+const RUSH_FROM = 10, RUSH_GROUP = 30;
+const RUSH_TRACK = [
+  [40, [["coins", 100]]],
+  [100, [["undo", 2], ["slot", 1]]],
+  [180, [["coins", 250]]],
+  [280, [["crane", 2], ["magnet", 1]]],
+  [400, [["coins", 600], ["crane", 2], ["magnet", 2], ["shuffle", 2]]],
+];
+const RUSH_PRIZES = [[1, 500], [2, 300], [3, 200], [10, 100]]; // [up to rank, coins]
+const rushPrize = rank => { for (const [r, c] of RUSH_PRIZES) if (rank <= r) return c; return 0; };
+const RIVALS = [["Sara","سارا"],["Ali","علی"],["Reza","رضا"],["Maryam","مریم"],["Amir","امیر"],["Neda","ندا"],["Hamid","حمید"],["Leila","لیلا"],["Omid","امید"],["Zahra","زهرا"],
+  ["Kian","کیان"],["Nika","نیکا"],["Arash","آرش"],["Shirin","شیرین"],["Babak","بابک"],["Mina","مینا"],["Pouya","پویا"],["Yasaman","یاسمن"],["Dariush","داریوش"],["Elnaz","الناز"],
+  ["Farhad","فرهاد"],["Golnar","گلنار"],["Hooman","هومن"],["Parisa","پریسا"],["Saman","سامان"],["Tara","تارا"],["Vahid","وحید"],["Roya","رویا"],["Navid","نوید"],["Bita","بیتا"]];
+const rushWeek = () => Math.floor(today() / 7);
+function weekStartMs(w) { return new Date(2000, 0, 1 + w * 7).getTime(); }
+const rushLeft = () => Math.max(0, weekStartMs(rushWeek() + 1) - Date.now());
+const rushOpen = () => store.get("level", 1) >= RUSH_FROM;
+// Computer rivals for a week: names and target scores fixed by the week; score at fraction f of the week.
+function rivals(w) {
+  const r = rng(w * 7907 + 17), names = RIVALS.slice(); shuffle(names, r);
+  return names.slice(0, RUSH_GROUP - 1).map(name => ({ name, target: Math.round(40 + Math.pow(r(), 1.5) * 760), speed: 0.6 + r() * 0.8 }));
+}
+const rivalScore = (rv, f) => Math.floor(rv.target * Math.pow(Math.min(1, Math.max(0, f)), rv.speed));
+function standings(w, myPts, f) {
+  const rows = rivals(w).map(rv => ({ name: rv.name[fa() ? 1 : 0], pts: rivalScore(rv, f), me: false }));
+  rows.push({ name: t("you"), pts: myPts, me: true });
+  rows.sort((a, b) => b.pts - a.pts || (a.me ? -1 : b.me ? 1 : 0)); // ties: the player first
+  return rows;
+}
+// Called on start and on the home screen: a new week resets points and pays last week's rank prize.
+function rushRollover() {
+  const w = rushWeek(), saved = store.get("rushWeek", -1);
+  if (saved === w) return;
+  if (saved >= 0 && store.get("rushPts", 0) > 0) {
+    const rank = standings(saved, store.get("rushPts", 0), 1).findIndex(x => x.me) + 1, prize = rushPrize(rank);
+    store.set("rushResult", { rank, prize });
+  }
+  store.set("rushWeek", w); store.set("rushPts", 0); store.set("rushClaimed", 0);
+}
+const rushPts = () => store.get("rushPts", 0);
+const rushClaimable = () => RUSH_TRACK.some(([need], i) => rushPts() >= need && !(store.get("rushClaimed", 0) >> i & 1));
+function rushPointsForWin(trucks, streak) { return trucks * (streak >= 3 ? 2 : 1); }
+function dayClock(ms) { const h = Math.floor(ms / 3600000); return h >= 24 ? t("days_hours", Math.floor(h / 24), h % 24) : clock(ms); }
+function renderRush() {
+  rushRollover();
+  const pts = rushPts(), claimed = store.get("rushClaimed", 0), f = 1 - rushLeft() / (7 * 86400000);
+  let h = `<div class="rushhead"><span id="rushEnds">${t("rush_ends", dayClock(rushLeft()))}</span><b>${num(pts)}</b><span>${t("rush_points")}</span><span style="opacity:.85">${t("rush_how")}</span></div>`;
+  h += `<div class="sect">${t("rush_track")}</div><div class="track">` + RUSH_TRACK.map(([need, items], i) => {
+    const got = pts >= need, done = claimed >> i & 1;
+    const btn = done ? `<button class="small green mk" disabled><svg class="ic"><use href="#i-check"/></svg></button>`
+      : got ? `<button class="small green" data-claim="${i}">${t("claim")}</button>` : `<button class="small quiet" disabled>${num(need - pts)}</button>`;
+    return `<div class="ms${got ? " got" : ""}${done ? " done" : ""}"><div class="need">${num(need)}</div><div class="items">${items.map(itemHTML).join("")}</div>${btn}</div>`;
+  }).join("") + `</div>`;
+  const rows = standings(rushWeek(), pts, f);
+  h += `<div class="sect">${t("rush_group")}</div><p class="note">${t("rush_prizes")}</p><div class="board-list">` + rows.map((row, i) =>
+    `<div class="lrow${row.me ? " me" : ""}${i < 3 ? " top" : ""}"><span class="rk">${num(i + 1)}</span><span>${row.name}${rushPrize(i + 1) ? ` <span class="coin" style="width:14px;height:14px;vertical-align:-2px"></span><small style="color:var(--gold)">${num(rushPrize(i + 1))}</small>` : ""}</span><span class="pts">${num(row.pts)}</span></div>`).join("") + `</div>`;
+  h += `<p class="note">${t("rush_rivals_note")}</p>`;
+  $("rushBody").innerHTML = h;
+}
+function openRush() { if (busy) return; if (!rushOpen()) return toast(t("rush_locked", RUSH_FROM)); renderRush(); $("rush").hidden = false; }
+function claimRush(i) {
+  const claimed = store.get("rushClaimed", 0); if (claimed >> i & 1 || rushPts() < RUSH_TRACK[i][0]) return;
+  store.set("rushClaimed", claimed | (1 << i)); showReward("rush_week", RUSH_TRACK[i][1], () => { renderRush(); renderHome(); });
+}
+// Last week's prize, shown once on the home screen.
+function maybeRushResult() {
+  const res = store.get("rushResult", null); if (!res || screen !== "home" || !$("daily").hidden) return;
+  store.set("rushResult", null);
+  if (res.prize > 0) { showReward("rush_result", [["coins", res.prize]], () => renderHome()); $("rewardTitle").textContent = t("rush_result", res.rank); }
+  else toast(t("rush_result", res.rank), 3000);
+}
 
 // ===== World Tour (meta): win levels for stars, spend stars on landmarks, finish a city for a big reward =====
 // Landmark shapes (shared with Unity): [kind, shade, numbers]; r = rect x y w h, c = circle cx cy r, t = triangle; y up from the ground.
@@ -1425,7 +1537,9 @@ function setScreen(s) {
   $("home").hidden = !home; $("board").hidden = home; $("bar").hidden = home;
   $("homeBtn").style.visibility = home ? "hidden" : "visible"; $("titleBox").style.visibility = home ? "hidden" : "visible";
   if (home) { renderHome(); maybeStarter();
-    if (stars() > 0 && !store.get("tourSeen", false)) { store.set("tourSeen", true); toast(t("tour_intro"), 3800); } }
+    if (stars() > 0 && !store.get("tourSeen", false)) { store.set("tourSeen", true); toast(t("tour_intro"), 3800); }
+    else if (rushOpen() && !store.get("rushSeen", false)) { store.set("rushSeen", true); toast(t("rush_intro"), 3800); }
+    maybeRushResult(); }
 }
 // The starter pack pops up once, on the home screen, after any other popup is closed.
 function maybeStarter() {
@@ -1441,6 +1555,7 @@ function renderHome() {
   const left = starterLeft(); $("starterSide").hidden = !left; $("starterSideTime").textContent = clock(left);
   $("streakTag").hidden = wstreak < 1; $("streakNum").textContent = num(wstreak);
   renderCityBar();
+  rushRollover(); const ro = rushOpen(); $("rushSide").hidden = !ro; $("rushSideTime").textContent = dayClock(rushLeft()); $("rushDot").hidden = !ro || !rushClaimable();
   // Level path: two finished levels at the bottom, the current one, then locked ones going up.
   const W = 200, H = 300, lv = [], first = Math.max(1, cur - 2);
   for (let n = first; n < first + 6; n++) lv.push(n);
@@ -1512,9 +1627,11 @@ function afterMove() {
     else { store.set("level", level + 1); pendingWin = (10 + Math.floor(level / 2)) * (isHard(level) ? 2 : 1);
       wstreak++; store.set("wstreak", wstreak);
       const gotStars = winStars(level); store.set("stars", stars() + gotStars); $("winStars").lastChild.textContent = t("win_stars", gotStars);
+      rushRollover(); const gotRush = level >= RUSH_FROM ? rushPointsForWin(game.queue.length, wstreak) : 0;
+      if (gotRush) store.set("rushPts", rushPts() + gotRush); $("winRush").hidden = !gotRush; $("winRush").lastChild.textContent = t("rush_win", gotRush);
       const add = Math.min(PIGGY_MAX - piggy(), isHard(level) ? 40 : 20); store.set("piggy", piggy() + add);
       $("winPiggy").lastChild.textContent = t("piggy_add", add); $("winPiggy").hidden = add <= 0; $("winStreak").lastChild.textContent = t("win_streak", wstreak); }
-    $("winStreak").hidden = $("winStars").hidden = level === 0; if (level === 0) $("winPiggy").hidden = true;
+    $("winStreak").hidden = $("winStars").hidden = level === 0; if (level === 0) $("winRush").hidden = true; if (level === 0) $("winPiggy").hidden = true;
     $("winTitle").textContent = level > 0 ? t("win_title", level) : t("challenge_win"); $("winReward").textContent = "+" + num(pendingWin);
     busy = true; setTimeout(() => { busy = false; $("win").hidden = false; }, 800);
   }
@@ -1617,6 +1734,9 @@ function openShop() { renderShop(); $("shop").hidden = false; }
 $("shopHome").onclick = openShop;
 $("coinPlus").onclick = () => { if (!busy) openShop(); };
 $("closeShop").onclick = () => $("shop").hidden = true;
+$("rushHome").onclick = openRush;
+$("closeRush").onclick = () => { $("rush").hidden = true; renderHome(); };
+$("rushBody").onclick = ev => { const b = ev.target.closest("[data-claim]"); if (b) claimRush(+b.dataset.claim); };
 $("tourHome").onclick = openTour; $("cityBar").onclick = openTour;
 $("closeTour").onclick = () => { $("tour").hidden = true; renderHome(); };
 $("tourBody").onclick = ev => { const b = ev.target.closest("[data-build]"); if (b) buildMark(+b.dataset.build); };
