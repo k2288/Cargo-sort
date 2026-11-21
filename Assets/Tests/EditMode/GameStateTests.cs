@@ -316,6 +316,52 @@ namespace CargoSort.Tests
                 Assert.IsTrue(Solver.CanSolve(LevelGenerator.Generate(n)), "level " + n);
         }
 
+        // Bomb test level: red truck (3 crates). Column 0 = red, blue(bomb), red; column 1 = red, blue, blue.
+        private static LevelData BombLevel(int bombAt) => new LevelData
+        {
+            TruckCapacity = 3, BufferSize = 3, BayCount = 1, ColorCount = 2,
+            TruckColors = new List<int> { 0, 1 },
+            Columns = new List<List<int>> { new List<int> { 0, 1, 0 }, new List<int> { 0, 1, 1 } },
+            Bombs = new List<List<int>> { new List<int> { 0, bombAt, 0 }, new List<int> { 0, 0, 0 } },
+        };
+
+        [Test]
+        public void BombExplodesWhenItsTapsRunOut()
+        {
+            var s = new GameState(BombLevel(2));
+            s.Tap(1);                          // tap 1: blue to the dock
+            Assert.AreEqual(1, s.BombTapsLeft(0, 1));
+            s.Tap(1);                          // tap 2: the bomb is still in column 0
+            Assert.AreEqual(GameStatus.Lost, s.Status);
+            Assert.IsTrue(s.Exploded);
+            s.ExtendBombs(5);                  // revive
+            Assert.AreEqual(GameStatus.Playing, s.Status);
+            Assert.AreEqual(5, s.BombTapsLeft(0, 1));
+        }
+
+        [Test]
+        public void MovingTheBombCrateDefusesIt()
+        {
+            var s = new GameState(BombLevel(2));
+            s.Tap(0);                          // red to the truck
+            s.Tap(0);                          // the bomb crate (blue) leaves its stack: safe
+            s.Tap(1);
+            s.Tap(1);
+            Assert.AreNotEqual(GameStatus.Lost, s.Status);
+            Assert.IsFalse(s.Exploded);
+        }
+
+        [Test]
+        public void BombsStartAtLevel56AndStayWinnable()
+        {
+            int Count(LevelData d) { int n = 0; foreach (var col in d.Bombs) foreach (int b in col) if (b > 0) n++; return n; }
+            Assert.AreEqual(0, Count(LevelGenerator.Generate(55)));
+            Assert.AreEqual(1, Count(LevelGenerator.Generate(56)));
+            Assert.AreEqual(2, Count(LevelGenerator.Generate(70)));
+            for (int n = 56; n <= 90; n += 3)
+                Assert.IsTrue(Solver.CanSolve(LevelGenerator.Generate(n)), "level " + n);
+        }
+
         [Test]
         public void CraneLiftsACrateFromUnderOthers()
         {

@@ -283,6 +283,7 @@ namespace CargoSort.Game
                     if (r > 0 && state.Taped[c][r - 1]) AddTape(list[r - 1]);
                     if (state.Locks[c][r] > 0) AddLock(crate, state.Locks[c][r]);
                     if (state.Keys[c][r] > 0) AddKey(crate, state.Keys[c][r]);
+                    if (state.Bombs[c][r] > 0) AddBomb(crate, state.BombTapsLeft(c, r));
                     list.Add(crate);
                     hidden.Add(isHidden);
                 }
@@ -322,6 +323,18 @@ namespace CargoSort.Game
             Art.Box(crate, "LockBody", new Vector2(0, -0.06f), new Vector2(0.48f, 0.38f), c, 17);
             Art.Dot(crate, "Keyhole", new Vector2(0, -0.03f), 0.1f, dark, 18);
             Art.Box(crate, "Keyhole", new Vector2(0, -0.12f), new Vector2(0.05f, 0.1f), dark, 18);
+        }
+
+        /// <summary>A black bomb with a lit fuse and the taps left (red when 3 or fewer).</summary>
+        private static void AddBomb(Transform crate, int tapsLeft)
+        {
+            bool urgent = tapsLeft <= 3;
+            Art.Dot(crate, "Bomb", new Vector2(-0.06f, -0.08f), 0.5f, new Color32(0x1B, 0x1D, 0x22, 0xFF), 15);
+            Art.Dot(crate, "BombShine", new Vector2(-0.14f, 0f), 0.14f, new Color(1, 1, 1, 0.35f), 16);
+            Art.Box(crate, "BombCap", new Vector2(0.12f, 0.15f), new Vector2(0.14f, 0.12f), new Color32(0x5A, 0x5F, 0x6A, 0xFF), 16);
+            Art.Dot(crate, "Spark", new Vector2(0.2f, 0.26f), 0.16f, new Color32(0xFF, 0xB7, 0x2B, 0xFF), 17);
+            Art.Dot(crate, "BombBadge", new Vector2(0.26f, -0.24f), 0.42f, urgent ? (Color)new Color32(0xE8, 0x47, 0x3A, 0xFF) : Color.white, 18);
+            Art.Label(crate, Mathf.Max(0, tapsLeft).ToString(), new Vector2(0.26f, -0.24f), 0.3f, urgent ? Color.white : (Color)new Color32(0x1B, 0x1D, 0x22, 0xFF), 19);
         }
 
         /// <summary>A key on a key crate, in the color of the lock it opens.</summary>

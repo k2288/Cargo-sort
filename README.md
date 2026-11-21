@@ -40,7 +40,9 @@ Twists come in over time: "?" crates from level 11, the **conveyor belt** from l
 a pair and need room for both; Crane and Magnet cut the tape), **big trucks** (4 crates) from level 36,
 **two-color trucks** (2 crates of each of two colors) from level 40, and **locked crates** from
 level 48 (a padlock opens when the crate with the matching key leaves its stack; the Crane can't lift
-a locked crate and Magnet skips it). On belt levels the dock becomes a moving belt with 2 more spots;
+a locked crate and Magnet skips it), and **bomb crates** from level 56 (move the crate out of its
+stack before its tap counter runs out; each counter is the tap on which the solver moves that crate
+plus 8, so levels stay winnable; after an explosion the revive gives +5 moves). On belt levels the dock becomes a moving belt with 2 more spots;
 crates ride around and jump onto a truck of their color as they pass under it. Belt levels are
 checked with dock rules, because on the belt a player can always wait for a crate to come around.
 

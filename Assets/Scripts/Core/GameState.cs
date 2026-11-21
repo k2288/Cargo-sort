@@ -81,6 +81,10 @@ namespace CargoSort.Core
         public List<List<bool>> Taped;    // same shape: crate r is taped to the crate above it (they move together)
         public List<List<int>> Locks;     // same shape: lock id on a crate (0 = none); it can't move while locked
         public List<List<int>> Keys;      // same shape: a key crate opens the lock with this id when it leaves its stack
+        public List<List<int>> Bombs;     // same shape: tap count at which a bomb crate explodes (0 = none)
+        public int Moves;                 // taps so far (boosters don't count)
+        public bool Exploded;             // lost because a bomb ran out of taps
+        public Dictionary<int, int> DefusedAt = new Dictionary<int, int>(); // bomb value -> tap when it left its stack
         public int[] Frozen;              // taps left until each column thaws (0 = free)
         public int[] Buffer;
         public Truck[] Bays;
@@ -120,6 +124,7 @@ namespace CargoSort.Core
             }
             Locks = CopyIds(data.Locks);
             Keys = CopyIds(data.Keys);
+            Bombs = CopyIds(data.Bombs);
             Frozen = new int[Columns.Count];
             if (data.Frozen != null)
                 for (int c = 0; c < Frozen.Length && c < data.Frozen.Count; c++) Frozen[c] = data.Frozen[c];
@@ -228,6 +233,26 @@ namespace CargoSort.Core
 
         public bool IsLocked(int column, int row) => Locks[column][row] > 0;
 
+        /// <summary>Taps left before the bomb on this crate explodes (int.MaxValue if it has none).</summary>
+        public int BombTapsLeft(int column, int row) => Bombs[column][row] > 0 ? Bombs[column][row] - Moves : int.MaxValue;
+
+        /// <summary>A bomb crate left its stack: it is safe now.</summary>
+        private void Defuse(int bomb)
+        {
+            if (bomb > 0) DefusedAt[bomb] = Moves;
+        }
+
+        /// <summary>Revive after an explosion: every bomb gets more taps.</summary>
+        public void ExtendBombs(int taps)
+        {
+            foreach (var col in Bombs)
+                for (int r = 0; r < col.Count; r++)
+                    if (col[r] > 0) col[r] += taps;
+            Exploded = false;
+            if (Status == GameStatus.Lost) Status = GameStatus.Playing;
+            UpdateStatus();
+        }
+
         /// <summary>A key crate left its stack: every crate with that lock opens.</summary>
         private void Unlock(int id)
         {
@@ -257,6 +282,8 @@ namespace CargoSort.Core
             int key = Keys[column][Keys[column].Count - 1];
             Keys[column].RemoveAt(Keys[column].Count - 1);
             Unlock(key);
+            Defuse(Bombs[column][Bombs[column].Count - 1]);
+            Bombs[column].RemoveAt(Bombs[column].Count - 1);
             return color;
         }
 
@@ -266,6 +293,7 @@ namespace CargoSort.Core
             if (!CanTap(column)) return events;
 
             bool pair = IsTapedTop(column);
+            Moves++; // taps count down the bombs
             for (int c = 0; c < Frozen.Length; c++)
                 if (c != column && Frozen[c] > 0) Frozen[c]--;
 
@@ -379,6 +407,8 @@ namespace CargoSort.Core
             int key = Keys[column][row];
             Keys[column].RemoveAt(row);
             Unlock(key);
+            Defuse(Bombs[column][row]);
+            Bombs[column].RemoveAt(row);
             Route(color, column, row == Columns[column].Count ? -1 : row, events);
             UpdateStatus();
         }
@@ -518,6 +548,15 @@ namespace CargoSort.Core
                 return;
             }
 
+            foreach (var col in Bombs)
+                foreach (int bomb in col)
+                    if (bomb > 0 && bomb <= Moves)
+                    {
+                        Exploded = true;
+                        Status = GameStatus.Lost;
+                        return;
+                    }
+
             for (int c = 0; c < Columns.Count; c++)
                 if (CanTap(c)) return;
 
@@ -538,6 +577,10 @@ namespace CargoSort.Core
                 Taped = new List<List<bool>>(),
                 Locks = new List<List<int>>(),
                 Keys = new List<List<int>>(),
+                Bombs = new List<List<int>>(),
+                Moves = Moves,
+                Exploded = Exploded,
+                DefusedAt = new Dictionary<int, int>(DefusedAt),
                 Frozen = (int[])Frozen.Clone(),
                 Buffer = (int[])Buffer.Clone(),
                 Bays = new Truck[Bays.Length],
@@ -556,6 +599,7 @@ namespace CargoSort.Core
             foreach (var t in Taped) s.Taped.Add(new List<bool>(t));
             foreach (var l in Locks) s.Locks.Add(new List<int>(l));
             foreach (var k in Keys) s.Keys.Add(new List<int>(k));
+            foreach (var b in Bombs) s.Bombs.Add(new List<int>(b));
             for (int b = 0; b < Bays.Length; b++) s.Bays[b] = Bays[b]?.Clone();
             return s;
         }

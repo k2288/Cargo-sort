@@ -290,7 +290,7 @@ button.switch[aria-checked="true"]::after { inset-inline-start: 34px; }
       <button class="small purple" type="submit" data-t="go">Go</button></div>
     <div class="devrow">
       <button class="small quiet" type="button" data-lv="11">11 ?</button><button class="small quiet" type="button" data-lv="15">15</button>
-      <button class="small quiet" type="button" data-lv="18">18</button><button class="small quiet" type="button" data-lv="21">21</button><button class="small quiet" type="button" data-lv="28">28</button><button class="small quiet" type="button" data-lv="36">36</button><button class="small quiet" type="button" data-lv="40">40</button><button class="small quiet" type="button" data-lv="48">48</button>
+      <button class="small quiet" type="button" data-lv="18">18</button><button class="small quiet" type="button" data-lv="21">21</button><button class="small quiet" type="button" data-lv="28">28</button><button class="small quiet" type="button" data-lv="36">36</button><button class="small quiet" type="button" data-lv="40">40</button><button class="small quiet" type="button" data-lv="48">48</button><button class="small quiet" type="button" data-lv="56">56</button>
       <button class="small quiet" type="button" id="devCoins">+1000</button></div>
   </form>
 </div></div>
@@ -329,6 +329,9 @@ const TAPE_FROM = 28;
 const BIG_FROM = 36, TWO_FROM = 40, BIG_CAP = 4;
 // Locked crates from level 48: a lock opens when its key crate (in another stack) leaves its stack.
 const LOCK_FROM = 48, LOCK_COLORS = ["#ffc83a", "#d5dce5", "#e08a4a"];
+// Bomb crates from level 56: ship the crate out of its stack before its countdown (in taps) runs out.
+// Each countdown = the tap on which the solver moves that crate + BOMB_SLACK, so every level stays winnable.
+const BOMB_FROM = 56, BOMB_SLACK = 8, BOMB_MARK = 100000;
 // A truck: color (first color), color2 (-1 = one color), need1 = spots for the first color.
 function makeTruck(color, capacity, color2 = -1) { return { color, color2, capacity, need1: color2 >= 0 ? capacity / 2 : capacity, loaded: 0, loaded1: 0, loaded2: 0 }; }
 const accepts = (t, c) => !!t && ((c === t.color && t.loaded1 < t.need1) || (c === t.color2 && t.loaded2 < t.capacity - t.need1));
@@ -351,6 +354,7 @@ function difficulty(level) {
   if (level >= BIG_FROM) d.bigTrucks = Math.min(1 + Math.floor((level - BIG_FROM) / 10), 3);
   if (level >= TWO_FROM) d.twoColorTrucks = Math.min(1 + Math.floor((level - TWO_FROM) / 10), 3);
   if (level >= LOCK_FROM) d.locks = Math.min(1 + Math.floor((level - LOCK_FROM) / 10), 3);
+  if (level >= BOMB_FROM) d.bombs = level >= BOMB_FROM + 10 ? 2 : 1;
   if (level >= FROZEN_FROM) { d.frozenCols = level >= 41 ? 2 : 1; d.frozenTaps = 3 + (level % 3); }
   return d;
 }
@@ -399,6 +403,18 @@ function build(level, d, r) {
     const r1 = Math.floor(r() * l1), r2 = Math.floor(r() * l2);
     if (!freeCell(c1, r1) || !freeCell(c2, r2)) continue;
     data.locks[c1][r1] = id; data.keys[c2][r2] = id; data.hidden[c1][r1] = false; data.hidden[c2][r2] = false; id++;
+  }
+  // Bombs: buried crates (not top, taped, locked, keyed or hidden). Timers come from a solver run.
+  data.bombs = data.columns.map(col => col.map(() => 0));
+  for (let id = 1, tries = 0; id <= (d.bombs || 0) && tries < 60; tries++) {
+    const c = Math.floor(r() * cols), n = data.columns[c].length; if (n < 3) continue;
+    const row = Math.floor(r() * (n - 1)); if (!freeCell(c, row) || data.bombs[c][row]) continue;
+    data.bombs[c][row] = BOMB_MARK + id; data.hidden[c][row] = false; id++;
+  }
+  if (d.bombs) {
+    const s = new Game(data); let guard = 2000;
+    while (s.status === "playing" && guard-- > 0) { const m = pickMove(s); if (m < 0 || !s.canTap(m)) break; s.tap(m); }
+    data.bombs = data.bombs.map(col => col.map(v => v >= BOMB_MARK ? (s.defusedAt[v] !== undefined ? Math.max(10, s.defusedAt[v] + BOMB_SLACK) : 0) : 0));
   }
   return data;
 }
@@ -460,6 +476,8 @@ class Game {
     this.taped = (data.taped || data.columns.map(c => c.map(() => false))).map(t => t.slice());
     this.locks = (data.locks || data.columns.map(c => c.map(() => 0))).map(t => t.slice());
     this.keys = (data.keys || data.columns.map(c => c.map(() => 0))).map(t => t.slice());
+    this.bombs = (data.bombs || data.columns.map(c => c.map(() => 0))).map(t => t.slice());
+    this.moves = 0; this.exploded = false; this.defusedAt = {};
     this.buffer = new Array(data.buffer).fill(EMPTY);
     this.bays = new Array(data.bays).fill(null);
     this.queue = data.trucks.slice(); this.next = 0; this.capacity = data.capacity; this.shipped = 0; this.status = "playing";
@@ -468,7 +486,7 @@ class Game {
     const ev = []; for (let b = 0; b < this.bays.length; b++) this.arrive(b, ev);
     this.update();
   }
-  clone() { const g = new Game(); Object.assign(g, this, { columns: this.columns.map(c => c.slice()), hidden: this.hidden.map(h => h.slice()), frozen: this.frozen.slice(), taped: this.taped.map(t => t.slice()), locks: this.locks.map(t => t.slice()), keys: this.keys.map(t => t.slice()), buffer: this.buffer.slice(), bays: this.bays.map(t => t && { ...t }) }); return g; }
+  clone() { const g = new Game(); Object.assign(g, this, { columns: this.columns.map(c => c.slice()), hidden: this.hidden.map(h => h.slice()), frozen: this.frozen.slice(), taped: this.taped.map(t => t.slice()), locks: this.locks.map(t => t.slice()), keys: this.keys.map(t => t.slice()), bombs: this.bombs.map(t => t.slice()), defusedAt: { ...this.defusedAt }, buffer: this.buffer.slice(), bays: this.bays.map(t => t && { ...t }) }); return g; }
   isLocked(c, r) { return this.locks[c][r] > 0; }
   // A key crate left its stack: its lock opens.
   unlock(id) { if (id > 0) this.locks.forEach(col => col.forEach((v, r) => { if (v === id) col[r] = 0; })); }
@@ -489,10 +507,16 @@ class Game {
     const b = s.top(c); return s.bayFor(b) >= 0 || s.free() > 0;
   }
   popTop(c) { const color = this.columns[c].pop(); this.hidden[c].pop(); this.taped[c].pop(); const n = this.taped[c].length; if (n) this.taped[c][n - 1] = false;
-    this.locks[c].pop(); this.unlock(this.keys[c].pop()); return color; }
+    this.locks[c].pop(); this.unlock(this.keys[c].pop()); this.defuse(this.bombs[c].pop()); return color; }
+  // A bomb crate left its stack: safe. (Remembers when, so the generator can set fair timers.)
+  defuse(v) { if (v > 0) this.defusedAt[v] = this.moves; }
+  bombLeft(c, r) { return this.bombs[c][r] > 0 ? this.bombs[c][r] - this.moves : Infinity; }
+  // Revive after an explosion: every bomb gets more taps.
+  extendBombs(n) { this.bombs = this.bombs.map(col => col.map(v => v > 0 ? v + n : 0)); this.exploded = false; if (this.status === "lost") this.status = "playing"; this.update(); }
   tap(c) {
     const ev = []; if (!this.canTap(c)) return ev;
     const pair = this.tapedTop(c);
+    this.moves++; // taps count down the bombs (boosters don't)
     this.frozen = this.frozen.map((f, i) => i !== c && f > 0 ? f - 1 : f);
     this.route(this.popTop(c), { from: "col", fi: c }, ev);
     if (pair) this.route(this.popTop(c), { from: "col", fi: c }, ev);
@@ -517,7 +541,7 @@ class Game {
     if (!this.canPluck(c, r)) return ev;
     const color = this.columns[c].splice(r, 1)[0]; this.hidden[c].splice(r, 1);
     this.taped[c].splice(r, 1); if (r > 0) this.taped[c][r - 1] = false; // the crane cuts the tape
-    this.locks[c].splice(r, 1); this.unlock(this.keys[c].splice(r, 1)[0]);
+    this.locks[c].splice(r, 1); this.unlock(this.keys[c].splice(r, 1)[0]); this.defuse(this.bombs[c].splice(r, 1)[0]);
     this.route(color, { from: "col", fi: c, fr: r }, ev); this.update(); return ev;
   }
   // Magnet: fills the trucks that are waiting now with the nearest matching crates from anywhere.
@@ -566,6 +590,7 @@ class Game {
   update() {
     if (this.status !== "playing") return;
     if (this.bays.every(t => !t) && this.next >= this.queue.length) { this.status = "won"; return; }
+    if (this.bombs.some(col => col.some(v => v > 0 && v <= this.moves))) { this.exploded = true; this.status = "lost"; return; }
     for (let c = 0; c < this.columns.length; c++) if (this.canTap(c)) return;
     if (this.belt && this.buffer.some(c => c !== EMPTY && this.bayFor(c) >= 0)) return; // a belt crate is on its way to a truck
     this.status = "lost";
@@ -868,6 +893,12 @@ function draw() {
       if (sc < 0.999) { ctx.save(); ctx.translate(sx(px), sy(py)); ctx.scale(sc, sc); ctx.translate(-sx(px), -sy(py)); }
       if (view.hidden[c][r] && r < col.length - 1) hiddenCrate(px + shake, py); else crate(px + shake, py, color);
       if (sc < 0.999) ctx.restore(); });
+    // Bombs: a black bomb with a lit fuse and the taps left (red and pulsing when 3 or fewer).
+    col.forEach((_, r) => { const v = view.bombs[c][r]; if (!v) return; const [bx, by] = colPos(c, r), left = Math.max(0, v - game.moves);
+      dot(bx - 0.06, by - 0.08, 0.5, "#1b1d22"); dot(bx - 0.14, by, 0.14, "rgba(255,255,255,.35)"); rr(bx + 0.12, by + 0.15, 0.14, 0.12, 0.03, "#5a5f6a");
+      const flick = 0.12 + Math.abs(Math.sin(performance.now() / 90)) * 0.08; dot(bx + 0.2, by + 0.26, flick, "#ffb72b");
+      const urgent = left <= 3, pulse = urgent ? 1 + Math.abs(Math.sin(performance.now() / 150)) * 0.18 : 1;
+      dot(bx + 0.26, by - 0.24, 0.42 * pulse, urgent ? "#e8473a" : "#ffffff"); label(num(left), bx + 0.26, by - 0.24, 0.3, urgent ? "#fff" : "#1b1d22"); });
     // Locks (padlock, dimmed crate) and keys (a key on the crate), colored per lock.
     col.forEach((_, r) => { const [lx, ly] = colPos(c, r), lock = view.locks[c][r], key = view.keys[c][r];
       if (lock) { const lc = LOCK_COLORS[(lock - 1) % 3];
@@ -934,7 +965,7 @@ function tutorialStep() {
   if (active) { const top = game.top(tutCol); $("tip").textContent = t(top !== EMPTY && game.bayFor(top) >= 0 ? "tut_truck" : "tut_dock"); }
 }
 
-function cloneView(g) { return { columns: g.columns.map(c => c.slice()), hidden: g.hidden.map(h => h.slice()), taped: g.taped.map(t => t.slice()), locks: g.locks.map(t => t.slice()), keys: g.keys.map(t => t.slice()), frozen: g.frozen.slice(), buffer: g.buffer.slice(), bays: g.bays.map(t => t && { ...t, off: 0 }) }; }
+function cloneView(g) { return { columns: g.columns.map(c => c.slice()), hidden: g.hidden.map(h => h.slice()), taped: g.taped.map(t => t.slice()), locks: g.locks.map(t => t.slice()), keys: g.keys.map(t => t.slice()), bombs: g.bombs.map(t => t.slice()), frozen: g.frozen.slice(), buffer: g.buffer.slice(), bays: g.bays.map(t => t && { ...t, off: 0 }) }; }
 
 function tween(time, step) { return new Promise(res => { if (reduce) { step(1); return res(); } const t0 = performance.now();
   (function f(now) { const k = Math.min(1, (now - t0) / (time * 1000)); step(1 - (1 - k) * (1 - k)); if (k < 1) requestAnimationFrame(f); else res(); })(t0); }); }
@@ -943,7 +974,7 @@ async function play(events) {
   busy = true; hintCol = -1;
   for (const e of events) {
     if (e.k === "move") {
-      let from; if (e.from === "col") { const col = view.columns[e.fi], r = e.fr ?? col.length - 1; from = colPos(e.fi, r); col.splice(r, 1); view.hidden[e.fi].splice(r, 1); view.taped[e.fi].splice(r, 1); view.locks[e.fi].splice(r, 1); view.keys[e.fi].splice(r, 1); } else { from = bufPos(e.fi); view.buffer[e.fi] = EMPTY; }
+      let from; if (e.from === "col") { const col = view.columns[e.fi], r = e.fr ?? col.length - 1; from = colPos(e.fi, r); col.splice(r, 1); view.hidden[e.fi].splice(r, 1); view.taped[e.fi].splice(r, 1); view.locks[e.fi].splice(r, 1); view.keys[e.fi].splice(r, 1); view.bombs[e.fi].splice(r, 1); } else { from = bufPos(e.fi); view.buffer[e.fi] = EMPTY; }
       let to; if (e.to === "bay") { const t = view.bays[e.ti]; const [bx, by] = bayPos(e.ti); const [lx, ly] = slotLocal(e.slot ?? t.loaded, t.capacity); to = [bx + lx, by + ly]; } else to = bufPos(e.ti);
       const f = { x: from[0], y: from[1], color: e.color }; flying.push(f);
       const arc = 0.6 + Math.hypot(to[0] - from[0], to[1] - from[1]) * 0.06;
@@ -1006,7 +1037,9 @@ const STR = {
   win_title: ["Level {0} complete!", "مرحله {0} تمام شد!"], reward: ["+{0} coins", "+{0} سکه"],
   claim: ["Claim", "دریافت"], claim_x3: ["Claim x3", "دریافت ۳ برابر"], claim_x2: ["Claim x2", "دریافت ۲ برابر"],
   lose_title: ["Dock is full!", "اسکله پر شد!"], lose_text: ["No crate can move.", "هیچ جعبه‌ای حرکت نمی‌کند."],
-  revive: ["+1 Slot & Continue", "یک جای اضافه و ادامه"], lose_undo: ["Undo", "برگشت"], retry: ["Retry", "دوباره"],
+  revive: ["+1 Slot & Continue", "یک جای اضافه و ادامه"], bomb_revive: ["+5 Moves & Continue", "۵ حرکت بیشتر و ادامه"],
+  bomb_title: ["Boom!", "بوم!"], bomb_text: ["A bomb crate ran out of moves.", "حرکت‌های جعبه بمب تمام شد."],
+  bomb_intro: ["New: move the bomb crate out of its stack before its counter hits 0", "جدید: جعبه بمب را قبل از صفر شدن شمارنده از ستونش بردار"], lose_undo: ["Undo", "برگشت"], retry: ["Retry", "دوباره"],
   daily_title: ["Daily gift - Day {0}", "هدیه روزانه - روز {0}"], daily_hint: ["Come back tomorrow for a bigger gift!", "فردا برگرد، هدیه بزرگ‌تری داری!"],
   free_coins: ["+{0} coins", "+{0} سکه"], remove_ads: ["Remove ads", "حذف تبلیغات"], use: ["Use", "انتخاب"], selected: ["Selected", "انتخاب شده"],
   close: ["Close", "بستن"], other_language: ["فارسی", "English"], dock_max: ["Dock is at max size", "اسکله به بیشترین اندازه رسیده"],
@@ -1283,6 +1316,7 @@ function start(n) {
   else if (n === BIG_FROM) toast(t("big_intro"), 4200);
   else if (n === TWO_FROM) toast(t("two_intro"), 4200);
   else if (n === LOCK_FROM) toast(t("lock_intro"), 4200);
+  else if (n === BOMB_FROM) toast(t("bomb_intro"), 4600);
   else if (free.crane) toast(t("streak_bonus", wstreak), 2400); else if (n > 0 && isHard(n)) toast(t("hard_start"));
 }
 function afterMove() {
@@ -1298,7 +1332,9 @@ function afterMove() {
     $("winTitle").textContent = level > 0 ? t("win_title", level) : t("challenge_win"); $("winReward").textContent = "+" + num(pendingWin);
     busy = true; setTimeout(() => { busy = false; $("win").hidden = false; }, 800);
   }
-  else if (game.status === "lost") { sfx.lose(); setCrane(false);
+  else if (game.status === "lost") { sfx.lose(); setCrane(false); buzz(80);
+    const boom = game.exploded; $("lose").querySelector("h2").textContent = t(boom ? "bomb_title" : "lose_title");
+    $("lose").querySelector("p").textContent = t(boom ? "bomb_text" : "lose_text"); $("revive").firstElementChild.textContent = t(boom ? "bomb_revive" : "revive");
     $("streakWarn").hidden = level === 0 || wstreak < 2; $("streakWarn").textContent = t("streak_warn", wstreak); $("lose").hidden = false; }
 }
 function fakeAd(label, done) {
@@ -1373,7 +1409,9 @@ const BOOST_ACT = {
 };
 $("bar").onclick = ev => { const b = ev.target.closest("[data-b]"); if (!b || busy) return; if (b.dataset.b !== "crane") setCrane(false); BOOST_ACT[b.dataset.b](); };
 $("loseUndo").onclick = () => pay("undo", undo);
-$("revive").onclick = () => rewarded(() => { addSlot(); $("lose").hidden = true; });
+$("revive").onclick = () => rewarded(() => {
+  if (game.exploded) { game.extendBombs(5); view = cloneView(game); refresh(); } else addSlot();
+  $("lose").hidden = true; });
 function breakStreak() { if (level > 0 && wstreak) { wstreak = 0; store.set("wstreak", 0); } }
 $("retry").onclick = () => { breakStreak(); start(level); };
 function finishWin(n, allowAd) {

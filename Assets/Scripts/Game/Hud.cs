@@ -279,14 +279,16 @@ namespace CargoSort.Game
         private void BuildLosePanel(RectTransform safe)
         {
             losePanel = MakePopup(safe, new Vector2(900, 860), out var box);
-            Title(box, Loc.T("lose_title"), 330);
+            loseTitle = Title(box, Loc.T("lose_title"), 330);
             var text = MakeText(box, Loc.T("lose_text"), 40, TextAnchor.MiddleCenter);
+            loseText = text;
             text.color = Muted;
             Anchor(text.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, 220), new Vector2(840, 60));
             loseWarn = MakeText(box, "", 38, TextAnchor.MiddleCenter);
             loseWarn.color = new Color32(0xFF, 0x8F, 0x80, 0xFF);
             Anchor(loseWarn.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, 150), new Vector2(840, 60));
             var revive = MakeCandy(box, Green, () => Revive?.Invoke(), Loc.T("revive"), 46, null, 0, 0, Loc.T("watch_ad"));
+            reviveLabel = revive.Label;
             Anchor(revive.Root, new Vector2(0.5f, 0.5f), new Vector2(0, -20), new Vector2(780, 170));
             var undo = MakeCandy(box, Blue, () => LoseUndo?.Invoke(), Loc.T("lose_undo"), 48);
             Anchor(undo.Root, new Vector2(0.5f, 0.5f), new Vector2(-195, -240), new Vector2(370, 150));
@@ -295,11 +297,16 @@ namespace CargoSort.Game
             losePanel.SetActive(false);
         }
 
-        /// <summary>streakAtRisk: a win streak (2+) the player loses if they give up.</summary>
-        public void ShowLose(bool show, int streakAtRisk = 0)
+        private Text loseTitle, loseText, reviveLabel;
+
+        /// <summary>streakAtRisk: a win streak (2+) the player loses if they give up. exploded: a bomb went off (revive adds moves).</summary>
+        public void ShowLose(bool show, int streakAtRisk = 0, bool exploded = false)
         {
             losePanel.SetActive(show);
             if (!show) return;
+            loseTitle.text = Loc.T(exploded ? "bomb_title" : "lose_title");
+            loseText.text = Loc.T(exploded ? "bomb_text" : "lose_text");
+            reviveLabel.text = Loc.T(exploded ? "bomb_revive" : "revive");
             loseWarn.gameObject.SetActive(streakAtRisk >= 2);
             loseWarn.text = Loc.T("streak_warn", streakAtRisk);
             PopIn(losePanel);
@@ -449,7 +456,7 @@ namespace CargoSort.Game
             Anchor(go.Root, new Vector2(0.5f, 0.5f), new Vector2(0, -20), new Vector2(620, 140));
             devGoLabel = go.Label;
 
-            int[] shortcuts = { 15, 28, 40, 48 };
+            int[] shortcuts = { 28, 40, 48, 56 };
             for (int i = 0; i < shortcuts.Length; i++)
             {
                 int n = shortcuts[i];

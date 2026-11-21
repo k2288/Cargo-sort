@@ -18,6 +18,7 @@ namespace CargoSort.Core
         public List<List<bool>> Taped = new List<List<bool>>();  // [c][r]: crate r is taped to the crate above
         public List<List<int>> Locks = new List<List<int>>();    // [c][r]: lock id on this crate (0 = none)
         public List<List<int>> Keys = new List<List<int>>();     // [c][r]: id of the lock this crate's key opens (0 = none)
+        public List<List<int>> Bombs = new List<List<int>>();    // [c][r]: the tap count at which this bomb explodes (0 = none)
         public List<int> TruckCapacities = new List<int>();      // per truck in TruckColors (big trucks hold more)
         public List<int> TruckSecondColors = new List<int>();    // per truck: second color of a two-color truck, or -1
         public bool Hard;
@@ -40,6 +41,7 @@ namespace CargoSort.Core
         public int BigTrucks;
         public int TwoColorTrucks;
         public int Locks;
+        public int Bombs;
         public bool Hard;
     }
 
@@ -84,8 +86,14 @@ namespace CargoSort.Core
             if (level >= BigTrucksFromLevel) d.BigTrucks = Math.Min(1 + (level - BigTrucksFromLevel) / 10, 3);
             if (level >= TwoColorFromLevel) d.TwoColorTrucks = Math.Min(1 + (level - TwoColorFromLevel) / 10, 3);
             if (level >= LocksFromLevel) d.Locks = Math.Min(1 + (level - LocksFromLevel) / 10, 3);
+            if (level >= BombsFromLevel) d.Bombs = level >= BombsFromLevel + 10 ? 2 : 1;
             return d;
         }
+
+        /// <summary>Bomb crates start here. A bomb's countdown is the tap on which the solver moves it, plus BombSlack.</summary>
+        public const int BombsFromLevel = 56;
+        public const int BombSlack = 8;
+        private const int BombMark = 100000;
 
         /// <summary>Locked crates (opened by moving their key crate) start here.</summary>
         public const int LocksFromLevel = 48;
@@ -290,10 +298,34 @@ namespace CargoSort.Core
                 data.Hidden[c2][r2] = false;
                 id++;
             }
+
+            // Bombs: buried crates (not top, taped, locked, keyed or hidden). Their timers come from a solver
+            // run (when the solver moves each bomb crate, plus some slack), so every level stays winnable.
+            foreach (var col in data.Columns) data.Bombs.Add(new List<int>(new int[col.Count]));
+            for (int id = 1, tries = 0; id <= d.Bombs && tries < 60; tries++)
+            {
+                int c = rng.Next(columns), n = data.Columns[c].Count;
+                if (n < 3) continue;
+                int row = rng.Next(n - 1);
+                if (!FreeForLock(data, c, row) || data.Bombs[c][row] != 0) continue;
+                data.Bombs[c][row] = BombMark + id;
+                data.Hidden[c][row] = false;
+                id++;
+            }
+            if (d.Bombs > 0)
+            {
+                var run = new GameState(data);
+                Solver.Solve(run);
+                foreach (var col in data.Bombs)
+                    for (int r = 0; r < col.Count; r++)
+                        if (col[r] >= BombMark)
+                            col[r] = run.DefusedAt.TryGetValue(col[r], out int at) ? Math.Max(10, at + BombSlack) : 0;
+            }
             return data;
         }
 
         private static bool FreeForLock(LevelData data, int c, int row) =>
+            (data.Bombs.Count == 0 || data.Bombs[c][row] == 0) &&
             !data.Taped[c][row] && !(row > 0 && data.Taped[c][row - 1]) && data.Locks[c][row] == 0 && data.Keys[c][row] == 0;
 
         private static int PickPlainTruck(LevelData data, int capacity, Random rng)

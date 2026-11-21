@@ -209,6 +209,7 @@ namespace CargoSort.Game
             else if (n == LevelGenerator.BigTrucksFromLevel) hud.Toast(Loc.T("big_intro"), 4f);
             else if (n == LevelGenerator.TwoColorFromLevel) hud.Toast(Loc.T("two_intro"), 4f);
             else if (n == LevelGenerator.LocksFromLevel) hud.Toast(Loc.T("lock_intro"), 4f);
+            else if (n == LevelGenerator.BombsFromLevel) hud.Toast(Loc.T("bomb_intro"), 4.5f);
             else if (freeUses[Booster.Crane] > 0) hud.Toast(Loc.T("streak_bonus", streak), 2.4f);
             else if (IsHard) hud.Toast(Loc.T("hard_start"), 2f);
         }
@@ -353,7 +354,7 @@ namespace CargoSort.Game
             {
                 SetCrane(false);
                 Feedback.Lost();
-                hud.ShowLose(true, level > 0 ? Progress.WinStreak : 0);
+                hud.ShowLose(true, level > 0 ? Progress.WinStreak : 0, session.State.Exploded);
                 Analytics.LevelFail(level, session.State.TrucksShipped, session.State.TrucksTotal, session.State.Buffer.Length);
             }
         }
@@ -477,10 +478,17 @@ namespace CargoSort.Game
         private void OnRevive()
         {
             if (waitingForAd) return;
-            WatchRewarded("revive", () =>
+            bool exploded = session.State.Exploded;
+            WatchRewarded(exploded ? "revive_bomb" : "revive", () =>
             {
-                Analytics.Booster("revive", "ad");
-                AddSlotNow();
+                Analytics.Booster(exploded ? "revive_bomb" : "revive", "ad");
+                if (exploded)
+                {
+                    session.State.ExtendBombs(5); // +5 moves for every bomb
+                    board.Rebuild(session.State);
+                    RefreshHud();
+                }
+                else AddSlotNow();
                 hud.ShowLose(false);
             });
         }
@@ -809,7 +817,7 @@ namespace CargoSort.Game
             hud.ShowSettings();
             if (pendingDaily > 0) hud.ShowDaily(true, Progress.DailyStreak, pendingDaily);
             if (winOpen) hud.ShowWin(true, level, pendingWinReward, level > 0 ? Progress.WinStreak : 0);
-            if (lost) hud.ShowLose(true, level > 0 ? Progress.WinStreak : 0);
+            if (lost) hud.ShowLose(true, level > 0 ? Progress.WinStreak : 0, session.State.Exploded);
             if (pendingItems != null) hud.ShowReward("purchased", pendingItems);
         }
 
