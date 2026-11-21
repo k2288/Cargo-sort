@@ -48,6 +48,13 @@ covered and can't be tapped, craned or shuffled until the stack next to it, show
 crates ride around and jump onto a truck of their color as they pass under it. Belt levels are
 checked with dock rules, because on the belt a player can always wait for a crate to come around.
 
+**World Tour (meta):** each win gives a star (2 on hard levels). Stars build the landmarks of the
+current city (4 per city, costs 3+ stars, each pays coins). Finishing a city gives coins plus a Crane,
+a Magnet and a Shuffle, and the tour moves to the next of 8 cities (Tehran, Istanbul, Dubai, Cairo,
+Paris, London, New York, Tokyo). The home screen shows the city banner and a Tour button. Rules and
+data are in `Core/WorldTour.cs`; `Game/TourArt.cs` draws the skylines into textures from the same shape
+data the web preview draws as SVG.
+
 **Developer panel:** in the editor and in development builds, Settings has a **DEV** button to jump
 to any level and add coins. It is not in release builds.
 

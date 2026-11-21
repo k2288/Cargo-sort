@@ -187,6 +187,36 @@ button.switch[aria-checked="true"]::after { inset-inline-start: 34px; }
 .tag { position: absolute; top: -10px; inset-inline-end: 12px; background: #ffe066; color: #7a3a00; font-weight: 800; font-size: 13px; padding: 4px 10px; border-radius: 10px; box-shadow: 0 3px 0 #b5640a; }
 .old { text-decoration: line-through; opacity: .7; font-size: 14px; margin-inline-end: 6px; font-family: var(--body); }
 .piggy { background: linear-gradient(160deg, #ff9ec7, #d0557f); }
+/* World Tour */
+.citybar { width: min(330px, 100%); display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 6px 10px 6px 6px; border-radius: 18px; text-align: start;
+  --c1: #3a5b88; --c2: #2b4669; --edge: #1a2c45; font-family: var(--body); text-shadow: none; position: relative; }
+.citybar .sky { width: 92px; height: 56px; border-radius: 12px; overflow: hidden; }
+.citybar .sky svg, .citycard .sky svg, .stamp svg, .lm svg { width: 100%; height: 100%; display: block; }
+.citybar b { font-family: var(--display); font-weight: 400; font-size: 20px; display: block; line-height: 1.1; }
+.citybar .meter { height: 10px; margin-top: 5px; }
+.starchip { display: inline-flex; align-items: center; gap: 3px; background: rgba(0,0,0,.3); border-radius: 999px; padding: 3px 9px 3px 5px; font-family: var(--display); font-size: 17px; color: #ffe066; }
+.starchip .ic, .starpill .ic { width: 20px; height: 20px; color: #ffcc33; }
+.starpill { padding: 4px 12px 4px 8px; }
+.citybar .dot { position: absolute; top: -5px; inset-inline-end: -5px; width: 16px; height: 16px; border-radius: 50%; background: #e8473a; box-shadow: 0 0 0 2.5px #fff; }
+.citycard { border-radius: 22px; background: #26405f; box-shadow: inset 0 2px 0 rgba(255,255,255,.1), 0 6px 0 rgba(0,0,0,.3); }
+.citycard .sky { aspect-ratio: 100 / 60; border-radius: 22px 22px 0 0; overflow: hidden; }
+.citycard .info { display: grid; gap: 6px; padding: 10px 14px 14px; }
+.citycard .info div:first-child { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.citycard b { font-family: var(--display); font-weight: 400; font-size: 26px; text-shadow: 0 2px 0 rgba(0,0,0,.3); }
+.citycard span { color: var(--muted); font-weight: 800; font-size: 13px; }
+.offer .art.lm { background: none; }
+.offer.built { opacity: .75; }
+button.mk { display: inline-flex; align-items: center; justify-content: center; gap: 4px; white-space: nowrap; min-width: 74px; }
+button.mk .ic { width: 18px; height: 18px; flex: none; }
+.stamps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.stamp { position: relative; display: grid; gap: 4px; justify-items: center; font-size: 12px; font-weight: 800; color: var(--muted); }
+.stamp .sky { width: 100%; aspect-ratio: 1; border-radius: 14px; overflow: hidden; box-shadow: 0 3px 0 rgba(0,0,0,.3); }
+.stamp.locked .sky { filter: grayscale(1) brightness(.45); }
+.stamp.now .sky { outline: 3px solid #ffcc33; outline-offset: 2px; }
+.stamp .badge { position: absolute; top: -6px; inset-inline-end: -4px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: #35b84a; box-shadow: 0 0 0 2px #fff; }
+.stamp .badge .ic { width: 15px; height: 15px; color: #fff; }
+.stamp.locked .badge { background: #6f86a3; }
+.chip.stars { color: #ffe066; }
 .meter { height: 16px; border-radius: 8px; background: rgba(0,0,0,.3); overflow: hidden; }
 .meter i { display: block; height: 100%; border-radius: 8px; background: linear-gradient(#ffe27a, #f2a900); }
 .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -232,6 +262,7 @@ button.switch[aria-checked="true"]::after { inset-inline-start: 34px; }
   <symbol id="i-piggy" viewBox="0 0 24 24"><path d="M4 11.5C4 7.4 8 4.5 12.6 4.5c1.9 0 3.6.5 5 1.4l2.4-1.6v3.9c.9.9 1.5 2 1.8 3.3H23v3.5h-1.3a7.6 7.6 0 0 1-3.2 4v3.5h-3.3v-2.3h-4.4V22H7.5v-3.6A7.4 7.4 0 0 1 4 11.5zm12.3-1.7a1.1 1.1 0 1 0 0 2.2 1.1 1.1 0 0 0 0-2.2zM10 6.5v1.6h4.4V6.5z"/><path d="M1 9.5c0 1.4 1 2.4 3 2.4" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
   <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 1.8 3.1 6.6 7.2.8-5.4 4.9 1.5 7.1L12 17.6l-6.4 3.6 1.5-7.1-5.4-4.9 7.2-.8z"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="m3 12.5 2.8-2.8 4 4L18.2 5.3 21 8.1 9.8 19.3z"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 1.5a10.5 10.5 0 1 0 0 21 10.5 10.5 0 0 0 0-21zm6.8 9.2h-2.9a15.6 15.6 0 0 0-1.5-6 8.3 8.3 0 0 1 4.4 6zM12 3.9c1 1.3 1.9 3.8 2.1 6.8H9.9c.2-3 1.1-5.5 2.1-6.8zM9.6 4.7a15.6 15.6 0 0 0-1.5 6H5.2a8.3 8.3 0 0 1 4.4-6zm-4.4 8.6h2.9a15.6 15.6 0 0 0 1.5 6 8.3 8.3 0 0 1-4.4-6zm6.8 6.8c-1-1.3-1.9-3.8-2.1-6.8h4.2c-.2 3-1.1 5.5-2.1 6.8zm2.4-.8a15.6 15.6 0 0 0 1.5-6h2.9a8.3 8.3 0 0 1-4.4 6z"/></symbol>
   <symbol id="i-lock" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2a5 5 0 0 0-5 5v3H5v12h14V10h-2V7a5 5 0 0 0-5-5zm-2.6 8V7a2.6 2.6 0 0 1 5.2 0v3z"/></symbol>
 </svg>
 
@@ -247,8 +278,10 @@ button.switch[aria-checked="true"]::after { inset-inline-start: 34px; }
 
   <div class="home" id="home">
     <div class="logo"><span>CARGO</span><span>SORT</span></div>
+    <button class="citybar" id="cityBar"><div class="sky" id="cityBarSky"></div><div><b id="cityBarName"></b><div class="meter"><i id="cityBarMeter"></i></div></div><span class="starchip"><svg class="ic"><use href="#i-star"/></svg><span id="cityBarStars">0</span></span><i class="dot" id="cityDot" hidden></i></button>
     <div class="path" id="path"></div>
     <div class="side s1">
+      <div class="sbtn"><button class="blue" id="tourHome" aria-label="World Tour"><svg class="ic"><use href="#i-globe"/></svg><i class="dot" id="tourDot" hidden></i></button><span class="bname" data-t="tour_short">Tour</span></div>
       <div class="sbtn"><button class="purple" id="shopHome" aria-label="Shop"><svg class="ic"><use href="#i-cart"/></svg></button><span class="bname" data-t="shop">Shop</span></div>
       <div class="sbtn" id="starterSide" hidden><button class="red" id="starterHome" aria-label="Starter Pack"><svg class="ic"><use href="#i-star"/></svg></button><span class="bname timer" id="starterSideTime"></span></div>
     </div>
@@ -266,7 +299,7 @@ button.switch[aria-checked="true"]::after { inset-inline-start: 34px; }
 </div>
 
 <div class="overlay" id="win" hidden><div class="card"><h2 id="winTitle">Level complete!</h2><p class="reward"><span class="coin big"></span><span id="winReward">+10</span></p>
-  <div class="winrow"><span class="chip" id="winStreak"><svg class="ic"><use href="#i-flame"/></svg><span></span></span><span class="chip pig" id="winPiggy"><svg class="ic"><use href="#i-piggy"/></svg><span></span></span></div>
+  <div class="winrow"><span class="chip" id="winStreak"><svg class="ic"><use href="#i-flame"/></svg><span></span></span><span class="chip pig" id="winPiggy"><svg class="ic"><use href="#i-piggy"/></svg><span></span></span><span class="chip stars" id="winStars"><svg class="ic"><use href="#i-star"/></svg><span></span></span></div>
   <button class="ad" id="claim3"><span data-t="claim_x3">Claim x3</span><small data-t="watch_ad">WATCH AD</small></button>
   <button id="claim" data-t="claim">Claim</button></div></div>
 <div class="overlay" id="lose" hidden><div class="card"><h2 data-t="lose_title">Dock is full!</h2><p data-t="lose_text">No crate can move.</p><p class="warn" id="streakWarn" hidden></p>
@@ -302,6 +335,15 @@ button.switch[aria-checked="true"]::after { inset-inline-start: 34px; }
     <div class="coinpill"><span class="coin"></span><b id="shopCoins">0</b></div>
   </header>
   <div class="body" id="shopBody"></div>
+</div>
+
+<div class="screen" id="tour" hidden>
+  <header>
+    <div><button class="sq red" id="closeTour" aria-label="Close"><svg class="ic"><use href="#i-x"/></svg></button></div>
+    <h2 data-t="world_tour">World Tour</h2>
+    <div class="coinpill starpill"><svg class="ic"><use href="#i-star"/></svg><b id="tourStars">0</b></div>
+  </header>
+  <div class="body" id="tourBody"></div>
 </div>
 
 <div class="overlay" id="rewardPop" hidden><div class="card"><h2 id="rewardTitle">Reward</h2><div class="items" id="rewardItems"></div>
@@ -1065,6 +1107,20 @@ document.addEventListener("click", ev => { if (ev.target.closest("button")) sfx.
 // ===== Language, coins, themes =====
 const $ = id => document.getElementById(id);
 const STR = {
+  world_tour: ["World Tour", "تور جهانی"], tour_short: ["Tour", "تور"], landmarks: ["Landmarks", "بناهای دیدنی"], cities: ["Cities", "شهرها"],
+  city_n: ["City {0} of {1}", "شهر {0} از {1}"], build: ["Build", "بساز"], built: ["Built", "ساخته شد"], need_stars: ["Win levels to earn stars", "با بردن مراحل ستاره بگیر"],
+  win_stars: ["+{0} stars", "{0}+ ستاره"], city_done: ["City complete!", "شهر کامل شد!"], tour_done: ["You visited every city! More cities soon.", "همه شهرها را دیدی! شهرهای تازه به زودی."],
+  tour_intro: ["New: earn stars and build landmarks on your World Tour!", "جدید: ستاره بگیر و بناهای تور جهانی را بساز!"], next_city: ["Next stop: {0}", "مقصد بعدی: {0}"],
+  c_tehran: ["Tehran", "تهران"], c_istanbul: ["Istanbul", "استانبول"], c_dubai: ["Dubai", "دبی"], c_cairo: ["Cairo", "قاهره"],
+  c_paris: ["Paris", "پاریس"], c_london: ["London", "لندن"], c_newyork: ["New York", "نیویورک"], c_tokyo: ["Tokyo", "توکیو"],
+  l_milad: ["Milad Tower", "برج میلاد"], l_azadi: ["Azadi Tower", "برج آزادی"], l_mosque: ["Grand Mosque", "مسجد جامع"], l_nature: ["Nature Bridge", "پل طبیعت"],
+  l_hagia: ["Hagia Sophia", "ایاصوفیه"], l_galata: ["Galata Tower", "برج گالاتا"], l_bosphorus: ["Bosphorus Bridge", "پل بسفر"], l_bazaar: ["Grand Bazaar", "بازار بزرگ"],
+  l_khalifa: ["Burj Khalifa", "برج خلیفه"], l_arab: ["Burj Al Arab", "برج العرب"], l_frame: ["Dubai Frame", "قاب دبی"], l_marina: ["Dubai Marina", "مارینای دبی"],
+  l_pyramid: ["Great Pyramid", "هرم بزرگ"], l_cairotower: ["Cairo Tower", "برج قاهره"], l_citadel: ["Citadel Mosque", "مسجد ارگ"], l_gate: ["City Gate", "دروازه شهر"],
+  l_eiffel: ["Eiffel Tower", "برج ایفل"], l_arc: ["Arc de Triomphe", "طاق پیروزی"], l_louvre: ["Louvre Pyramid", "هرم لوور"], l_notredame: ["Notre-Dame", "نوتردام"],
+  l_bigben: ["Big Ben", "بیگ بن"], l_towerbridge: ["Tower Bridge", "پل تاور"], l_eye: ["London Eye", "چشم لندن"], l_stpauls: ["St Paul's", "کلیسای سنت پل"],
+  l_liberty: ["Statue of Liberty", "مجسمه آزادی"], l_empire: ["Empire State", "امپایر استیت"], l_brooklyn: ["Brooklyn Bridge", "پل بروکلین"], l_chrysler: ["Chrysler Building", "ساختمان کرایسلر"],
+  l_tokyotower: ["Tokyo Tower", "برج توکیو"], l_fuji: ["Mount Fuji", "کوه فوجی"], l_pagoda: ["Pagoda", "پاگودا"], l_torii: ["Torii Gate", "دروازه توری"],
   level: ["Level {0}", "مرحله {0}"], trucks: ["Trucks {0}/{1}", "کامیون {0}/{1}"], coins: ["{0} coins", "{0} سکه"],
   reset: ["Reset", "از نو"], shop: ["Shop", "فروشگاه"], undo: ["Undo", "برگشت"], free: ["{0} FREE", "{0} رایگان"],
   watch_ad: ["WATCH AD", "با تبلیغ"], slot: ["+1 Slot", "+۱ جا"], hint: ["Hint", "راهنما"],
@@ -1272,13 +1328,104 @@ setInterval(() => {
   if (!left && !$("starterSide").hidden) { renderHome(); if (!$("shop").hidden) renderShop(); }
 }, 1000);
 
+// ===== World Tour (meta): win levels for stars, spend stars on landmarks, finish a city for a big reward =====
+// Landmark shapes (shared with Unity): [kind, shade, numbers]; r = rect x y w h, c = circle cx cy r, t = triangle; y up from the ground.
+const LANDMARKS = {"tower":[["t","d",-10,0,10,0,0,24],["r","m",-2.2,0,4.4,72],["r","d",-9,57,18,6],["c","m",0,64,7.5],["r","l",-7,63,14,1.6],["r","d",-0.8,72,1.6,24]],"arch":[["r","m",-17,0,10,42],["r","m",7,0,10,42],["r","m",-17,40,34,13],["r","d",-17,40,34,3],["t","m",-12,53,12,53,0,66],["r","l",-3,46,6,4]],"dome":[["r","m",-15,0,30,26],["c","m",0,26,13],["r","d",-1,38,2,9],["r","d",-4,0,8,12],["r","d",-22,0,3.4,44],["r","d",18.6,0,3.4,44],["t","d",-22.5,44,-18,44,-20.3,53],["t","d",18,44,22.5,44,20.3,53],["c","l",-7,16,2],["c","l",7,16,2]],"bridge":[["r","d",-30,15,60,4],["r","m",-17,0,4,46],["r","m",13,0,4,46],["r","d",-17,38,4,2],["r","d",13,38,4,2],["t","m",-15,46,-29,19,-27,19],["t","m",-15,46,-1,19,-3,19],["t","m",15,46,29,19,27,19],["t","m",15,46,1,19,3,19]],"pyramid":[["t","m",-28,0,28,0,0,42],["t","d",0,42,28,0,8,0],["t","l",-3,38,3,38,0,42]],"skyscraper":[["r","m",-9,0,18,30],["r","m",-6.5,30,13,26],["r","m",-4.5,56,9,20],["r","m",-2.5,76,5,12],["r","d",-0.6,88,1.2,14],["r","l",-1,4,2,80],["r","d",-9,28,18,2],["r","d",-6.5,54,13,2]],"sail":[["r","d",-13,0,4,74],["t","m",-9,2,-9,70,17,8],["t","m",-9,2,17,8,15,0],["r","l",-16,52,7,2],["r","d",-15,0,30,3]],"frame":[["r","m",-13,0,6,62],["r","m",7,0,6,62],["r","m",-13,56,26,7],["r","d",-13,0,26,4],["r","w",-11,58,22,2]],"lattice":[["t","m",-19,0,-11,0,-2.5,52],["t","m",19,0,11,0,2.5,52],["r","d",-13,20,26,3],["r","d",-6,46,12,3],["t","m",-4.5,48,4.5,48,0,92],["r","d",-0.6,90,1.2,10],["t","d",-8,20,8,20,0,10]],"clock":[["r","m",-6.5,0,13,62],["r","d",-7.5,56,15,4],["c","l",0,48,4.6],["c","d",0,48,1.2],["t","d",-7.5,60,7.5,60,0,80],["r","d",-0.8,80,1.6,7],["r","l",-2,8,4,8]],"wheel":[["t","d",0,36,25.3,36.0,26.7,36.0],["t","d",0,36,21.82,49.0,23.22,49.0],["t","d",0,36,12.3,58.52,13.7,58.52],["t","d",0,36,-0.7,62.0,0.7,62.0],["t","d",0,36,-13.7,58.52,-12.3,58.52],["t","d",0,36,-23.22,49.0,-21.82,49.0],["t","d",0,36,-26.7,36.0,-25.3,36.0],["t","d",0,36,-23.22,23.0,-21.82,23.0],["t","d",0,36,-13.7,13.48,-12.3,13.48],["t","d",0,36,-0.7,10.0,0.7,10.0],["t","d",0,36,12.3,13.48,13.7,13.48],["t","d",0,36,21.82,23.0,23.22,23.0],["c","m",26.0,36.0,3],["c","m",22.52,49.0,3],["c","m",13.0,58.52,3],["c","m",0.0,62.0,3],["c","m",-13.0,58.52,3],["c","m",-22.52,49.0,3],["c","m",-26.0,36.0,3],["c","m",-22.52,23.0,3],["c","m",-13.0,13.48,3],["c","m",-0.0,10.0,3],["c","m",13.0,13.48,3],["c","m",22.52,23.0,3],["c","d",0,36,3.5],["t","d",-14,0,-10,0,0,36],["t","d",14,0,10,0,0,36]],"statue":[["r","d",-9,0,18,24],["r","m",-7,24,14,5],["t","m",-6.5,29,6.5,29,0,63],["c","m",0,65,4.2],["t","m",-4.5,67,4.5,67,0,74],["r","m",3,60,2.6,17],["c","w",4.3,80,3.2],["r","l",-7,10,14,2]],"pagoda":[["r","d",-6,0,12,14],["t","m",-17,14,17,14,0,22],["r","d",-5,21,10,10],["t","m",-14,31,14,31,0,38],["r","d",-4,37,8,9],["t","m",-11,46,11,46,0,52],["r","d",-0.6,51,1.2,13],["r","w",-2,3,4,6]],"torii":[["r","m",-15,0,4.5,42],["r","m",10.5,0,4.5,42],["r","m",-19,40,38,5],["r","m",-15,32,30,3],["r","d",-21,44,42,3]],"mountain":[["t","m",-30,0,30,0,0,48],["t","d",0,48,30,0,10,0],["t","l",-9.5,33,9.5,33,0,48],["t","l",-9.5,33,-4,33,-6.5,29],["t","l",-1,33,5,33,2,29]],"cluster":[["r","m",-22,0,10,40],["r","d",-11,0,10,60],["r","m",0,0,10,50],["r","d",11,0,10,34],["r","w",-8,8,3,44],["r","w",3,8,3,34],["r","w",-19,8,3,26],["r","w",14,6,3,22]],"gothic":[["r","m",-15,0,30,30],["r","m",-16,0,9,50],["r","m",7,0,9,50],["r","d",-16,48,9,2],["r","d",7,48,9,2],["c","l",0,22,4.5],["t","d",-2.2,30,2.2,30,0,64],["r","d",-3,0,6,11]],"spire":[["r","m",-7.5,0,15,56],["r","m",-5.5,56,11,10],["t","l",-5.5,66,5.5,66,0,86],["r","d",-0.5,86,1,12],["r","l",-1,5,2,48],["r","w",-5,5,2,40],["r","w",3,5,2,40]]};
+const TOUR = [
+  { key: "tehran", sky: ["#ffb86b", "#ff7a6b"], marks: [["tower", "#e9e4da", "milad"], ["arch", "#f1ece2", "azadi"], ["dome", "#43b3cc", "mosque"], ["bridge", "#e0a050", "nature"]] },
+  { key: "istanbul", sky: ["#ff9e80", "#9b5fd1"], marks: [["dome", "#d88b6b", "hagia"], ["clock", "#cdb48e", "galata"], ["bridge", "#e85b5b", "bosphorus"], ["arch", "#e7c47a", "bazaar"]] },
+  { key: "dubai", sky: ["#ffd27a", "#ff9a52"], marks: [["skyscraper", "#cfe3f2", "khalifa"], ["sail", "#f4f7fb", "arab"], ["frame", "#f2b84b", "frame"], ["cluster", "#8fb5d8", "marina"]] },
+  { key: "cairo", sky: ["#ffcf7a", "#e98b4a"], marks: [["pyramid", "#e8c27a", "pyramid"], ["tower", "#d9c9a8", "cairotower"], ["dome", "#cfae7c", "citadel"], ["arch", "#c99a62", "gate"]] },
+  { key: "paris", sky: ["#b9d8ff", "#ff9ec1"], marks: [["lattice", "#b68a5e", "eiffel"], ["arch", "#efe5d0", "arc"], ["pyramid", "#9fd3ef", "louvre"], ["gothic", "#d8cdb6", "notredame"]] },
+  { key: "london", sky: ["#a9c4e8", "#6f86b8"], marks: [["clock", "#d9b56d", "bigben"], ["bridge", "#9db7d6", "towerbridge"], ["wheel", "#f2f5fa", "eye"], ["dome", "#e6e2d6", "stpauls"]] },
+  { key: "newyork", sky: ["#ffb199", "#6a7fd6"], marks: [["statue", "#6fc7a9", "liberty"], ["skyscraper", "#c8ccd6", "empire"], ["bridge", "#b89a7a", "brooklyn"], ["spire", "#dfe3ea", "chrysler"]] },
+  { key: "tokyo", sky: ["#ffc2d4", "#7a8ee0"], marks: [["lattice", "#ff5a4f", "tokyotower"], ["mountain", "#7f9cc9", "fuji"], ["pagoda", "#e0564a", "pagoda"], ["torii", "#f0503c", "torii"]] },
+];
+const TOUR_SLOTS = [16, 39, 62, 85];
+const markCost = (ci, i) => 3 + i + ci;                 // stars
+const markReward = (ci, i) => 40 + 20 * i + 10 * ci;    // coins
+const cityReward = ci => [["coins", 200 + 50 * ci], ["crane", 1], ["magnet", 1], ["shuffle", 1]];
+const winStars = lv => lv > 0 ? (isHard(lv) ? 2 : 1) : 0;
+const stars = () => store.get("stars", 0), tourCity = () => Math.min(store.get("tourCity", 0), TOUR.length), tourBuilt = () => store.get("tourBuilt", 0);
+const isBuilt = (mask, i) => (mask >> i & 1) === 1;
+function canBuildAny() { const ci = tourCity(); if (ci >= TOUR.length) return false; const b = tourBuilt(); return TOUR[ci].marks.some((_, i) => !isBuilt(b, i) && stars() >= markCost(ci, i)); }
+function shadeOf(code, color) { return code === "d" ? shade(color, 0.28) : code === "l" ? tint(color, 0.6) : code === "w" ? "#ffd75e" : color; }
+// One landmark as SVG, standing on the ground at (x, ground), scale s. Not built = a faint silhouette.
+function landmarkSVG(type, color, x, ground, s, built) {
+  return LANDMARKS[type].map(([k, sh, ...n]) => {
+    const fill = built ? shadeOf(sh, color) : "rgba(255,255,255,.17)", X = v => (x + v * s).toFixed(2), Y = v => (ground - v * s).toFixed(2);
+    if (k === "r") return `<rect x="${X(n[0])}" y="${Y(n[1] + n[3])}" width="${(n[2] * s).toFixed(2)}" height="${(n[3] * s).toFixed(2)}" fill="${fill}"/>`;
+    if (k === "c") return `<circle cx="${X(n[0])}" cy="${Y(n[1])}" r="${(n[2] * s).toFixed(2)}" fill="${fill}"/>`;
+    return `<polygon points="${X(n[0])},${Y(n[1])} ${X(n[2])},${Y(n[3])} ${X(n[4])},${Y(n[5])}" fill="${fill}"/>`;
+  }).join("");
+}
+let skyUid = 0;
+function skySVG(city, viewBox, inner) {
+  const id = "sky" + skyUid++;
+  return `<svg viewBox="${viewBox}" preserveAspectRatio="xMidYMax slice"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${city.sky[1]}"/><stop offset="1" stop-color="${city.sky[0]}"/></linearGradient></defs>
+    <rect x="-100" y="-100" width="400" height="400" fill="url(#${id})"/>${inner}</svg>`;
+}
+// A city's skyline: 4 landmarks on a strip of ground (built ones in color).
+function skylineSVG(ci, mask) {
+  const city = TOUR[ci];
+  const inner = `<circle cx="78" cy="16" r="7" fill="rgba(255,255,255,.55)"/><rect x="-10" y="54" width="120" height="10" fill="rgba(20,30,50,.55)"/>` +
+    city.marks.map(([type, color], i) => landmarkSVG(type, color, TOUR_SLOTS[i], 54, 0.5, isBuilt(mask, i))).join("");
+  return skySVG(city, "0 0 100 60", inner);
+}
+function oneMarkSVG(ci, i, built) { const city = TOUR[ci], [type, color] = city.marks[i];
+  return skySVG(city, "0 0 60 60", `<rect x="-10" y="56" width="80" height="10" fill="rgba(20,30,50,.55)"/>` + landmarkSVG(type, color, 30, 56, 0.52, built)); }
+function renderTour() {
+  const ci = tourCity(), b = tourBuilt(), st = stars();
+  $("tourStars").textContent = num(st);
+  let h = "";
+  if (ci < TOUR.length) {
+    const city = TOUR[ci], done = city.marks.filter((_, i) => isBuilt(b, i)).length;
+    h += `<div class="citycard"><div class="sky">${skylineSVG(ci, b)}</div><div class="info"><div><b>${t("c_" + city.key)}</b><span>${t("city_n", ci + 1, TOUR.length)}</span></div>
+      <div class="meter"><i style="width:${done * 25}%"></i></div></div></div>`;
+    h += `<div class="sect">${t("landmarks")}</div>`;
+    h += city.marks.map(([, , key], i) => {
+      const own = isBuilt(b, i), cost = markCost(ci, i), ok = st >= cost;
+      const btn = own ? `<button class="small green mk" disabled><svg class="ic"><use href="#i-check"/></svg>${t("built")}</button>`
+        : `<button class="small mk ${ok ? "green" : "quiet"}" data-build="${i}"><svg class="ic"><use href="#i-star"/></svg>${num(cost)}</button>`;
+      return `<div class="offer${own ? " built" : ""}"><div class="art lm">${oneMarkSVG(ci, i, own)}</div><div><b>${t("l_" + key)}</b><span><span class="coin" style="width:16px;height:16px;vertical-align:-3px"></span> +${num(markReward(ci, i))}</span></div>${btn}</div>`;
+    }).join("");
+    if (!canBuildAny() && city.marks.some((_, i) => !isBuilt(b, i))) h += `<p class="hint" style="text-align:center;margin:0">${t("need_stars")}</p>`;
+  } else h += `<div class="citycard"><div class="sky">${skylineSVG(TOUR.length - 1, 15)}</div><div class="info"><b>${t("tour_done")}</b></div></div>`;
+  h += `<div class="sect">${t("cities")}</div><div class="stamps">` + TOUR.map((c, i) => {
+    const state = i < ci ? "done" : i === ci ? "now" : "locked";
+    const badge = state === "done" ? `<i class="badge"><svg class="ic"><use href="#i-check"/></svg></i>` : state === "locked" ? `<i class="badge"><svg class="ic"><use href="#i-lock"/></svg></i>` : "";
+    return `<div class="stamp ${state}"><div class="sky">${skySVG(c, "20 4 60 56", `<rect x="-10" y="54" width="120" height="10" fill="rgba(20,30,50,.55)"/>` + c.marks.map(([type, color], k) => landmarkSVG(type, color, TOUR_SLOTS[k], 54, 0.5, state === "done" || (state === "now" && isBuilt(b, k)))).join(""))}</div>${badge}<span>${t("c_" + c.key)}</span></div>`;
+  }).join("") + `</div>`;
+  $("tourBody").innerHTML = h;
+}
+function buildMark(i) {
+  const ci = tourCity(); if (ci >= TOUR.length) return; const b = tourBuilt(), cost = markCost(ci, i);
+  if (isBuilt(b, i)) return; if (stars() < cost) return toast(t("need_stars"));
+  store.set("stars", stars() - cost); const nb = b | (1 << i); store.set("tourBuilt", nb);
+  sfx.win(); renderTour(); renderHome(); addCoins(markReward(ci, i));
+  if (nb === 15) setTimeout(() => showReward("city_done", cityReward(ci), () => {
+    store.set("tourCity", ci + 1); store.set("tourBuilt", 0); renderTour(); renderHome();
+    if (ci + 1 < TOUR.length) toast(t("next_city", t("c_" + TOUR[ci + 1].key)), 2600);
+  }), 500);
+}
+function openTour() { if (busy) return; renderTour(); $("tour").hidden = false; }
+function renderCityBar() {
+  const ci = tourCity(), city = TOUR[Math.min(ci, TOUR.length - 1)], b = ci < TOUR.length ? tourBuilt() : 15;
+  $("cityBarSky").innerHTML = skylineSVG(Math.min(ci, TOUR.length - 1), b);
+  $("cityBarName").textContent = t("c_" + city.key);
+  $("cityBarMeter").style.width = (city.marks.filter((_, i) => isBuilt(b, i)).length * 25) + "%";
+  $("cityBarStars").textContent = num(stars());
+  $("cityDot").hidden = $("tourDot").hidden = !canBuildAny();
+}
+
 // ===== Home screen =====
 let screen = "home";
 function setScreen(s) {
   screen = s; const home = s === "home";
   $("home").hidden = !home; $("board").hidden = home; $("bar").hidden = home;
   $("homeBtn").style.visibility = home ? "hidden" : "visible"; $("titleBox").style.visibility = home ? "hidden" : "visible";
-  if (home) { renderHome(); maybeStarter(); }
+  if (home) { renderHome(); maybeStarter();
+    if (stars() > 0 && !store.get("tourSeen", false)) { store.set("tourSeen", true); toast(t("tour_intro"), 3800); } }
 }
 // The starter pack pops up once, on the home screen, after any other popup is closed.
 function maybeStarter() {
@@ -1293,6 +1440,7 @@ function renderHome() {
   $("chestDot").hidden = !chestReady();
   const left = starterLeft(); $("starterSide").hidden = !left; $("starterSideTime").textContent = clock(left);
   $("streakTag").hidden = wstreak < 1; $("streakNum").textContent = num(wstreak);
+  renderCityBar();
   // Level path: two finished levels at the bottom, the current one, then locked ones going up.
   const W = 200, H = 300, lv = [], first = Math.max(1, cur - 2);
   for (let n = first; n < first + 6; n++) lv.push(n);
@@ -1363,9 +1511,10 @@ function afterMove() {
     if (level === 0) { store.set("challengeDay", today()); pendingWin = CHALLENGE_REWARD; }
     else { store.set("level", level + 1); pendingWin = (10 + Math.floor(level / 2)) * (isHard(level) ? 2 : 1);
       wstreak++; store.set("wstreak", wstreak);
+      const gotStars = winStars(level); store.set("stars", stars() + gotStars); $("winStars").lastChild.textContent = t("win_stars", gotStars);
       const add = Math.min(PIGGY_MAX - piggy(), isHard(level) ? 40 : 20); store.set("piggy", piggy() + add);
       $("winPiggy").lastChild.textContent = t("piggy_add", add); $("winPiggy").hidden = add <= 0; $("winStreak").lastChild.textContent = t("win_streak", wstreak); }
-    $("winStreak").hidden = level === 0; if (level === 0) $("winPiggy").hidden = true;
+    $("winStreak").hidden = $("winStars").hidden = level === 0; if (level === 0) $("winPiggy").hidden = true;
     $("winTitle").textContent = level > 0 ? t("win_title", level) : t("challenge_win"); $("winReward").textContent = "+" + num(pendingWin);
     busy = true; setTimeout(() => { busy = false; $("win").hidden = false; }, 800);
   }
@@ -1468,6 +1617,9 @@ function openShop() { renderShop(); $("shop").hidden = false; }
 $("shopHome").onclick = openShop;
 $("coinPlus").onclick = () => { if (!busy) openShop(); };
 $("closeShop").onclick = () => $("shop").hidden = true;
+$("tourHome").onclick = openTour; $("cityBar").onclick = openTour;
+$("closeTour").onclick = () => { $("tour").hidden = true; renderHome(); };
+$("tourBody").onclick = ev => { const b = ev.target.closest("[data-build]"); if (b) buildMark(+b.dataset.build); };
 $("playBtn").onclick = () => {
   const cur = Math.max(1, store.get("level", 1));
   // Keep a level that is already being played; otherwise start it fresh.

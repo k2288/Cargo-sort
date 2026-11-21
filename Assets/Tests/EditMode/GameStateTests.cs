@@ -397,6 +397,45 @@ namespace CargoSort.Tests
         }
 
         [Test]
+        public void WorldTourBuildsLandmarksWithStars()
+        {
+            int city = 0, mask = 0, stars = 2;
+            Assert.IsFalse(WorldTour.CanBuildAny(city, mask, stars));
+            Assert.AreEqual(WorldTour.BuildResult.Failed, WorldTour.Build(ref city, ref mask, ref stars, 0, out _));
+            stars = 3;
+            Assert.AreEqual(WorldTour.BuildResult.Built, WorldTour.Build(ref city, ref mask, ref stars, 0, out int coins));
+            Assert.AreEqual(0, stars);
+            Assert.AreEqual(1, mask);
+            Assert.AreEqual(WorldTour.MarkCoins(0, 0), coins);
+            Assert.AreEqual(WorldTour.BuildResult.Failed, WorldTour.Build(ref city, ref mask, ref stars, 0, out _)); // already built
+        }
+
+        [Test]
+        public void FinishingACityMovesTheTourOn()
+        {
+            int city = 0, mask = 0, stars = 100;
+            for (int i = 0; i < 3; i++) WorldTour.Build(ref city, ref mask, ref stars, i, out _);
+            Assert.AreEqual(WorldTour.BuildResult.CityDone, WorldTour.Build(ref city, ref mask, ref stars, 3, out _));
+            Assert.AreEqual(1, city);
+            Assert.AreEqual(0, mask);
+            Assert.AreEqual(100 - (3 + 4 + 5 + 6), stars);
+        }
+
+        [Test]
+        public void WorldTourDataIsComplete()
+        {
+            Assert.AreEqual(8, WorldTour.Cities.Length);
+            foreach (var c in WorldTour.Cities)
+            {
+                Assert.AreEqual(WorldTour.MarksPerCity, c.Marks.Length);
+                foreach (var m in c.Marks) Assert.IsTrue(WorldTour.Shapes.ContainsKey(m.Shape), m.Shape);
+            }
+            Assert.AreEqual(1, WorldTour.StarsForWin(4));
+            Assert.AreEqual(2, WorldTour.StarsForWin(5));   // hard level
+            Assert.AreEqual(0, WorldTour.StarsForWin(0));   // daily challenge
+        }
+
+        [Test]
         public void CraneLiftsACrateFromUnderOthers()
         {
             var s = new GameState(Simple());

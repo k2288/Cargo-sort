@@ -49,7 +49,7 @@ namespace CargoSort.Game
 
         public bool PanelOpen =>
             winPanel.activeSelf || losePanel.activeSelf || dailyPanel.activeSelf || settingsPanel.activeSelf || rewardPanel.activeSelf || devPanel.activeSelf ||
-            shopPanel.activeSelf || starterPanel.activeSelf || homePanel.activeSelf;
+            shopPanel.activeSelf || TourOpen || starterPanel.activeSelf || homePanel.activeSelf;
 
         public bool HomeVisible => homePanel != null && homePanel.activeSelf;
 
@@ -81,6 +81,7 @@ namespace CargoSort.Game
             BuildLosePanel(safe);
             BuildDailyPanel(safe);
             BuildShop(safe);
+            BuildTour(safe);
             BuildSettings(safe);
             BuildStarterPanel(safe);
             BuildRewardPanel(safe);
@@ -236,8 +237,9 @@ namespace CargoSort.Game
             winChips = MakeRect("Chips", box).gameObject;
             var chips = (RectTransform)winChips.transform;
             Anchor(chips, new Vector2(0.5f, 0.5f), new Vector2(0, 70), new Vector2(800, 80));
-            winStreak = Chip(chips, "flame", new Color32(0xFF, 0xB2, 0x7A, 0xFF), new Vector2(-180, 0));
-            winPiggy = Chip(chips, "piggy", new Color32(0xFF, 0xB3, 0xD1, 0xFF), new Vector2(180, 0));
+            winStreak = Chip(chips, "flame", new Color32(0xFF, 0xB2, 0x7A, 0xFF), new Vector2(-280, 0));
+            winPiggy = Chip(chips, "piggy", new Color32(0xFF, 0xB3, 0xD1, 0xFF), new Vector2(0, 0));
+            winStars = Chip(chips, "star", new Color32(0xFF, 0xE0, 0x66, 0xFF), new Vector2(280, 0));
 
             var x3 = MakeCandy(box, Green, () => ClaimWin?.Invoke(true), Loc.T("claim_x3"), 52, null, 0, 0, Loc.T("watch_ad"));
             Anchor(x3.Root, new Vector2(0.5f, 0.5f), new Vector2(0, -100), new Vector2(700, 170));
@@ -249,7 +251,7 @@ namespace CargoSort.Game
         private Text Chip(RectTransform parent, string icon, Color color, Vector2 pos)
         {
             var chip = MakeRect("Chip", parent);
-            Anchor(chip, new Vector2(0.5f, 0.5f), pos, new Vector2(330, 76));
+            Anchor(chip, new Vector2(0.5f, 0.5f), pos, new Vector2(270, 76));
             Stretch(Img(chip, Art.Rounded, new Color(1, 1, 1, 0.09f), 38).rectTransform);
             var ic = Icon(chip, icon, 46);
             ic.color = color;
@@ -260,8 +262,10 @@ namespace CargoSort.Game
             return t;
         }
 
-        /// <summary>streak 0 hides the chips (daily challenge).</summary>
-        public void ShowWin(bool show, int level = 0, int reward = 0, int streak = 0, int piggyAdded = 0)
+        private Text winStars;
+
+        /// <summary>streak 0 hides the chips (daily challenge). starsAdded: World Tour stars from this win.</summary>
+        public void ShowWin(bool show, int level = 0, int reward = 0, int streak = 0, int piggyAdded = 0, int starsAdded = 0)
         {
             winPanel.SetActive(show);
             if (!show) return;
@@ -271,8 +275,13 @@ namespace CargoSort.Game
             winStreak.text = Loc.T("win_streak", streak);
             winPiggy.transform.parent.gameObject.SetActive(piggyAdded > 0);
             winPiggy.text = Loc.T("piggy_add", piggyAdded);
-            if (piggyAdded <= 0) ((RectTransform)winStreak.transform.parent).anchoredPosition = Vector2.zero;
-            else ((RectTransform)winStreak.transform.parent).anchoredPosition = new Vector2(-180, 0);
+            winStars.transform.parent.gameObject.SetActive(starsAdded > 0);
+            winStars.text = Loc.T("win_stars", starsAdded);
+            // Center the chips that are shown.
+            var shown = new System.Collections.Generic.List<RectTransform>();
+            foreach (var t in new[] { winStreak, winPiggy, winStars })
+                if (t.transform.parent.gameObject.activeSelf) shown.Add((RectTransform)t.transform.parent);
+            for (int i = 0; i < shown.Count; i++) shown[i].anchoredPosition = new Vector2((i - (shown.Count - 1) / 2f) * 280, 0);
             PopIn(winPanel);
         }
 

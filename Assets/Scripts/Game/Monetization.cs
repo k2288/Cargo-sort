@@ -226,6 +226,31 @@ namespace CargoSort.Game
 
         // ----- Win streak, piggy bank, offers -----
 
+        /// <summary>World Tour: stars to spend, the current city, and which of its landmarks are built (bits).</summary>
+        public static int Stars
+        {
+            get => PlayerPrefs.GetInt("tour_stars", 0);
+            set { PlayerPrefs.SetInt("tour_stars", Mathf.Max(0, value)); PlayerPrefs.Save(); }
+        }
+
+        public static int TourCity
+        {
+            get => PlayerPrefs.GetInt("tour_city", 0);
+            set { PlayerPrefs.SetInt("tour_city", Mathf.Max(0, value)); PlayerPrefs.Save(); }
+        }
+
+        public static int TourBuilt
+        {
+            get => PlayerPrefs.GetInt("tour_built", 0);
+            set { PlayerPrefs.SetInt("tour_built", value); PlayerPrefs.Save(); }
+        }
+
+        public static bool TourSeen
+        {
+            get => PlayerPrefs.GetInt("tour_seen", 0) == 1;
+            set { PlayerPrefs.SetInt("tour_seen", value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
         public static int WinStreak
         {
             get => PlayerPrefs.GetInt("win_streak", 0);

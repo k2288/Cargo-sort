@@ -68,6 +68,8 @@ namespace CargoSort.Game
             hud.Play += OnPlay;
             hud.Challenge += OnChallenge;
             hud.OpenShop += OnOpenShop;
+            hud.OpenTour += OnOpenTour;
+            hud.BuildLandmark += OnBuildLandmark;
             hud.OpenChest += OnOpenChest;
             hud.OpenStarter += () => { Analytics.Offer("starter", "shown"); hud.ShowStarter(true); };
             hud.BuyPack += OnBuyPack;
@@ -140,6 +142,11 @@ namespace CargoSort.Game
             int next = Progress.Level;
             hud.SetHome(next, LevelGenerator.IsHard(next), Progress.WinStreak, Progress.ChallengeDay != Progress.Today, Economy.ChestReady);
             hud.SetCoins(Progress.Coins);
+            if (Progress.Stars > 0 && !Progress.TourSeen)
+            {
+                Progress.TourSeen = true;
+                hud.Toast(Loc.T("tour_intro"), 3.8f);
+            }
         }
 
         private void ShowGame()
@@ -335,7 +342,7 @@ namespace CargoSort.Game
                 if (level == 1) Progress.TutorialDone = true;
                 Analytics.LevelWin(level, session.State.Buffer.Length);
                 hud.SetTip(null);
-                int streak = 0, piggyAdded = 0;
+                int streak = 0, piggyAdded = 0, starsAdded = 0;
                 if (level == 0)
                 {
                     Progress.ChallengeDay = Progress.Today;
@@ -349,8 +356,10 @@ namespace CargoSort.Game
                     streak = ++Progress.WinStreak;
                     piggyAdded = Mathf.Min(Economy.PiggyMax - Progress.Piggy, Economy.PiggyPerWin * (IsHard ? 2 : 1));
                     Progress.Piggy += piggyAdded;
+                    starsAdded = WorldTour.StarsForWin(level);
+                    Progress.Stars += starsAdded;
                 }
-                StartCoroutine(ShowWinSoon(level, pendingWinReward, streak, piggyAdded));
+                StartCoroutine(ShowWinSoon(level, pendingWinReward, streak, piggyAdded, starsAdded));
             }
             else if (session.State.Status == GameStatus.Lost)
             {
@@ -362,12 +371,12 @@ namespace CargoSort.Game
         }
 
         /// <summary>Lets the confetti play for a moment before the win panel covers the board.</summary>
-        private System.Collections.IEnumerator ShowWinSoon(int wonLevel, int reward, int streak, int piggyAdded)
+        private System.Collections.IEnumerator ShowWinSoon(int wonLevel, int reward, int streak, int piggyAdded, int starsAdded)
         {
             waitingForAd = true; // blocks other buttons for the short pause
             yield return new WaitForSeconds(0.8f);
             waitingForAd = false;
-            if (level == wonLevel && pendingWinReward == reward) hud.ShowWin(true, wonLevel, reward, streak, piggyAdded);
+            if (level == wonLevel && pendingWinReward == reward) hud.ShowWin(true, wonLevel, reward, streak, piggyAdded, starsAdded);
         }
 
         private void BreakStreak()
@@ -657,6 +666,39 @@ namespace CargoSort.Game
             });
         }
 
+        // ---------- World Tour ----------
+
+        private void OnOpenTour()
+        {
+            if (board.Busy || waitingForAd) return;
+            SetCrane(false);
+            hud.ShowTour(true);
+        }
+
+        private void OnBuildLandmark(int mark)
+        {
+            int city = Progress.TourCity, mask = Progress.TourBuilt, stars = Progress.Stars, was = city;
+            var result = WorldTour.Build(ref city, ref mask, ref stars, mark, out int coins);
+            if (result == WorldTour.BuildResult.Failed)
+            {
+                hud.Toast(Loc.T("need_stars"));
+                return;
+            }
+            Progress.Stars = stars;
+            Progress.TourCity = city;
+            Progress.TourBuilt = mask;
+            Feedback.Won();
+            Analytics.Landmark(was, mark, result == WorldTour.BuildResult.CityDone);
+            AddCoins(coins);
+            hud.RefreshTour();
+            if (result == WorldTour.BuildResult.CityDone)
+            {
+                GiveItems(new[] { Item.Coins(WorldTour.CityCoins(was)), Item.Of(Booster.Crane, 1), Item.Of(Booster.Magnet, 1), Item.Of(Booster.Shuffle, 1) }, "city_done");
+                if (!WorldTour.Finished(city)) hud.Toast(Loc.T("next_city", Loc.T("c_" + WorldTour.Cities[city].Key)), 2.6f);
+            }
+            if (hud.HomeVisible) ShowHome();
+        }
+
         // ---------- Shop ----------
 
         private void OnOpenShop()
@@ -742,6 +784,7 @@ namespace CargoSort.Game
             if (session != null) RefreshHud();
             hud.SetCoins(Progress.Coins);
             hud.RefreshShop();
+            hud.RefreshTour();
             if (hud.HomeVisible) ShowHome();
         }
 

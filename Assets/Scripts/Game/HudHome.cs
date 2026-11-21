@@ -5,8 +5,8 @@ using UnityEngine.UI;
 namespace CargoSort.Game
 {
     /// <summary>
-    /// The home screen: logo, a winding path of levels, a big Play button, and side buttons for the
-    /// shop, the starter pack, the daily challenge and the free gift.
+    /// The home screen: logo, the World Tour city banner, a winding path of levels, a big Play button, and
+    /// side buttons for the World Tour, the shop, the starter pack, the daily challenge and the free gift.
     /// </summary>
     public sealed partial class Hud
     {
@@ -37,12 +37,15 @@ namespace CargoSort.Game
             AddShadow(sort, new Color32(0x1B, 0x56, 0xA3, 0xFF), 16);
             Anchor(sort.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, -90), new Vector2(900, 180));
 
+            // World Tour city banner under the logo (also adds the Tour side button)
+            BuildCityBar(home);
+
             pathRoot = MakeRect("Path", home);
-            Anchor(pathRoot, new Vector2(0.5f, 0.5f), new Vector2(0, -60), new Vector2(600, 760));
+            Anchor(pathRoot, new Vector2(0.5f, 0.5f), new Vector2(0, -130), new Vector2(600, 640));
 
             // Side buttons
-            SideButton(home, Purple, "cart", Loc.T("shop"), new Vector2(0, 0.5f), new Vector2(130, 40), () => OpenShop?.Invoke(), out _);
-            starterSide = SideButton(home, Red, "star", "", new Vector2(0, 0.5f), new Vector2(130, -190), () => OpenStarter?.Invoke(), out starterTime).gameObject;
+            SideButton(home, Purple, "cart", Loc.T("shop"), new Vector2(0, 0.5f), new Vector2(130, -190), () => OpenShop?.Invoke(), out _);
+            starterSide = SideButton(home, Red, "star", "", new Vector2(0, 0.5f), new Vector2(130, -420), () => OpenStarter?.Invoke(), out starterTime).gameObject;
             var starterLabelBg = Img((RectTransform)starterTime.transform.parent, Art.Rounded, new Color(0, 0, 0, 0.5f), 22);
             Anchor(starterLabelBg.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, -100), new Vector2(190, 50));
             starterLabelBg.transform.SetSiblingIndex(starterTime.transform.GetSiblingIndex());
@@ -113,6 +116,7 @@ namespace CargoSort.Game
             streakTag.SetActive(streak > 0);
             streakText.text = Economy.Number(streak);
             starterSide.SetActive(Economy.StarterActive);
+            SetCityBar();
             DrawPath(level);
         }
 
