@@ -128,3 +128,7 @@ like `v1.0`. It needs the repo secrets `UNITY_EMAIL`, `UNITY_PASSWORD` and `UNIT
 `Unity_lic.ulf`). SDKs you imported as `.unitypackage` must be committed for CI to include them.
 
 Then add analytics (level start, win, lose, ad watched) so we can tune difficulty from real data.
+
+## Web version
+
+`web/index.html` is a browser version of the game in one file: no shop, no paid packs, no ads and no store links (the free daily gift opens without an ad). It is generated from the web preview; run `python3 web/build.py` after changing `web-preview/index.html`. Host it on any static web host.
