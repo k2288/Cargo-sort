@@ -131,4 +131,4 @@ Then add analytics (level start, win, lose, ad watched) so we can tune difficult
 
 ## Web version
 
-`web/index.html` is a browser version of the game in one file: no shop, no paid packs, no ads and no store links (the free daily gift opens without an ad). It is generated from the web preview; run `python3 web/build.py` after changing `web-preview/index.html`. Host it on any static web host.
+`web/index.html` is a browser version of the game in one file: no shop, no paid packs, no ads and no store links (the free daily gift opens without an ad). It is generated from the web preview; run `python3 web/build.py` after changing `web-preview/index.html`. Host it on any static web host. `web/edge.js` is the same page as one ArvanCloud Edge Computing script (upload it in the Edge Computing panel).
