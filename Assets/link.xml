@@ -1,0 +1,26 @@
+<!--
+  Code the IL2CPP linker must keep when managed code stripping is on (BuildScript.cs sets it to Medium).
+  Ad, payment and analytics SDKs call into C# by name from Java (UnitySendMessage) or use reflection,
+  so their assemblies are kept whole. Our own game code is kept whole too; it is small.
+-->
+<linker>
+  <assembly fullname="Assembly-CSharp" preserve="all" />
+  <assembly fullname="CargoSort.Core" preserve="all" />
+  <assembly fullname="CargoSort.Game" preserve="all" />
+  <assembly fullname="GoogleMobileAds" preserve="all" ignoreIfMissing="1" />
+  <assembly fullname="GoogleMobileAds.Core" preserve="all" ignoreIfMissing="1" />
+  <assembly fullname="GoogleMobileAds.Common" preserve="all" ignoreIfMissing="1" />
+  <assembly fullname="GoogleMobileAds.Android" preserve="all" ignoreIfMissing="1" />
+  <assembly fullname="GoogleMobileAds.Unity" preserve="all" ignoreIfMissing="1" />
+  <assembly fullname="GoogleMobileAds.Ump" preserve="all" ignoreIfMissing="1" />
+  <assembly fullname="GoogleMobileAds.Ump.Android" preserve="all" ignoreIfMissing="1" />
+  <assembly fullname="GoogleMobileAds.Ump.Unity" preserve="all" ignoreIfMissing="1" />
+  <assembly fullname="GoogleMobileAdsNative" preserve="all" ignoreIfMissing="1" />
+  <assembly fullname="GoogleMobileAdsNative.Android" preserve="all" ignoreIfMissing="1" />
+  <assembly fullname="GoogleMobileAdsNative.Common" preserve="all" ignoreIfMissing="1" />
+  <assembly fullname="Google.MiniJson" preserve="all" ignoreIfMissing="1" />
+  <assembly fullname="GameAnalyticsSDK" preserve="all" ignoreIfMissing="1" />
+  <assembly fullname="Unity.Notifications.Android" preserve="all" ignoreIfMissing="1" />
+  <assembly fullname="Unity.Services.LevelPlay" preserve="all" ignoreIfMissing="1" />
+  <assembly fullname="UnityEngine.Purchasing" preserve="all" ignoreIfMissing="1" />
+</linker>

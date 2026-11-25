@@ -129,6 +129,10 @@ like `v1.0`. It needs the repo secrets `UNITY_EMAIL`, `UNITY_PASSWORD` and `UNIT
 
 Then add analytics (level start, win, lose, ad watched) so we can tune difficulty from real data.
 
+## APK size
+
+`BuildScript.ApplySizeSettings` strips unused engine and .NET code (Medium stripping, `Assets/link.xml` keeps SDK code) and compiles IL2CPP for size. The build workflow has a **cpu** choice: `both` (default, every phone), `arm64` (64-bit phones only, about half the native code) or `armv7`. The run summary shows the APK size.
+
 ## Rate prompt
 
 After the player wins level 8, the game asks "Enjoying the game?" instead of showing the interstitial for that level. **Rate** opens the comment page in the store the build is for (Bazaar: `bazaar://details`, Myket: `myket://comment`, Google Play: `market://details`, with the web page as fallback). **Later** asks again 20 levels on (at most 3 times); **Rate** and **No thanks** stop it for good. Settings also has a Rate button. Timing rules: `Assets/Scripts/Core/RatePrompt.cs`; popup: `HudRate.cs`; store links: `StoreReview.cs`.

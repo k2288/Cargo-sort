@@ -18,6 +18,7 @@ namespace CargoSort.EditorTools
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64 | AndroidArchitecture.ARMv7;
             EditorUserBuildSettings.buildAppBundle = false;
+            ApplySizeSettings();
             ApplyVersionAndSigning();
             AppIcons.Apply();
 
@@ -49,6 +50,30 @@ namespace CargoSort.EditorTools
 
             if (Application.isBatchMode)
                 EditorApplication.Exit(report.summary.result == BuildResult.Succeeded ? 0 : 1);
+        }
+
+        /// <summary>
+        /// Settings that make the APK smaller. Most of the APK is native code (the Unity engine and the game compiled by
+        /// IL2CPP, once per CPU type), so these strip unused engine and .NET code and compile for size.
+        /// Assets/link.xml keeps the SDK code that stripping cannot see is used.
+        /// "-abi arm64" (or "armv7") on the command line builds for one CPU type only, which roughly halves the native code.
+        /// </summary>
+        private static void ApplySizeSettings()
+        {
+            var android = NamedBuildTarget.Android;
+            PlayerSettings.SetManagedStrippingLevel(android, ManagedStrippingLevel.Medium);
+            PlayerSettings.stripEngineCode = true;
+            PlayerSettings.SetIl2CppCodeGeneration(android, Il2CppCodeGeneration.OptimizeSize);
+            PlayerSettings.SetIl2CppCompilerConfiguration(android, Il2CppCompilerConfiguration.Master);
+            PlayerSettings.stripUnusedMeshComponents = true;
+            PlayerSettings.Android.buildApkPerCpuArchitecture = false;
+
+            switch (Arg("-abi"))
+            {
+                case "arm64": PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64; break;
+                case "armv7": PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARMv7; break;
+            }
+            Debug.Log($"[Cargo Sort] Size settings: stripping Medium, engine stripping on, IL2CPP size build, CPU {PlayerSettings.Android.targetArchitectures}");
         }
 
         /// <summary>
