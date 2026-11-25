@@ -535,5 +535,17 @@ namespace CargoSort.Tests
             Assert.IsTrue(session.Undo());
             Assert.AreEqual(0, session.State.Columns[0][0]);
         }
-    }
+    
+        [Test]
+        public void RatePromptTiming()
+        {
+            Assert.IsFalse(RatePrompt.ShouldAsk(RatePrompt.FirstLevel - 1, 0, 0, false));
+            Assert.IsTrue(RatePrompt.ShouldAsk(RatePrompt.FirstLevel, 0, 0, false));
+            Assert.IsFalse(RatePrompt.ShouldAsk(0, 0, 0, false), "the daily challenge never asks");
+            Assert.IsFalse(RatePrompt.ShouldAsk(20, 1, 8, false), "too soon after Later");
+            Assert.IsTrue(RatePrompt.ShouldAsk(8 + RatePrompt.Gap, 1, 8, false));
+            Assert.IsFalse(RatePrompt.ShouldAsk(200, RatePrompt.MaxAsks, 100, false), "asked enough");
+            Assert.IsFalse(RatePrompt.ShouldAsk(200, 1, 8, true), "rated or said no thanks");
+        }
+}
 }

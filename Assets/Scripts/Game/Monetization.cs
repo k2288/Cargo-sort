@@ -130,6 +130,25 @@ namespace CargoSort.Game
         private const string LevelKey = "level";
         private const string AdsRemovedKey = "ads_removed";
 
+        /// <summary>The "rate us" prompt: times shown, level at which it was last shown, and whether it is finished.</summary>
+        public static int RateAsks
+        {
+            get => PlayerPrefs.GetInt("rate_asks", 0);
+            set { PlayerPrefs.SetInt("rate_asks", value); PlayerPrefs.Save(); }
+        }
+
+        public static int RateLastLevel
+        {
+            get => PlayerPrefs.GetInt("rate_last_level", 0);
+            set { PlayerPrefs.SetInt("rate_last_level", value); PlayerPrefs.Save(); }
+        }
+
+        public static bool RateDone
+        {
+            get => PlayerPrefs.GetInt("rate_done", 0) == 1;
+            set { PlayerPrefs.SetInt("rate_done", value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
         public static int Coins
         {
             get => PlayerPrefs.GetInt("coins", 0);

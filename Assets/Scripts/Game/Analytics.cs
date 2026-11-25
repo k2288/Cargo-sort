@@ -116,6 +116,10 @@ namespace CargoSort.Game
 
         public static void RushResult(int rank) => Send("rush_result", new Dictionary<string, object> { { "rank", rank } });
 
+        /// <summary>answer: yes, later, never (the "rate us" popup) or settings (the Rate button in Settings).</summary>
+        public static void Rate(string answer) =>
+            Send("rate", new Dictionary<string, object> { { "answer", answer }, { "level", LevelId(level) } });
+
         public static void Tutorial(string step) => Send("tutorial", new Dictionary<string, object> { { "step", step } });
 
         public static void DailyGift(int streak, bool doubled) =>

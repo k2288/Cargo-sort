@@ -15,7 +15,7 @@ namespace CargoSort.Game
     public sealed partial class Hud : MonoBehaviour
     {
         public event Action Restart, Revive, Retry, LoseUndo, OpenShop, Challenge, ToggleSound, ToggleVibration,
-            ToggleLanguage, GoHome, Play, OpenChest, OpenStarter, RestorePurchases, Privacy, RewardClaimed;
+            ToggleLanguage, GoHome, Play, OpenChest, OpenStarter, RestorePurchases, Privacy, RewardClaimed, RateYes, RateLater, RateNever;
         public event Action<bool> ClaimWin;   // true = x3 with ad
         public event Action<bool> ClaimDaily; // true = x2 with ad
         public event Action<Booster> BoosterTapped;
@@ -41,7 +41,7 @@ namespace CargoSort.Game
         private Text levelText, trucksText, coinsText, toastText, tipText, craneTipText;
         private Text winTitle, winReward, winStreak, winPiggy, dailyTitle, dailyReward, loseWarn;
         private GameObject tip, toast, winPanel, losePanel, dailyPanel, settingsPanel, rewardPanel, craneTip, gameRow, winChips;
-        private GameObject topLeft, titleBox, boosterBar, restoreButton, privacyButton;
+        private GameObject topLeft, titleBox, boosterBar, restoreButton, privacyButton, rateButton;
         private RectTransform coinPill, rewardItems;
         private Text rewardTitle;
         private Candy soundSwitch, vibeSwitch;
@@ -52,7 +52,7 @@ namespace CargoSort.Game
 
         public bool PanelOpen =>
             winPanel.activeSelf || losePanel.activeSelf || dailyPanel.activeSelf || settingsPanel.activeSelf || rewardPanel.activeSelf || devPanel.activeSelf ||
-            shopPanel.activeSelf || TourOpen || RushOpen || starterPanel.activeSelf || homePanel.activeSelf || SplashVisible;
+            shopPanel.activeSelf || TourOpen || RushOpen || starterPanel.activeSelf || homePanel.activeSelf || SplashVisible || ratePanel.activeSelf;
 
         public bool HomeVisible => homePanel != null && homePanel.activeSelf;
 
@@ -89,6 +89,7 @@ namespace CargoSort.Game
             BuildSettings(safe);
             BuildStarterPanel(safe);
             BuildRewardPanel(safe);
+            BuildRatePanel(safe);
             BuildDevPanel(safe);
             BuildToast(safe);
             BuildSplash(safe);      // on top of everything; only shown by ShowSplash at start-up
@@ -417,6 +418,9 @@ namespace CargoSort.Game
             var privacy = MakeCandy(box, Quiet, () => Privacy?.Invoke(), Loc.T("privacy"), 36, null, 0, 30);
             Anchor(privacy.Root, new Vector2(0.5f, 0.5f), new Vector2(207, -360), new Vector2(390, 110));
             privacyButton = privacy.Root.gameObject;
+            var rate = MakeCandy(box, Yellow, () => { settingsPanel.SetActive(false); RateYes?.Invoke(); }, Loc.T("rate_us"), 36, null, 0, 30);
+            Anchor(rate.Root, new Vector2(0.5f, 0.5f), new Vector2(0, -360), new Vector2(390, 110));
+            rateButton = rate.Root.gameObject;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             var dev = MakeCandy(box, Purple, () => { settingsPanel.SetActive(false); ShowDevPanel(); }, "DEV", 34, null, 0, 30);
             Anchor(dev.Root, new Vector2(0, 1), new Vector2(110, -70), new Vector2(150, 90));
@@ -462,6 +466,16 @@ namespace CargoSort.Game
             gameRow.SetActive(!HomeVisible);
             restoreButton.SetActive(MonetizationServices.PurchasesEnabled);
             privacyButton.SetActive(!string.IsNullOrEmpty(Economy.PrivacyUrl));
+            // Spread the visible bottom buttons (Rate, Restore, Privacy) over the row.
+            var shown = new List<GameObject>();
+            foreach (var b in new[] { rateButton, restoreButton, privacyButton }) if (b.activeSelf) shown.Add(b);
+            float w = shown.Count >= 3 ? 260 : 390, step = w + 20;
+            for (int i = 0; i < shown.Count; i++)
+            {
+                var rt = (RectTransform)shown[i].transform;
+                rt.sizeDelta = new Vector2(w, 110);
+                rt.anchoredPosition = new Vector2((i - (shown.Count - 1) / 2f) * step, -360);
+            }
         }
 
         private static void SetSwitch(Candy sw, bool on)

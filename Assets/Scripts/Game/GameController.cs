@@ -89,6 +89,9 @@ namespace CargoSort.Game
             hud.ToggleLanguage += OnToggleLanguage;
             hud.RestorePurchases += OnRestorePurchases;
             hud.Privacy += () => Application.OpenURL(Economy.PrivacyUrl);
+            hud.RateYes += () => { Progress.RateDone = true; Analytics.Rate("yes"); StoreReview.Open(); };
+            hud.RateLater += () => Analytics.Rate("later");
+            hud.RateNever += () => { Progress.RateDone = true; Analytics.Rate("never"); };
             hud.DevGoToLevel += OnDevGoToLevel;
             hud.DevAddCoins += () => AddCoins(1000);
             hud.Build();
@@ -583,6 +586,15 @@ namespace CargoSort.Game
                 return;
             }
             int next = level + 1;
+            if (RatePrompt.ShouldAsk(level, Progress.RateAsks, Progress.RateLastLevel, Progress.RateDone))
+            {
+                // Ask for a rating instead of showing an interstitial after this level.
+                Progress.RateAsks++;
+                Progress.RateLastLevel = level;
+                StartLevel(next);
+                hud.ShowRate();
+                return;
+            }
             bool showAd = allowInterstitial && !Progress.AdsRemoved &&
                           next >= FirstInterstitialLevel && (next - FirstInterstitialLevel) % InterstitialEveryLevels == 0;
             if (!showAd)
