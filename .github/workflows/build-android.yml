@@ -102,7 +102,8 @@ jobs:
       - name: APK size
         shell: bash
         run: |
-          for f in $(find build/Android -name '*.apk'); do
+          # With one APK per CPU type, Unity puts the APKs in a folder; file names can contain spaces.
+          find build/Android -type f -name '*.apk' -print0 | while IFS= read -r -d '' f; do
             size=$(du -h "$f" | cut -f1); echo "$f: $size"; echo "APK size: **$size** ($(basename "$f"))" >> "$GITHUB_STEP_SUMMARY"
           done
 
