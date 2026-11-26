@@ -131,7 +131,7 @@ Then add analytics (level start, win, lose, ad watched) so we can tune difficult
 
 ## APK size
 
-`BuildScript.ApplySizeSettings` strips unused engine and .NET code (Medium stripping, `Assets/link.xml` keeps SDK code) and compiles IL2CPP for size. The build workflow has a **cpu** choice: `both` (default, every phone), `arm64` (64-bit phones only, about half the native code) or `armv7`. The run summary shows the APK size.
+`BuildScript.ApplySizeSettings` strips unused engine and .NET code (Medium stripping, `Assets/link.xml` keeps SDK code) and compiles IL2CPP for size. The build workflow has a **cpu** choice: `split` (default: two APKs, one per CPU type, uploaded together in one Cafe Bazaar release), `both` (one APK for every phone), `arm64` (64-bit phones only, about half the native code) or `armv7`. The run summary shows the APK size.
 
 ## Rate prompt
 

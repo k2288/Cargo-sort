@@ -11,10 +11,10 @@ on:
         default: bazaar
         options: [bazaar, myket, googleplay, all]
       cpu:
-        description: "CPU types: both (works on every phone), arm64 (64-bit phones only, smaller) or armv7 (old 32-bit phones only)"
+        description: "split = two smaller APKs, one per CPU type (upload both in one Bazaar release); both = one APK for every phone; arm64 / armv7 = one CPU type only"
         type: choice
-        default: both
-        options: [both, arm64, armv7]
+        default: split
+        options: [split, both, arm64, armv7]
   push:
     tags: ["v*"]
 
