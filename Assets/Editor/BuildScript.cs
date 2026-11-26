@@ -43,8 +43,10 @@ namespace CargoSort.EditorTools
                 scenes = new[] { "Assets/Scenes/Main.unity" },
                 locationPathName = path,
                 target = BuildTarget.Android,
-                options = BuildOptions.None,
+                // "-devBuild true": a development build. It shows purchase and error messages on screen (DevLog.cs).
+                options = Arg("-devBuild") == "true" ? BuildOptions.Development : BuildOptions.None,
             };
+            if (options.options != BuildOptions.None) Debug.Log("[Cargo Sort] Development build: errors are shown on screen");
             var report = BuildPipeline.BuildPlayer(options);
             Debug.Log($"[Cargo Sort] Build {report.summary.result}: {path} ({report.summary.totalSize / (1024 * 1024)} MB)");
 

@@ -19,13 +19,14 @@ public sealed class BazaarStore : IStoreBackend
 
     public void Begin()
     {
+        Debug.Log($"[IAP] Bazaar start: package {Application.identifier}, version {Application.version}, RSA key length {AdsConfig.BazaarRsaPublicKey.Length}");
         try
         {
             payment = new Payment(new PaymentConfiguration(SecurityCheck.Enable(AdsConfig.BazaarRsaPublicKey)));
         }
         catch (Exception e)
         {
-            Debug.LogWarning("[IAP] Bazaar not available: " + e.Message);
+            Debug.LogWarning("[IAP] Bazaar not available: " + e);
             return;
         }
         Restore();
@@ -38,6 +39,7 @@ public sealed class BazaarStore : IStoreBackend
             if (payment == null || !await Connect()) return;
 
             var owned = await payment.GetPurchases();
+            Debug.Log($"[IAP] Bazaar owned purchases: {owned.status} {owned.message} ({owned.data?.Count ?? 0})");
             if (owned.status != Status.Success || owned.data == null) return;
             foreach (var p in owned.data)
             {
@@ -61,9 +63,11 @@ public sealed class BazaarStore : IStoreBackend
     private async System.Threading.Tasks.Task<bool> Connect()
     {
         if (connected) return true;
+        Debug.Log("[IAP] Bazaar connecting...");
         var result = await payment.Connect();
         connected = result.status == Status.Success;
-        if (!connected) Debug.LogWarning("[IAP] Bazaar connect: " + result.status + " " + result.message);
+        if (!connected) Debug.LogWarning("[IAP] Bazaar connect failed: " + result.status + " " + result.message + " " + result.stackTrace);
+        else Debug.Log("[IAP] Bazaar connected");
         return connected;
     }
 
@@ -71,14 +75,20 @@ public sealed class BazaarStore : IStoreBackend
     {
         try
         {
+            Debug.Log($"[IAP] Bazaar buy {productId} (consumable: {consumable})");
             if (payment == null || !await Connect())
             {
+                Debug.LogWarning("[IAP] Bazaar buy stopped: " + (payment == null ? "payment not created (see start error)" : "not connected"));
                 onDone?.Invoke(false);
                 return;
             }
+            var sku = await payment.GetSkuDetails(productId);
+            Debug.Log($"[IAP] Bazaar product {productId}: {sku.status} {sku.message} (found {sku.data?.Count ?? 0})");
             var result = await payment.Purchase(productId);
+            Debug.Log($"[IAP] Bazaar purchase result: {result.status} {result.message}");
             if (result.status != Status.Success)
             {
+                Debug.LogWarning($"[IAP] Bazaar purchase failed: {result.status} {result.message} {result.stackTrace}");
                 onDone?.Invoke(false);
                 return;
             }
@@ -92,7 +102,7 @@ public sealed class BazaarStore : IStoreBackend
         }
         catch (Exception e)
         {
-            Debug.LogWarning("[IAP] Bazaar purchase failed: " + e.Message);
+            Debug.LogWarning("[IAP] Bazaar purchase failed: " + e);
             onDone?.Invoke(false);
         }
     }
