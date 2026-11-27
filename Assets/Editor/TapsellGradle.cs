@@ -28,9 +28,14 @@ namespace CargoSort.EditorTools
             {
                 AddJitPack(Path.GetDirectoryName(unityLibraryPath));
                 AddDependency(unityLibraryPath, PoolakeyDependency);
+                // The Unity payment bridge (poolakey-release.aar) is compiled with a recent Kotlin and uses enum entries
+                // (kotlin.enums.EnumEntriesKt). Poolakey 2.0.0 only brings Kotlin 1.7, so without this the purchase fails with
+                // NoClassDefFoundError: kotlin/enums/EnumEntriesKt. Gradle uses the highest version it finds.
+                AddDependency(unityLibraryPath, KotlinStdlib);
             }
         }
 
+        private const string KotlinStdlib = "org.jetbrains.kotlin:kotlin-stdlib:1.9.24";
         private const string PoolakeyDependency = "com.github.cafebazaar.Poolakey:poolakey:2.0.0";
 
         private static void AddDependency(string unityLibraryPath, string dependency)
