@@ -23,6 +23,8 @@ docker run -d --name cargo -p 8080:8080 -v cargo-data:/data --restart unless-sto
 
 The database is one file, `/data/cargo.db`, on the `cargo-data` volume. Back that file up.
 
+If the host mounts a disk at `/data` owned by root, the container fixes the folder's owner when it starts (so "unable to open database file" should not happen). If it still does, make sure a writable disk or volume is mounted at `/data`.
+
 Most Iranian cloud hosts (for example Liara or ArvanCloud) can run this Dockerfile directly. Put the
 server behind HTTPS (the host usually gives you a domain with a certificate), set `TRUST_PROXY=1`
 when it runs behind their proxy, and keep one instance (SQLite is a single file).
