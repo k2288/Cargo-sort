@@ -19,6 +19,10 @@ on:
         description: "Development build: shows purchase and error messages on screen (for testing, do not publish)"
         type: boolean
         default: false
+      aab:
+        description: "Build an .aab (Android App Bundle, one file for both CPU types) instead of APKs; the CPU choice above is ignored"
+        type: boolean
+        default: false
   push:
     tags: ["v*"]
 
@@ -92,7 +96,7 @@ jobs:
           targetPlatform: Android
           buildName: CargoSort
           buildMethod: CargoSort.EditorTools.BuildScript.BuildAndroid
-          customParameters: -store ${{ matrix.store }} -abi ${{ inputs.cpu || 'both' }} -devBuild ${{ inputs.development || false }}
+          customParameters: -store ${{ matrix.store }} -abi ${{ inputs.aab && 'both' || inputs.cpu || 'both' }} -devBuild ${{ inputs.development || false }} -aab ${{ inputs.aab || false }}
           # Release signing (optional). Without these secrets the APK is debug-signed for testing.
           androidKeystoreName: release.keystore
           androidKeystorePass: ${{ secrets.ANDROID_KEYSTORE_PASS }}
@@ -107,12 +111,12 @@ jobs:
         shell: bash
         run: |
           # With one APK per CPU type, Unity puts the APKs in a folder; file names can contain spaces.
-          find build/Android -type f -name '*.apk' -print0 | while IFS= read -r -d '' f; do
+          find build/Android -type f \( -name '*.apk' -o -name '*.aab' \) -print0 | while IFS= read -r -d '' f; do
             size=$(du -h "$f" | cut -f1); echo "$f: $size"; echo "APK size: **$size** ($(basename "$f"))" >> "$GITHUB_STEP_SUMMARY"
           done
 
       - uses: actions/upload-artifact@v4
         with:
-          name: CargoSort-${{ matrix.store }}-${{ inputs.cpu || 'both' }}${{ inputs.development && '-DEV' || '' }}-apk
+          name: CargoSort-${{ matrix.store }}-${{ inputs.aab && 'aab' || inputs.cpu || 'both' }}${{ inputs.development && '-DEV' || '' }}-${{ inputs.aab && 'aab' || 'apk' }}
           path: build/Android
           if-no-files-found: error

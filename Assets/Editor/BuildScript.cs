@@ -17,7 +17,9 @@ namespace CargoSort.EditorTools
 
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64 | AndroidArchitecture.ARMv7;
-            EditorUserBuildSettings.buildAppBundle = false;
+            // "-aab true" builds an Android App Bundle (.aab) instead of APKs; one file holds both CPU types and the store splits it.
+            bool aab = Arg("-aab") == "true";
+            EditorUserBuildSettings.buildAppBundle = aab;
             ApplySizeSettings();
             ApplyVersionAndSigning();
             AppIcons.Apply();
@@ -30,9 +32,10 @@ namespace CargoSort.EditorTools
                 case "googleplay": StoreTarget.Set(null); break;
             }
 
-            string file = $"CargoSort-{StoreTarget.Current}.apk";
+            string ext = aab ? ".aab" : ".apk";
+            string file = $"CargoSort-{StoreTarget.Current}{ext}";
             string path = Arg("-customBuildPath") ?? "Builds/Android/" + file;
-            if (Directory.Exists(path) || !path.EndsWith(".apk", StringComparison.OrdinalIgnoreCase))
+            if (Directory.Exists(path) || !path.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
                 path = Path.Combine(path, file);
             else
                 path = Path.Combine(Path.GetDirectoryName(path) ?? ".", file);
