@@ -69,6 +69,10 @@ namespace CargoSort.EditorTools
             PlayerSettings.SetIl2CppCodeGeneration(android, Il2CppCodeGeneration.OptimizeSize);
             PlayerSettings.SetIl2CppCompilerConfiguration(android, Il2CppCompilerConfiguration.Master);
             PlayerSettings.stripUnusedMeshComponents = true;
+            // No Java shrinking (R8): it can remove Poolakey/Kotlin classes that Cafe Bazaar purchases load by name,
+            // and only release builds shrink, so a purchase could work in a development build and fail in the release.
+            PlayerSettings.Android.minifyRelease = false;
+            PlayerSettings.Android.minifyDebug = false;
             PlayerSettings.Android.buildApkPerCpuArchitecture = false;
             // The Rush Week server (RushOnline.ServerUrl) has no HTTPS, and Android blocks plain http:// by default.
             PlayerSettings.insecureHttpOption = InsecureHttpOption.AlwaysAllowed;
