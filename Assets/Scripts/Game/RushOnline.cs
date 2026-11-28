@@ -14,7 +14,7 @@ namespace CargoSort.Game
     public static class RushOnline
     {
         /// <summary>Your server's address, e.g. "https://cargo.example.ir" (no slash at the end). Empty = offline.</summary>
-        public const string ServerUrl = "";
+        public const string ServerUrl = "http://nexo.ir:8070";
 
         public static bool Enabled => !string.IsNullOrEmpty(ServerUrl);
 

@@ -70,6 +70,8 @@ namespace CargoSort.EditorTools
             PlayerSettings.SetIl2CppCompilerConfiguration(android, Il2CppCompilerConfiguration.Master);
             PlayerSettings.stripUnusedMeshComponents = true;
             PlayerSettings.Android.buildApkPerCpuArchitecture = false;
+            // The Rush Week server (RushOnline.ServerUrl) has no HTTPS, and Android blocks plain http:// by default.
+            PlayerSettings.insecureHttpOption = InsecureHttpOption.AlwaysAllowed;
 
             switch (Arg("-abi"))
             {
