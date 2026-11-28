@@ -124,6 +124,26 @@ namespace CargoSort.Game
             how.color = new Color(1, 1, 1, 0.88f);
             Anchor(how.rectTransform, new Vector2(0.5f, 0), new Vector2(0, 60), new Vector2(900, 80));
 
+            // The player's name on the leaderboard, with a button to change it
+            if (RushOnline.Enabled)
+            {
+                var nameCard = Card(RushRow(130), PanelLight);
+                var label = MakeText(nameCard, Loc.T("name_label"), 28, TextAnchor.MiddleLeft);
+                label.color = Muted;
+                label.rectTransform.anchorMin = label.rectTransform.anchorMax = new Vector2(0, 0.5f);
+                label.rectTransform.pivot = new Vector2(0, 0.5f);
+                label.rectTransform.anchoredPosition = new Vector2(40, 30);
+                label.rectTransform.sizeDelta = new Vector2(560, 44);
+                string shown = string.IsNullOrEmpty(RushOnline.Name) ? Loc.T("you") : ShapeName(RushOnline.Name);
+                var nm = MakeText(nameCard, shown, 46, TextAnchor.MiddleLeft, Art.DisplayFont);
+                nm.rectTransform.anchorMin = nm.rectTransform.anchorMax = new Vector2(0, 0.5f);
+                nm.rectTransform.pivot = new Vector2(0, 0.5f);
+                nm.rectTransform.anchoredPosition = new Vector2(40, -22);
+                nm.rectTransform.sizeDelta = new Vector2(600, 70);
+                var change = MakeCandy(nameCard, Yellow, ShowNamePanel, Loc.T("name_change"), 38, null, 0, 32);
+                Anchor(change.Root, new Vector2(1, 0.5f), new Vector2(-140, 0), new Vector2(240, 100));
+            }
+
             // Reward track
             RushTitle(Loc.T("rush_track"));
             for (int i = 0; i < RushWeek.Track.Length; i++)
@@ -162,7 +182,7 @@ namespace CargoSort.Game
                 // Online group: real players, with computer rivals in the empty seats.
                 var online = RushOnline.Current.rows;
                 for (int i = 0; i < online.Length; i++)
-                    RushStanding(i + 1, online[i].me, online[i].me ? Loc.T("you") : ShapeName(online[i].name), online[i].points, online[i].bot);
+                    RushStanding(i + 1, online[i].me, online[i].me && string.IsNullOrEmpty(online[i].name) ? Loc.T("you") : ShapeName(online[i].name), online[i].points, online[i].bot);
                 RushNote(Loc.T("rush_online_note")).rectTransform.parent.GetComponent<LayoutElement>().preferredHeight = 110;
             }
             else

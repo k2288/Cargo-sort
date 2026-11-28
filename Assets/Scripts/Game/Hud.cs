@@ -16,6 +16,7 @@ namespace CargoSort.Game
     {
         public event Action Restart, Revive, Retry, LoseUndo, OpenShop, Challenge, ToggleSound, ToggleVibration,
             ToggleLanguage, GoHome, Play, OpenChest, OpenStarter, RestorePurchases, Privacy, RewardClaimed, RateYes, RateLater, RateNever;
+        public event Action<string> RenamePlayer;
         public event Action<bool> ClaimWin;   // true = x3 with ad
         public event Action<bool> ClaimDaily; // true = x2 with ad
         public event Action<Booster> BoosterTapped;
@@ -52,7 +53,7 @@ namespace CargoSort.Game
 
         public bool PanelOpen =>
             winPanel.activeSelf || losePanel.activeSelf || dailyPanel.activeSelf || settingsPanel.activeSelf || rewardPanel.activeSelf || devPanel.activeSelf ||
-            shopPanel.activeSelf || TourOpen || RushOpen || starterPanel.activeSelf || homePanel.activeSelf || SplashVisible || ratePanel.activeSelf;
+            shopPanel.activeSelf || TourOpen || RushOpen || starterPanel.activeSelf || homePanel.activeSelf || SplashVisible || ratePanel.activeSelf || namePanel.activeSelf;
 
         public bool HomeVisible => homePanel != null && homePanel.activeSelf;
 
@@ -90,6 +91,7 @@ namespace CargoSort.Game
             BuildStarterPanel(safe);
             BuildRewardPanel(safe);
             BuildRatePanel(safe);
+            BuildNamePanel(safe);
             BuildDevPanel(safe);
             BuildToast(safe);
             BuildSplash(safe);      // on top of everything; only shown by ShowSplash at start-up

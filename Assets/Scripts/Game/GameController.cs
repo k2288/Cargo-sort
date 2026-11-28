@@ -72,6 +72,11 @@ namespace CargoSort.Game
             hud.OpenRush += OnOpenRush;
             RushOnline.Changed += () => { hud.RefreshRush(); };
             hud.ClaimRush += OnClaimRush;
+            hud.RenamePlayer += name => StartCoroutine(RushOnline.Rename(name, ok =>
+            {
+                hud.Toast(Loc.T(ok ? "name_saved" : "name_bad"));
+                hud.RefreshRush();
+            }));
             hud.BuildLandmark += OnBuildLandmark;
             hud.OpenChest += OnOpenChest;
             hud.OpenStarter += () => { Analytics.Offer("starter", "shown"); hud.ShowStarter(true); };
