@@ -23,12 +23,17 @@ namespace CargoSort.Game
             var hint = MakeText(field.rectTransform, Loc.T("name_hint"), 44, TextAnchor.MiddleCenter);
             hint.color = new Color(1, 1, 1, 0.35f);
             Stretch(hint.rectTransform);
+            // Img and MakeText turn raycasting off (they are decoration); an input field must receive the tap.
+            field.raycastTarget = true;
+            entered.raycastTarget = true;
+            hint.raycastTarget = true;
             nameInput = field.gameObject.AddComponent<InputField>();
             nameInput.targetGraphic = field;
             nameInput.textComponent = entered;
             nameInput.placeholder = hint;
             nameInput.characterLimit = 16;
             nameInput.lineType = InputField.LineType.SingleLine;
+            nameInput.shouldHideMobileInput = false;
 
             var rules = MakeText(box, Loc.T("name_rules"), 32, TextAnchor.MiddleCenter);
             rules.color = Muted;
